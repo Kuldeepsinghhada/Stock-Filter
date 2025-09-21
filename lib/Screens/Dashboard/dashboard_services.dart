@@ -3,7 +3,9 @@ import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
+import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 
@@ -13,6 +15,8 @@ class DashboardService {
 
   // Singleton instance
   static final DashboardService instance = DashboardService._internal();
+
+  List<StockModel> finalList = [];
 
   final String apiKey = 'ddjw8yq0ow1zd9ds';
   String accessToken = '';
@@ -146,7 +150,7 @@ class DashboardService {
               log("Historical Data URL: ${stock.symbol}");
             }
             return StockModel(
-              symbol: stock.symbol,
+              symbol: stock.symbol?.replaceAll("NSE:", ""),
               name: stock.name,
               token: stock.token,
               sector: stock.sector,
@@ -177,7 +181,43 @@ class DashboardService {
         await Future.delayed(const Duration(seconds: 1));
       }
     }
-    return enrichedQuoteList;
+
+    // Final filter: percent change >= 2%
+    finalList =
+        enrichedQuoteList.where((stock) {
+          final percentChange =
+              ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) *
+              100;
+          return percentChange >= 2.0;
+        }).toList();
+
+    List<NotificationModel> notificationsList =
+        await SharedPreferenceHelper.instance.getNotificationList();
+
+    List<String> newStockSymbols = [];
+    for (var stock in finalList) {
+      bool exists = notificationsList.any(
+        (n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.toUpperCase()) ?? false,
+      );
+      if (!exists) {
+        newStockSymbols.add(stock.symbol!);
+      }
+    }
+
+    // Add new notifications
+    if (newStockSymbols.isNotEmpty) {
+      notificationsList.add(
+        NotificationModel(
+          stocksNameList: newStockSymbols.join(','),
+          time: DateTime.now().toString(),
+        ),
+      );
+    }
+    // Save updated notifications list
+    await SharedPreferenceHelper.instance.saveNotificationList(
+      notificationsList,
+    );
+    return finalList;
   }
 
   Future<List<HistoricalDataModel>?> fetchHistoricalData(

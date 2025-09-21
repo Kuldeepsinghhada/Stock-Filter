@@ -10,6 +10,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/utilities.dart';
 
+import 'Screens/Notification/notification_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadStocksList();
@@ -27,6 +29,7 @@ class TradingPrototype extends StatelessWidget {
       home: const ZerodhaLoginPage(),
       routes: {
         '/dashboard': (context) => const DashboardScreen(),
+        '/notifications': (context) => NotificationScreen(),
       },
     );
   }

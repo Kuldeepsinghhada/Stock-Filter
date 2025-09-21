@@ -58,18 +58,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           .contains(searchQuery.toLowerCase()),
                 )
                 .toList();
-    // Now filter by percent change >= 2%
-    return filtered.where((stock) {
-      if (stock.ohlc != null &&
-          stock.ohlc!.open != null &&
-          stock.ohlc!.open != 0 &&
-          stock.lastPrice != null) {
-        final percentChange =
-            ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) * 100;
-        return percentChange >= 2.0;
-      }
-      return false;
-    }).toList();
+    return filtered;
   }
 
   @override
@@ -92,6 +81,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: _fetchQuotesFromService,
                 tooltip: 'Refresh',
               ),
+          IconButton(onPressed: (){
+            Navigator.pushNamed(context, '/notifications');
+          }, icon: Icon(Icons.notifications))
         ],
       ),
       body: Column(
