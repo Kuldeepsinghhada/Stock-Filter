@@ -230,7 +230,6 @@ class DashboardService {
 
     final url =
         "https://api.kite.trade/instruments/historical/$instrumentToken/$interval?from=$from&to=$to";
-    print("CALL : $url");
     final response = await http.get(
       Uri.parse(url),
       headers: {
