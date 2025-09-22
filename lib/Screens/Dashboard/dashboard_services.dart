@@ -37,7 +37,6 @@ class DashboardService {
     final int batchSize = 500;
     final List<String?> allSymbols = symbols.whereType<String>().toList();
     List<StockModel> allQuotes = [];
-    print(allSymbols.length);
     for (int i = 0; i < allSymbols.length; i += batchSize) {
       final batch = allSymbols.skip(i).take(batchSize).toList();
       final String batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
@@ -85,37 +84,7 @@ class DashboardService {
     }
     List<StockModel> quoteList =
         allQuotes.where((stock) {
-          final lastPrice = stock.lastPrice;
-          final lowerLimit = stock.lowerCircuitLimit;
-          final upperLimit = stock.upperCircuitLimit;
-          final ohlc = stock.ohlc;
-          final close = ohlc?.close;
-          double? percentChange = 0;
-          if (stock.ohlc != null &&
-              stock.ohlc!.open != null &&
-              stock.ohlc!.open != 0 &&
-              stock.lastPrice != null) {
-            percentChange =
-                ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) *
-                100;
-          }
-
-          print(
-            "Filtered Stock: ${stock.symbol}, Last Price: $lastPrice, Volume: ${stock.volume}, Percent Change: $percentChange",
-          );
-
-          return lastPrice != null &&
-              lastPrice > 95 &&
-              lastPrice < 1500 &&
-              lowerLimit != null &&
-              upperLimit != null &&
-              lastPrice > lowerLimit &&
-              lastPrice < upperLimit &&
-              close != null &&
-              lastPrice > close &&
-              percentChange > 1.0 &&
-              stock.volume != null;
-          //stock.volume! > 1000
+          return FilterUtils.isTradable(stock);
         }).toList();
     log("Filtered Quotes Count: ${quoteList.length}");
 
@@ -126,29 +95,17 @@ class DashboardService {
       final batch = quoteList.skip(i).take(maxCallsPerSecond).toList();
       final batchResults = await Future.wait(
         batch.map((stock) async {
-          final historicalData = await fetchHistoricalData(
+          final historyFiveMin = await fetchHistoricalData(
             int.tryParse(stock.token.toString()) ?? 0,
           );
-          // Parse highs, lows, closes, volumes from historicalData
-          List<double> highs =
-              historicalData?.map((e) => e.high).toList() ?? [];
-          List<double> lows = historicalData?.map((e) => e.low).toList() ?? [];
-          List<double> closes =
-              historicalData?.map((e) => e.close).toList() ?? [];
-          List<int> volumes =
-              historicalData?.map((e) => e.volume).toList() ?? [];
-          bool isPass = FilterUtils.passesFilter(
-            highs,
-            lows,
-            closes,
-            volumes,
-            stock.token.toString(),
+
+          // -------------- Check On Multi Time Frame ----------------
+          bool isPass = await FilterUtils.isPassAllTimeFrame(
+            historyFiveMin,
+            stock,
           );
 
           if (isPass) {
-            if (stock.token == 5138177) {
-              log("Historical Data URL: ${stock.symbol}");
-            }
             return StockModel(
               symbol: stock.symbol?.replaceAll("NSE:", ""),
               name: stock.name,
@@ -169,7 +126,7 @@ class DashboardService {
               lowerCircuitLimit: stock.lowerCircuitLimit,
               upperCircuitLimit: stock.upperCircuitLimit,
               ohlc: stock.ohlc,
-              historicalData: historicalData,
+              historyFiveMin: historyFiveMin,
             );
           } else {
             return null;
@@ -191,13 +148,19 @@ class DashboardService {
           return percentChange >= 2.0;
         }).toList();
 
+    // ------------Notification Process---------------
+
     List<NotificationModel> notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
 
     List<String> newStockSymbols = [];
     for (var stock in finalList) {
       bool exists = notificationsList.any(
-        (n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.toUpperCase()) ?? false,
+        (n) =>
+            n.stocksNameList?.toUpperCase().contains(
+              stock.symbol!.toUpperCase(),
+            ) ??
+            false,
       );
       if (!exists) {
         newStockSymbols.add(stock.symbol!);
@@ -225,13 +188,23 @@ class DashboardService {
   ) async {
     final String interval = "5minute";
 
-    DateTime getLastWorkingDay(DateTime today) {
-      if (today.weekday == DateTime.saturday) {
-        return today.subtract(const Duration(days: 1)); // Friday
-      } else if (today.weekday == DateTime.sunday) {
-        return today.subtract(const Duration(days: 2)); // Friday
-      } else {
-        return today; // Weekday
+    DateTime getLastWorkingDay(DateTime now) {
+      // Saturday → Friday
+      if (now.weekday == DateTime.saturday) {
+        return now.subtract(const Duration(days: 1));
+      }
+      // Sunday → Friday
+      else if (now.weekday == DateTime.sunday) {
+        return now.subtract(const Duration(days: 2));
+      }
+      // Monday before 9:05 AM → Friday
+      else if (now.weekday == DateTime.monday &&
+          (now.hour < 9 || (now.hour == 9 && now.minute < 5))) {
+        return now.subtract(const Duration(days: 3));
+      }
+      // Otherwise → same day
+      else {
+        return now;
       }
     }
 
@@ -248,7 +221,7 @@ class DashboardService {
       return date;
     }
 
-    DateTime today = DateTime.now();
+    DateTime today = getLastWorkingDay(DateTime.now());
     final DateTime fromDate = getBusinessDaysAgo(today, 10);
     final String from =
         "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}";

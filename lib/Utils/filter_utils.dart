@@ -1,3 +1,8 @@
+import 'package:flutter/cupertino.dart';
+import 'package:stock_demo/Utils/data_resample.dart';
+import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/model/stock_model.dart';
+
 import 'indicators.dart';
 
 class FilterUtils {
@@ -8,7 +13,6 @@ class FilterUtils {
     List<int> volumes,
     String token,
   ) {
-
     bool aboveEma20 = IndicatorUtils.isAboveEMA(closes, 20);
     bool rsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
 
@@ -69,6 +73,137 @@ class FilterUtils {
         aboveSupertrend &&
         adxRes["plusGreater"]!;
   }
+
+  static Future<bool> isPassAllTimeFrame(
+    List<HistoricalDataModel>? historyCandles,
+    StockModel stock,
+  ) async {
+    final is5MinPass = await isPassHistoryChart(historyCandles, stock, 5);
+    final is15MinPass = await isPassHistoryChart(
+      resampleCandles(historyCandles ?? [], Duration(minutes: 15)),
+      stock,
+      15,
+    );
+    final is30MinPass = await isPassHistoryChart(
+      resampleCandles(historyCandles ?? [], Duration(minutes: 30)),
+      stock,
+      30,
+    );
+    final is1HourPass = await isPassHistoryChart(
+      resampleCandles(historyCandles ?? [], Duration(minutes: 60)),
+      stock,
+      60,
+    );
+
+    return is5MinPass && is15MinPass && is30MinPass && is1HourPass;
+  }
+
+  static Future<bool> isPassHistoryChart(
+    List<HistoricalDataModel>? historyCandles,
+    StockModel stock,
+    int timeFrame,
+  ) async {
+    // Parse highs, lows, closes, volumes from historicalData
+    List<double> highs = historyCandles?.map((e) => e.high).toList() ?? [];
+    List<double> lows = historyCandles?.map((e) => e.low).toList() ?? [];
+    List<double> closes = historyCandles?.map((e) => e.close).toList() ?? [];
+    List<int> volumes = historyCandles?.map((e) => e.volume).toList() ?? [];
+
+    if (timeFrame == 5) {
+      bool isPass = FilterUtils.passesFilter(
+        highs,
+        lows,
+        closes,
+        volumes,
+        stock.token.toString(),
+      );
+      return isPass;
+    } else if (timeFrame == 15) {
+      // For 15 min, only check EMA and RSI
+      bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
+      bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(historyCandles ?? []);
+      //bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
+      //bool isPass = isEma20 && isRsiOk;
+      return isEma20 && isVolumeBreakout;
+    } else if (timeFrame == 30) {
+      // For 30 min, only check EMA and RSI
+      bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
+      // bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
+      // bool isPass = isEma20 && isRsiOk;
+      return isEma20;
+    } else if (timeFrame == 60) {
+      // For 1 hour, only check EMA and RSI
+      bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
+      // bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
+      // bool isPass = isEma20 && isRsiOk;
+      return isEma20;
+    }
+    return false;
+  }
+
+  static bool isTradable(StockModel stock) {
+    final lastPrice = stock.lastPrice;
+    final lowerLimit = stock.lowerCircuitLimit;
+    final upperLimit = stock.upperCircuitLimit;
+    final ohlc = stock.ohlc;
+    final close = ohlc?.close;
+    final volume = stock.volume;
+    final percentChange =
+        ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) * 100;
+
+    // 🛑 Null checks
+    if (lastPrice == null) {
+      debugPrint("Rejected: lastPrice is null for ${stock.symbol}");
+      return false;
+    }
+    if (close == null) {
+      debugPrint("Rejected: close price is null for ${stock.symbol}");
+      return false;
+    }
+    if (lowerLimit == null || upperLimit == null) {
+      debugPrint("Rejected: circuit limits missing for ${stock.symbol}");
+      return false;
+    }
+    if (volume == null) {
+      debugPrint("Rejected: volume is null for ${stock.symbol}");
+      return false;
+    }
+
+    // ✅ Rule-based checks
+    if (lastPrice <= 95 || lastPrice >= 1500) {
+      debugPrint(
+        "Rejected: price $lastPrice not in [95, 1500] for ${stock.symbol}",
+      );
+      return false;
+    }
+
+    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) {
+      debugPrint(
+        "Rejected: price $lastPrice outside circuit limits [$lowerLimit, $upperLimit] for ${stock.symbol}",
+      );
+      return false;
+    }
+
+    if (lastPrice <= close) {
+      debugPrint(
+        "Rejected: price $lastPrice not greater than close $close for ${stock.symbol}",
+      );
+      return false;
+    }
+
+    if (percentChange <= 1.0) {
+      debugPrint(
+        "Rejected: percent change $percentChange ≤ 1% for ${stock.symbol}",
+      );
+      return false;
+    }
+
+    if (volume <= 1000) {
+      debugPrint("Rejected: low volume $volume ≤ 1000 for ${stock.symbol}");
+      return false;
+    }
+
+    // 🎯 Passed all checks
+    return true;
+  }
 }
-
-

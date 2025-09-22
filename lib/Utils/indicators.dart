@@ -1,3 +1,5 @@
+import 'package:stock_demo/model/historical_data_model.dart';
+
 class IndicatorUtils {
 // ---------- EMA ----------
   static bool isAboveEMA(List<double> prices, int period) {
@@ -72,40 +74,6 @@ class IndicatorUtils {
     return rsi >= min && rsi <= max;
   }
 
-  // static bool isRsiBetween(
-  //     List<double> prices,
-  //     int period,
-  //     double min,
-  //     double max,
-  //     ) {
-  //   if (prices.length < period + 1) return false;
-  //
-  //   final lastPrices = prices.sublist(prices.length - (period + 1));
-  //   List<double> deltas = [];
-  //   for (int i = 1; i < lastPrices.length; i++) {
-  //     deltas.add(lastPrices[i] - lastPrices[i - 1]);
-  //   }
-  //
-  //   // Initial avg gain/loss
-  //   double avgGain =
-  //       deltas.take(period).where((x) => x > 0).fold(0.0, (a, b) => a + b) / period;
-  //   double avgLoss =
-  //       deltas.take(period).where((x) => x < 0).fold(0.0, (a, b) => a + b.abs()) / period;
-  //
-  //   // Wilder smoothing for remaining deltas
-  //   for (int i = period; i < deltas.length; i++) {
-  //     double delta = deltas[i];
-  //     avgGain = (avgGain * (period - 1) + (delta > 0 ? delta : 0)) / period;
-  //     avgLoss = (avgLoss * (period - 1) + (delta < 0 ? delta.abs() : 0)) / period;
-  //   }
-  //
-  //   double rs = avgLoss == 0 ? 100 : avgGain / avgLoss;
-  //   double rsi = 100 - (100 / (1 + rs));
-  //
-  //   return rsi >= min && rsi <= max;
-  // }
-
-  // ---------- ATR ----------
   static double calculateATR(
       List<double> high,
       List<double> low,
@@ -290,4 +258,41 @@ class IndicatorUtils {
     // --- Step 4: Final check ---
     return close.last >= supertrend.last;
   }
+
+  /// Check if latest volume > EMA(volume,20) * 1.2
+  static bool isVolumeBreakout(List<HistoricalDataModel> candles) {
+    if (candles.length < 20) return false;
+
+    // get volume list
+    final volumes = candles.map((c) => c.volume).toList();
+
+    // calculate EMA20 on volume
+    final ema20 = ema(volumes, 20);
+
+    // align because ema list is shorter
+    final latestVolume = volumes.last;
+    final latestEma = ema20.last;
+
+    return latestVolume > latestEma * 1.3;
+  }
+
+  /// Calculate EMA on given values
+  static List<double> ema(List<int> values, int period) {
+    if (values.isEmpty) return [];
+
+    final emaValues = <double>[];
+    final k = 2 / (period + 1);
+
+    // start with SMA for first EMA
+    double sma = values.take(period).reduce((a, b) => a + b) / period;
+    emaValues.add(sma);
+
+    for (int i = period; i < values.length; i++) {
+      double prevEma = emaValues.last;
+      double nextEma = values[i] * k + prevEma * (1 - k);
+      emaValues.add(nextEma);
+    }
+    return emaValues;
+  }
+
 }

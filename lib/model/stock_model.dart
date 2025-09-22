@@ -39,7 +39,10 @@ class StockModel {
   final double? lowerCircuitLimit;
   final double? upperCircuitLimit;
   final Ohlc? ohlc;
-  final List<HistoricalDataModel>? historicalData;
+  final List<HistoricalDataModel>? historyFiveMin;
+  final List<HistoricalDataModel>? historyFifteenMin;
+  final List<HistoricalDataModel>? history30Min;
+  final List<HistoricalDataModel>? historyOneHour;
 
   StockModel({
     this.symbol,
@@ -61,7 +64,10 @@ class StockModel {
     this.lowerCircuitLimit,
     this.upperCircuitLimit,
     this.ohlc,
-    this.historicalData,
+    this.historyFiveMin,
+    this.historyFifteenMin,
+    this.history30Min,
+    this.historyOneHour
   });
 
   factory StockModel.fromMap(Map<String, dynamic> map) {
@@ -84,7 +90,10 @@ class StockModel {
       lowerCircuitLimit: (map['lower_circuit_limit'] as num?)?.toDouble(),
       upperCircuitLimit: (map['upper_circuit_limit'] as num?)?.toDouble(),
       ohlc: Ohlc.fromMap(map['ohlc'] as Map<String, dynamic>?),
-      historicalData: map['historicalData'] as List<HistoricalDataModel>?,
+      historyFiveMin: map['historicalData'] as List<HistoricalDataModel>?,
+      historyFifteenMin: map['historicalData15Min'] as List<HistoricalDataModel>?,
+      history30Min: map['historicalData30Min'] as List<HistoricalDataModel>?,
+      historyOneHour: map['historicalData1Hour'] as List<HistoricalDataModel>?
     );
   }
 }

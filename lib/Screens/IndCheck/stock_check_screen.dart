@@ -22,7 +22,7 @@ class _StockCheckScreenState extends State<StockCheckScreen> {
   }
 
   getStockSignal(StockModel stock) {
-    final history = stock.historicalData;
+    final history = stock.historyFiveMin;
     if (history == null || history.length < 21) {
       showDialog(
         context: context,
