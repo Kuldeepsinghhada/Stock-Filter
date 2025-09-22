@@ -170,7 +170,7 @@ class FilterUtils {
     }
 
     // ✅ Rule-based checks
-    if (lastPrice <= 95 || lastPrice >= 1500) {
+    if (lastPrice <= 95 || lastPrice >= 500) {
       debugPrint(
         "Rejected: price $lastPrice not in [95, 1500] for ${stock.symbol}",
       );
@@ -198,8 +198,8 @@ class FilterUtils {
       return false;
     }
 
-    if (volume <= 1000) {
-      debugPrint("Rejected: low volume $volume ≤ 1000 for ${stock.symbol}");
+    if (volume <= 50000) {
+      debugPrint("Rejected: low volume $volume ≤ 25000 for ${stock.symbol}");
       return false;
     }
 

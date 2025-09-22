@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Screens/IndCheck/stock_check_screen.dart';
@@ -16,7 +17,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<String> messages = [];
 
   List<StockModel> quoteList = [];
-
   String searchQuery = '';
 
   @override
@@ -81,9 +81,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: _fetchQuotesFromService,
                 tooltip: 'Refresh',
               ),
-          IconButton(onPressed: (){
-            Navigator.pushNamed(context, '/notifications');
-          }, icon: Icon(Icons.notifications))
+          IconButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/notifications');
+            },
+            icon: Icon(Icons.notifications),
+          ),
         ],
       ),
       body: Column(
@@ -107,9 +110,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               itemCount: filteredQuoteList.length,
               itemBuilder: (context, index) {
                 final stock = filteredQuoteList[index];
-                print(
-                  "${stock.symbol?.replaceAll("NSE:", "") ?? ''} : ${stock.volume}",
-                );
                 return ListTile(
                   leading: Text(
                     (index + 1).toString(),
