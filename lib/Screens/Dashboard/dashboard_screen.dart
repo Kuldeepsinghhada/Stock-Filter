@@ -125,20 +125,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          // isLoading
-          //     ? const Padding(
-          //       padding: EdgeInsets.symmetric(horizontal: 16.0),
-          //       child: SizedBox(
-          //         width: 24,
-          //         height: 24,
-          //         child: CircularProgressIndicator(strokeWidth: 2),
-          //       ),
-          //     )
-          //     : IconButton(
-          //       icon: const Icon(Icons.refresh),
-          //       onPressed: fetchQuotesFromService,
-          //       tooltip: 'Refresh',
-          //     ),
+          (isLoading && quoteList.isEmpty)
+              ? const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+              : SizedBox(),
           IconButton(
             onPressed: () {
               Navigator.pushNamed(context, '/notifications');
