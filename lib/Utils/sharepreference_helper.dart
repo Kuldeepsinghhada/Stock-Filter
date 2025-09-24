@@ -1,10 +1,12 @@
 import 'dart:convert';
-
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 
 class SharedPreferenceHelper {
   String kNotificationListKey = 'notificationList';
+  String kAlarmRunning = "alarmRunning";
+  String quotesKey = "quotes";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -12,6 +14,20 @@ class SharedPreferenceHelper {
   // Singleton instance
   static final SharedPreferenceHelper instance =
       SharedPreferenceHelper._internal();
+
+  Future<void> saveStocks(List<FinalStockModel> quotes) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = quotes.map((q) => q.toJson()).toList();
+    await prefs.setString(quotesKey, jsonEncode(jsonList));
+  }
+
+  Future<List<FinalStockModel>> getStocks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(quotesKey);
+    if (jsonString == null) return [];
+    final List decoded = jsonDecode(jsonString);
+    return decoded.map((e) => FinalStockModel.fromJson(e)).toList();
+  }
 
   Future<List<NotificationModel>> getNotificationList() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -36,5 +52,15 @@ class SharedPreferenceHelper {
   Future<void> clearNotifications() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(kNotificationListKey);
+  }
+
+  Future<void> setAlarmRunning(bool isRunning) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kAlarmRunning, isRunning);
+  }
+
+  Future<bool> getAlarmRunning() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(kAlarmRunning) ?? false;
   }
 }

@@ -2,15 +2,15 @@ import 'dart:async';
 import 'dart:developer';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:stock_demo/Screens/IndCheck/stock_check_screen.dart';
-import 'package:stock_demo/model/stock_model.dart';
+import 'package:stock_demo/model/final_stock_model.dart';
 import 'dashboard_services.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
 
 @pragma('vm:entry-point')
 Future<void> repeatTask() async {
-  await DashboardService.instance.fetchQuotes();
+  var result = await DashboardService.instance.fetchQuotes();
+  await SharedPreferenceHelper.instance.saveStocks(result);
 }
 
 class DashboardScreen extends StatefulWidget {
@@ -20,7 +20,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   bool isLoading = true;
   List<String> messages = [];
 
@@ -29,32 +30,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const int alarmId = 1;
   var isTaskRunning = false;
   Timer? timer;
-  List<StockModel> quoteList = [];
+  List<FinalStockModel> quoteList = [];
 
   @override
   void initState() {
     super.initState();
-    fetchQuotesFromService();
+    WidgetsBinding.instance.addObserver(this);
+    loadCachedStocks();
+    getAlarmStatus();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      loadCachedStocks(); // reload latest cached data when app is foreground
+    }
+  }
+
+  Future<void> loadCachedStocks() async {
+    final cached = await SharedPreferenceHelper.instance.getStocks();
+    if (cached.isNotEmpty) {
+      setState(() {
+        quoteList = cached;
+        isLoading = false;
+      });
+    } else {
+      fetchQuotesFromService();
+    }
+  }
+
+  Future<void> getAlarmStatus() async {
+    isTaskRunning = await SharedPreferenceHelper.instance.getAlarmRunning();
+    setState(() {});
+    if (isTaskRunning) {
+      // ensure alarm is still scheduled
+      startApiTask();
+    }
   }
 
   Future<bool> fetchQuotesFromService() async {
-    if (isTaskRunning) {
-      Fluttertoast.showToast(
-        msg: "Please wait, task is already running",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-      );
-      return false;
-    }
+    setState(() => isLoading = true);
+
+    final result = await DashboardService.instance.fetchQuotes();
+    await SharedPreferenceHelper.instance.saveStocks(result);
 
     setState(() {
-      isLoading = true;
-    });
-    final result = await DashboardService.instance.fetchQuotes();
-    setState(() {
       quoteList = result;
-      //log("Filtered Quotes Count: ${quoteList.length}");
-      log(quoteList.map((e) => e.symbol).join(", "));
       isLoading = false;
     });
     return true;
@@ -62,13 +83,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Start repeating task every 5 minutes
   Future<void> startApiTask() async {
-    // timer = Timer.periodic(const Duration(minutes: 5), (timer) {
-    //   if (isLoading!) {
-    //     fetchQuotesFromService();
-    //   }
-    // });
-    // setState(() => isTaskRunning = true);
-    // return;
     AndroidAlarmManager.periodic(
           const Duration(minutes: 1),
           alarmId,
@@ -77,6 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           rescheduleOnReboot: true,
         )
         .then((_) {
+          SharedPreferenceHelper.instance.setAlarmRunning(true);
           setState(() => isTaskRunning = true);
         })
         .catchError((error) {
@@ -86,11 +101,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Stop the repeating task
   Future<void> stopApiTask() async {
-    // timer?.cancel();
-    // timer = null;
-    // setState(() => isTaskRunning = false);
-    // return;
     await AndroidAlarmManager.cancel(alarmId);
+    await SharedPreferenceHelper.instance.setAlarmRunning(false);
     setState(() => isTaskRunning = false);
   }
 
@@ -116,6 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -172,20 +185,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       (index + 1).toString(),
                       style: TextStyle(fontSize: 16),
                     ),
-                    title: Text(stock.symbol?.replaceAll("NSE:", "") ?? ''),
+                    title: Text(
+                      stock.stockSymbol?.replaceAll("NSE:", "") ?? '',
+                    ),
                     subtitle: Text(
                       'Token: ${stock.token}, Price: ${stock.lastPrice}',
                     ),
                     trailing: Builder(
                       builder: (context) {
                         double? percentChange;
-                        if (stock.ohlc != null &&
-                            stock.ohlc!.open != null &&
-                            stock.ohlc!.open != 0 &&
+                        if (stock.open != null &&
+                            stock.open != 0 &&
                             stock.lastPrice != null) {
                           percentChange =
-                              ((stock.lastPrice! - stock.ohlc!.open!) /
-                                  stock.ohlc!.open!) *
+                              ((stock.lastPrice! - stock.open!) / stock.open!) *
                               100;
                         }
                         return percentChange != null
@@ -203,12 +216,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       },
                     ),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => StockCheckScreen(stock: stock),
-                        ),
-                      );
+                      // Navigator.push(
+                      //   context,
+                      //   MaterialPageRoute(
+                      //     builder: (context) => StockCheckScreen(stock: stock),
+                      //   ),
+                      // );
                     },
                   );
                 },

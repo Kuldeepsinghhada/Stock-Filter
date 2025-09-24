@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
+import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -32,7 +33,7 @@ class DashboardService {
   // Returns symbols in the required API format: NSE:RELIANCE&i=NSE:TCS
   // String get formattedSymbols => symbols.map((s) => 'NSE:$s').join('&i=');
 
-  Future<List<StockModel>> fetchQuotes() async {
+  Future<List<FinalStockModel>> fetchQuotes() async {
     // Getter to extract tokens from utilities list
 
     await loadStocksList();
@@ -201,7 +202,16 @@ class DashboardService {
     );
     log("Final Filtered Stocks Count: ${finalList.length}");
     log(finalList.map((e) => e.symbol).join(", "));
-    return finalList;
+    return finalList.map((s) {
+      return FinalStockModel(
+        dateTime: DateTime.now().toString(),
+        stockSymbol: s.symbol,
+        token: s.token,
+        lastPrice: s.lastPrice,
+        open: s.ohlc?.open,
+        close: s.ohlc?.close,
+      );
+    }).toList();
   }
 
   Future<List<HistoricalDataModel>?> fetchHistoricalData(
