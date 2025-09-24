@@ -273,7 +273,7 @@ class IndicatorUtils {
     final latestVolume = volumes.last;
     final latestEma = ema20.last;
 
-    return latestVolume > latestEma * 1.3;
+    return latestVolume > latestEma * 1.4;
   }
 
   /// Calculate EMA on given values

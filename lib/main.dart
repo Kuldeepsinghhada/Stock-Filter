@@ -1,3 +1,4 @@
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_screen.dart';
@@ -9,11 +10,17 @@ import 'package:stock_demo/portfolio_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/utilities.dart';
-
 import 'Screens/Notification/notification_screen.dart';
+import 'Services/notification_service.dart';
+import 'dart:io';
 
+@pragma('vm:entry-point')
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if(Platform.isAndroid){
+    await AndroidAlarmManager.initialize();
+    await NotificationService.initialize();
+  }
   await loadStocksList();
   runApp(const TradingPrototype());
 }

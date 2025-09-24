@@ -32,4 +32,9 @@ class SharedPreferenceHelper {
       notifications.map((n) => jsonEncode(n.toJson())).toList(),
     );
   }
+
+  Future<void> clearNotifications() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove(kNotificationListKey);
+  }
 }

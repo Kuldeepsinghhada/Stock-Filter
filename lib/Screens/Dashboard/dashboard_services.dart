@@ -8,6 +8,7 @@ import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/Services/notification_service.dart';
 
 class DashboardService {
   // Private constructor
@@ -22,16 +23,26 @@ class DashboardService {
   String accessToken = '';
 
   // Getter to extract tokens from utilities list
-  List<String?> get symbols =>
-      stocksList
-          .where((stock) => stock.token != '#N/A')
-          .map((stock) => stock.symbol)
-          .toList();
+  // List<String?> get symbols =>
+  //     stocksList
+  //         .where((stock) => stock.token != '#N/A')
+  //         .map((stock) => stock.symbol)
+  //         .toList();
 
   // Returns symbols in the required API format: NSE:RELIANCE&i=NSE:TCS
-  String get formattedSymbols => symbols.map((s) => 'NSE:$s').join('&i=');
+  // String get formattedSymbols => symbols.map((s) => 'NSE:$s').join('&i=');
 
   Future<List<StockModel>> fetchQuotes() async {
+    // Getter to extract tokens from utilities list
+
+    await loadStocksList();
+
+    List<String?> symbols =
+        stocksList
+            .where((stock) => stock.token != '#N/A')
+            .map((stock) => stock.symbol)
+            .toList();
+
     final prefs = await SharedPreferences.getInstance();
     accessToken = prefs.getString('access_token') ?? '';
     final int batchSize = 500;
@@ -175,11 +186,21 @@ class DashboardService {
           time: DateTime.now().toString(),
         ),
       );
+      // Show notification
+      await NotificationService.showNotification(
+        id: 0,
+        title: "Stock Alert",
+        body: "${newStockSymbols.join(', ')} -- ${DateTime.now()}",
+      );
+      print("Notification triggered at ${DateTime.now()}");
     }
-    // Save updated notifications list
-    await SharedPreferenceHelper.instance.saveNotificationList(
-      notificationsList,
+
+    await prefs.setStringList(
+      "notificationList",
+      notificationsList.map((n) => jsonEncode(n.toJson())).toList(),
     );
+    log("Final Filtered Stocks Count: ${finalList.length}");
+    log(finalList.map((e) => e.symbol).join(", "));
     return finalList;
   }
 
@@ -222,7 +243,7 @@ class DashboardService {
     }
 
     DateTime today = getLastWorkingDay(DateTime.now());
-    final DateTime fromDate = getBusinessDaysAgo(today, 10);
+    final DateTime fromDate = getBusinessDaysAgo(today, 20);
     final String from =
         "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}";
     final String to =

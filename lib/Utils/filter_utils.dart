@@ -117,14 +117,17 @@ class FilterUtils {
         volumes,
         stock.token.toString(),
       );
-      return isPass;
+      bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(
+        historyCandles ?? [],
+      );
+      return isPass && isVolumeBreakout;
     } else if (timeFrame == 15) {
       // For 15 min, only check EMA and RSI
       bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
-      bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(historyCandles ?? []);
+      // bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(historyCandles ?? []);
       //bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
       //bool isPass = isEma20 && isRsiOk;
-      return isEma20 && isVolumeBreakout;
+      return isEma20;
     } else if (timeFrame == 30) {
       // For 30 min, only check EMA and RSI
       bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
@@ -169,10 +172,10 @@ class FilterUtils {
       return false;
     }
 
-    // ✅ Rule-based checks
-    if (lastPrice <= 95 || lastPrice >= 500) {
+    // Rule-based checks
+    if (lastPrice <= 95 || lastPrice >= 1000) {
       debugPrint(
-        "Rejected: price $lastPrice not in [95, 1500] for ${stock.symbol}",
+        "Rejected: price $lastPrice not in [95, 1000] for ${stock.symbol}",
       );
       return false;
     }
@@ -198,8 +201,8 @@ class FilterUtils {
       return false;
     }
 
-    if (volume <= 50000) {
-      debugPrint("Rejected: low volume $volume ≤ 25000 for ${stock.symbol}");
+    if (volume <= 40000) {
+      debugPrint("Rejected: low volume $volume ≤ 50000 for ${stock.symbol}");
       return false;
     }
 

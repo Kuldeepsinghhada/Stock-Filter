@@ -18,29 +18,44 @@ class _NotificationScreenState extends State<NotificationScreen> {
     getNotifications();
   }
 
-  getNotifications() async {
+  Future<bool> getNotifications() async {
     notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
     setState(() {});
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
-      body: ListView.builder(
-        itemCount: notificationsList.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(notificationsList[index].stocksNameList ?? ''),
-            subtitle: Text(notificationsList[index].time ?? ''),
-            leading: const Icon(Icons.notifications),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // Handle notification tap
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              SharedPreferenceHelper.instance.clearNotifications();
+              getNotifications();
             },
-          );
-        },
+            icon: Icon(Icons.delete),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: getNotifications,
+        child: ListView.builder(
+          itemCount: notificationsList.length,
+          itemBuilder: (context, index) {
+            return ListTile(
+              title: Text(notificationsList[index].stocksNameList ?? ''),
+              subtitle: Text(notificationsList[index].time ?? ''),
+              leading: const Icon(Icons.notifications),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                // Handle notification tap
+              },
+            );
+          },
+        ),
       ),
     );
   }
