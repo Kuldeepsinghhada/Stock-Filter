@@ -86,9 +86,7 @@ class FilterUtils {
       historyCandles ?? [],
     );
     if (!isMeetPercent) return false;
-
     print("Stock Passed");
-
     return true;
   }
 

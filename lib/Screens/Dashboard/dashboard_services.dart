@@ -11,183 +11,206 @@ import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 
 class DashboardService {
-  // Private constructor
   DashboardService._internal();
-
-  // Singleton instance
   static final DashboardService instance = DashboardService._internal();
 
-  List<StockModel> finalList = [];
+  final List<StockModel> _finalList = [];
 
+  /// Fetch live quotes, apply filters and historical data checks
   Future<List<FinalStockModel>> fetchQuotes() async {
-    // Getter to extract tokens from utilities list
     await Utilities.loadStocksList();
 
-    List<String?> symbols =
+    // Filter valid symbols
+    final symbols =
         DataManager.instance.stocksList
-            .where((stock) => stock.token != '#N/A')
-            .map((stock) => stock.symbol)
+            .where((s) => s.token != '#N/A')
+            .map((s) => s.symbol)
+            .whereType<String>()
             .toList();
 
-    final int batchSize = 500;
-    final List<String?> allSymbols = symbols.whereType<String>().toList();
-    List<StockModel> allQuotes = [];
+    final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 500);
 
-    // Fetch live data in batches of 500
-    for (int i = 0; i < allSymbols.length; i += batchSize) {
-      final batch = allSymbols.skip(i).take(batchSize).toList();
-      final String batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
-      APIResponse response = await ApiService.instance.apiCall(
+    // Filter tradable stocks
+    final quoteList = allQuotes.where(FilterUtils.isTradable).toList();
+    log("Filtered Quotes Count: ${quoteList.length}");
+
+    // Fetch historical data in throttled batches
+    await _fetchHistoricalDataWithFilter(quoteList, maxCallsPerSecond: 12);
+
+    Utilities.addAndShowNotification(_finalList);
+
+    log(
+      "Final Filtered Stocks Count: ${_finalList.length} \n${_finalList.map((e) => e.symbol).join(", ")}",
+    );
+
+    return _finalList
+        .map(
+          (s) => FinalStockModel(
+            dateTime: DateTime.now().toString(),
+            stockSymbol: s.symbol,
+            token: s.token,
+            lastPrice: s.lastPrice,
+            open: s.ohlc?.open,
+            close: s.ohlc?.close,
+          ),
+        )
+        .toList();
+  }
+
+  /// Fetch live data in batches to reduce API calls
+  Future<List<StockModel>> _fetchLiveDataInBatches(
+    List<String> symbols, {
+    int batchSize = 500,
+  }) async {
+    final allQuotes = <StockModel>[];
+
+    for (var i = 0; i < symbols.length; i += batchSize) {
+      final batch = symbols.skip(i).take(batchSize).toList();
+      final batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
+
+      final response = await ApiService.instance.apiCall(
         APIEndPoint.getLiveStocksData + batchSymbols,
         HttpRequestType.get,
         null,
       );
+
       if (response.status) {
-        var data = response.data;
+        final data = response.data;
         if (data is Map && data.containsKey('data')) {
-          final quotesMap = data['data'] as Map<String, dynamic>;
-          allQuotes.addAll(Utilities.convertDataToStockModel(quotesMap));
+          allQuotes.addAll(
+            Utilities.convertDataToStockModel(
+              data['data'] as Map<String, dynamic>,
+            ),
+          );
         }
-        log("allQuotes : ${allQuotes.length}");
       } else {
         log('Error fetching batch: ${response.error}');
       }
     }
 
-    // Filter tradable stocks with Live Data
-    List<StockModel> quoteList =
-        allQuotes.where((stock) {
-          return FilterUtils.isTradable(stock);
-        }).toList();
-    log("Filtered Quotes Count: ${quoteList.length}");
+    log("All Quotes Count: ${allQuotes.length}");
+    return allQuotes;
+  }
 
-    // Throttle historical data API calls: max 3/sec
-    const int maxCallsPerSecond = 12;
-    for (int i = 0; i < quoteList.length; i += maxCallsPerSecond) {
+  /// Fetch historical data in batches with throttling and apply indicator filters
+  Future<void> _fetchHistoricalDataWithFilter(
+    List<StockModel> quoteList, {
+    int maxCallsPerSecond = 12,
+  }) async {
+    for (var i = 0; i < quoteList.length; i += maxCallsPerSecond) {
       final batch = quoteList.skip(i).take(maxCallsPerSecond).toList();
+
       final batchResults = await Future.wait(
         batch.map((stock) async {
-          final historyFiveMin = await fetchHistoricalData(
-            int.tryParse(stock.token.toString()) ?? 0,
-          );
-
-          // -------------- Indicator Filter with History Data ----------------
-          bool isPass = await FilterUtils.isPassAllTimeFrame(
-            historyFiveMin,
-            stock,
-          );
-
-          if (isPass) {
-            return StockModel(
-              symbol: stock.symbol?.replaceAll("NSE:", ""),
-              name: stock.name,
-              token: stock.token,
-              sector: stock.sector,
-              timestamp: stock.timestamp,
-              lastTradeTime: stock.lastTradeTime,
-              lastPrice: stock.lastPrice,
-              lastQuantity: stock.lastQuantity,
-              buyQuantity: stock.buyQuantity,
-              sellQuantity: stock.sellQuantity,
-              volume: stock.volume,
-              averagePrice: stock.averagePrice,
-              oi: stock.oi,
-              oiDayHigh: stock.oiDayHigh,
-              oiDayLow: stock.oiDayLow,
-              netChange: stock.netChange,
-              lowerCircuitLimit: stock.lowerCircuitLimit,
-              upperCircuitLimit: stock.upperCircuitLimit,
-              ohlc: stock.ohlc,
-              historyFiveMin: historyFiveMin,
+          try{
+            final history = await fetchHistoricalData(
+              int.tryParse(stock.token.toString()) ?? 0,
             );
-          } else {
-            return null;
+            if (history != null &&
+                await FilterUtils.isPassAllTimeFrame(history, stock)) {
+              return stock.copyWith(
+                symbol: stock.symbol?.replaceAll("NSE:", ""),
+                historyFiveMin: history,
+              );
+            }
+          }catch(e){
+            log("Error processing ${stock.symbol} : ${stock.token}: $e");
           }
+          return null;
         }),
       );
-      finalList.addAll(batchResults.whereType<StockModel>());
+
+      _finalList.addAll(batchResults.whereType<StockModel>());
+
       if (i + maxCallsPerSecond < quoteList.length) {
         await Future.delayed(const Duration(seconds: 1));
       }
     }
-    Utilities.addAndShowNotification(finalList);
-    log(
-      "Final Filtered Stocks Count: ${finalList.length} \n${finalList.map((e) => e.symbol).join(", ")}",
-    );
-    return finalList.map((s) {
-      return FinalStockModel(
-        dateTime: DateTime.now().toString(),
-        stockSymbol: s.symbol,
-        token: s.token,
-        lastPrice: s.lastPrice,
-        open: s.ohlc?.open,
-        close: s.ohlc?.close,
-      );
-    }).toList();
   }
 
-  // Fetch historical data for a given instrument token
+  /// Fetch historical data for a given instrument token
   Future<List<HistoricalDataModel>?> fetchHistoricalData(
     int instrumentToken,
   ) async {
-    final String interval = "5minute";
-    DateTime today = Utilities.getLastWorkingDay(DateTime.now());
-    final String from = Utilities.getBusinessDaysAgo(today, 20);
-    final String to =
+    final interval = "5minute";
+    final today = Utilities.getLastWorkingDay(DateTime.now());
+    final from = Utilities.getBusinessDaysAgo(today, 20);
+    final to =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
-    APIResponse response = await ApiService.instance.apiCall(
+    final response = await ApiService.instance.apiCall(
       "${APIEndPoint.getHistoricalData}$instrumentToken/$interval?from=$from&to=$to",
       HttpRequestType.get,
       null,
     );
 
     if (response.status) {
-      final candles = response.data["data"]["candles"] as List<dynamic>?;
-      if (candles == null) return null;
-      List<HistoricalDataModel>? historyList =
-          candles
-              .map((e) => HistoricalDataModel.fromList(e as List<dynamic>))
-              .toList();
-      return historyList;
+      final candles =
+          (response.data["data"]["candles"] as List<dynamic>?) ?? [];
+      return candles
+          .map((e) => HistoricalDataModel.fromList(e as List<dynamic>))
+          .toList();
     } else {
-      log("Error: ${response.error}");
+      log("Error fetching historical data: ${response.error}");
       return null;
     }
   }
 
-  /// Utility function to check if a stock is choppy
+  /// Choppy stock utility (loose filter)
   bool isChoppyStockLoose(
     List<double> highs,
     List<double> lows,
     List<double> closes, {
-    double threshold = 0.06, // ATR % threshold (looser)
-    int atrPeriod = 10, // last 10 candles
+    double threshold = 0.06,
+    int atrPeriod = 10,
   }) {
     if (highs.length < atrPeriod ||
         lows.length < atrPeriod ||
         closes.length < atrPeriod) {
-      return false; // not enough data to consider choppy
+      return false;
     }
 
-    int start = closes.length - atrPeriod;
-    final lastHighs = highs.sublist(start);
-    final lastLows = lows.sublist(start);
-    final lastCloses = closes.sublist(start);
+    final lastHighs = highs.sublist(highs.length - atrPeriod);
+    final lastLows = lows.sublist(lows.length - atrPeriod);
+    final lastCloses = closes.sublist(closes.length - atrPeriod);
 
-    List<double> tr = [];
-    for (int i = 1; i < lastCloses.length; i++) {
-      double hL = lastHighs[i] - lastLows[i];
-      double hC = (lastHighs[i] - lastCloses[i - 1]).abs();
-      double lC = (lastLows[i] - lastCloses[i - 1]).abs();
-      tr.add([hL, hC, lC].reduce((a, b) => a > b ? a : b));
-    }
+    final tr = List.generate(lastCloses.length - 1, (i) {
+      final hL = lastHighs[i + 1] - lastLows[i + 1];
+      final hC = (lastHighs[i + 1] - lastCloses[i]).abs();
+      final lC = (lastLows[i + 1] - lastCloses[i]).abs();
+      return [hL, hC, lC].reduce((a, b) => a > b ? a : b);
+    });
 
-    double atr = tr.reduce((a, b) => a + b) / tr.length;
-    double avgClose = lastCloses.reduce((a, b) => a + b) / lastCloses.length;
-    double atrPct = atr / avgClose;
-
-    // Loose filter: only exclude if ATR% is very tiny
-    return atrPct < threshold;
+    final atr = tr.reduce((a, b) => a + b) / tr.length;
+    final avgClose = lastCloses.reduce((a, b) => a + b) / lastCloses.length;
+    return (atr / avgClose) < threshold;
   }
+}
+
+extension StockModelCopy on StockModel {
+  StockModel copyWith({
+    String? symbol,
+    List<HistoricalDataModel>? historyFiveMin,
+  }) => StockModel(
+    symbol: symbol ?? this.symbol,
+    name: name,
+    token: token,
+    sector: sector,
+    timestamp: timestamp,
+    lastTradeTime: lastTradeTime,
+    lastPrice: lastPrice,
+    lastQuantity: lastQuantity,
+    buyQuantity: buyQuantity,
+    sellQuantity: sellQuantity,
+    volume: volume,
+    averagePrice: averagePrice,
+    oi: oi,
+    oiDayHigh: oiDayHigh,
+    oiDayLow: oiDayLow,
+    netChange: netChange,
+    lowerCircuitLimit: lowerCircuitLimit,
+    upperCircuitLimit: upperCircuitLimit,
+    ohlc: ohlc,
+    historyFiveMin: historyFiveMin ?? this.historyFiveMin,
+  );
 }

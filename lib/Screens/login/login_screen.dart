@@ -3,11 +3,8 @@ import 'dart:developer';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:stock_demo/Screens/login/login_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:stock_demo/model/api_response.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
