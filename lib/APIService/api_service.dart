@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/api_response.dart';
@@ -12,8 +12,7 @@ class ApiService {
 
   static final ApiService instance = ApiService._();
 
-  static const String baseUrl =
-      "https://rajfed.rajasthan.gov.in/rajfed_API/QrScanner"; // Change this
+  static const String baseUrl = "https://api.kite.trade"; // Change this
 
   /// Rebuilt: Common function to handle API requests with improved error handling and clarity
   Future<APIResponse> apiCall(
@@ -25,21 +24,13 @@ class ApiService {
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult.contains(ConnectivityResult.none)) {
       log("[API ERROR] No internet connection");
-      // final context = navigatorKey.currentContext;
-      // if (context != null) {
-      //   await showNoInternetDialog(context, () async {
-      //     // Retry the last request
-      //     await apiCall(endpoint, method, body);
-      //   });
-      // }
       return APIResponse(false, null, "No internet connection");
     }
 
-    final String url = "$baseUrl/$endpoint";
+    final String url = "$baseUrl$endpoint";
     final headers = await _buildHeaders();
     final encodedBody = _encodeBody(body);
 
-    log("[API] $method $url\nBody: $body");
     http.Response response;
     try {
       response = await _makeRequest(url, method, headers, encodedBody);
@@ -48,7 +39,6 @@ class ApiService {
       return APIResponse(false, null, "Network error: $e");
     }
 
-    log("[API] Response: ${response.statusCode} ${response.body}");
     final decoded = _decodeResponse(response.body);
     if (decoded == null) {
       return APIResponse(false, null, "Invalid response from server");
@@ -75,25 +65,14 @@ class ApiService {
     }
   }
 
-  /// Calls the /Yield endpoint with District and CropID as body parameters
-  Future<APIResponse> getYield({
-    required String district,
-    required int cropId,
-  }) async {
-    final body = {"District": district, "CropID": cropId};
-    return await apiCall("Yield", HttpRequestType.post, body);
-  }
-
   // Helper to build headers
   Future<Map<String, String>> _buildHeaders() async {
-    final headers = <String, String>{"Content-Type": "application/json"};
+    final headers = <String, String>{};
+    //"Content-Type": "application/x-www-form-urlencoded"
     final token = await SharedPreferenceHelper.instance.getToken();
     if (token != null) {
-      headers['Authorization'] = "Bearer $token";
-    } else {
-      // headers["api_key"] = "ddjw8yq0ow1zd9ds";
-      // headers["request_token"] = "xuvrpjx0agkro10uznz3ppxfuto5sb8w";
-      // headers["checksum"] = checksum;
+      headers['X-Kite-Version'] = '3';
+      headers['Authorization'] = 'token ${DataManager.instance.apiKey}:$token';
     }
     return headers;
   }

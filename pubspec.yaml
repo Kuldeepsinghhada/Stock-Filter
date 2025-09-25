@@ -46,6 +46,7 @@ dependencies:
   device_info_plus: ^12.1.0
   flutter_local_notifications: ^19.4.2
   fluttertoast: ^8.2.12
+  connectivity_plus: ^6.1.2
 
 dev_dependencies:
   flutter_test:

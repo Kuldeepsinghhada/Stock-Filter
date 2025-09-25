@@ -1,15 +1,14 @@
-import 'dart:convert';
 import 'dart:developer';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:stock_demo/APIService/api_service.dart';
+import 'package:stock_demo/APIService/end_point.dart';
+import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
+import 'package:stock_demo/model/api_response.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
-import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
-import 'package:stock_demo/Services/notification_service.dart';
 
 class DashboardService {
   // Private constructor
@@ -20,80 +19,42 @@ class DashboardService {
 
   List<StockModel> finalList = [];
 
-  final String apiKey = 'ddjw8yq0ow1zd9ds';
-  String accessToken = '';
-
-  // Getter to extract tokens from utilities list
-  // List<String?> get symbols =>
-  //     stocksList
-  //         .where((stock) => stock.token != '#N/A')
-  //         .map((stock) => stock.symbol)
-  //         .toList();
-
-  // Returns symbols in the required API format: NSE:RELIANCE&i=NSE:TCS
-  // String get formattedSymbols => symbols.map((s) => 'NSE:$s').join('&i=');
-
   Future<List<FinalStockModel>> fetchQuotes() async {
     // Getter to extract tokens from utilities list
-
-    await loadStocksList();
+    await Utilities.loadStocksList();
 
     List<String?> symbols =
-        stocksList
+        DataManager.instance.stocksList
             .where((stock) => stock.token != '#N/A')
             .map((stock) => stock.symbol)
             .toList();
 
-    final prefs = await SharedPreferences.getInstance();
-    accessToken = prefs.getString('access_token') ?? '';
     final int batchSize = 500;
     final List<String?> allSymbols = symbols.whereType<String>().toList();
     List<StockModel> allQuotes = [];
+
+    // Fetch live data in batches of 500
     for (int i = 0; i < allSymbols.length; i += batchSize) {
       final batch = allSymbols.skip(i).take(batchSize).toList();
       final String batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
-      final String url = 'https://api.kite.trade/quote?$batchSymbols';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'X-Kite-Version': '3',
-          'Authorization': 'token $apiKey:$accessToken',
-        },
+      APIResponse response = await ApiService.instance.apiCall(
+        APIEndPoint.getLiveStocksData + batchSymbols,
+        HttpRequestType.get,
+        null,
       );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response.status) {
+        var data = response.data;
         if (data is Map && data.containsKey('data')) {
           final quotesMap = data['data'] as Map<String, dynamic>;
-          quotesMap.forEach((key, value) {
-            allQuotes.add(
-              StockModel.fromMap({
-                'symbol': key,
-                'name': value['tradable']?.toString() ?? '',
-                'token': value['instrument_token'],
-                'timestamp': value['timestamp'],
-                'last_trade_time': value['last_trade_time'],
-                'last_price': value['last_price'],
-                'last_quantity': value['last_quantity'],
-                'buy_quantity': value['buy_quantity'],
-                'sell_quantity': value['sell_quantity'],
-                'volume': value['volume'],
-                'average_price': value['average_price'],
-                'oi': value['oi'],
-                'oi_day_high': value['oi_day_high'],
-                'oi_day_low': value['oi_day_low'],
-                'net_change': value['net_change'],
-                'lower_circuit_limit': value['lower_circuit_limit'],
-                'upper_circuit_limit': value['upper_circuit_limit'],
-                'ohlc': value['ohlc'],
-              }),
-            );
-          });
+          allQuotes.addAll(Utilities.convertDataToStockModel(quotesMap));
         }
         log("allQuotes : ${allQuotes.length}");
       } else {
-        log('Error fetching batch: ${response.statusCode} ${response.body}');
+        log('Error fetching batch: ${response.error}');
       }
     }
+
+    // Filter tradable stocks with Live Data
     List<StockModel> quoteList =
         allQuotes.where((stock) {
           return FilterUtils.isTradable(stock);
@@ -101,7 +62,6 @@ class DashboardService {
     log("Filtered Quotes Count: ${quoteList.length}");
 
     // Throttle historical data API calls: max 3/sec
-    List<StockModel> enrichedQuoteList = [];
     const int maxCallsPerSecond = 12;
     for (int i = 0; i < quoteList.length; i += maxCallsPerSecond) {
       final batch = quoteList.skip(i).take(maxCallsPerSecond).toList();
@@ -111,7 +71,7 @@ class DashboardService {
             int.tryParse(stock.token.toString()) ?? 0,
           );
 
-          // -------------- Check On Multi Time Frame ----------------
+          // -------------- Indicator Filter with History Data ----------------
           bool isPass = await FilterUtils.isPassAllTimeFrame(
             historyFiveMin,
             stock,
@@ -145,63 +105,15 @@ class DashboardService {
           }
         }),
       );
-      enrichedQuoteList.addAll(batchResults.whereType<StockModel>());
+      finalList.addAll(batchResults.whereType<StockModel>());
       if (i + maxCallsPerSecond < quoteList.length) {
         await Future.delayed(const Duration(seconds: 1));
       }
     }
-
-    // Final filter: percent change >= 2%
-    finalList =
-        enrichedQuoteList.where((stock) {
-          final percentChange =
-              ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) *
-              100;
-          return percentChange >= 2.0;
-        }).toList();
-
-    // ------------Notification Process---------------
-
-    List<NotificationModel> notificationsList =
-        await SharedPreferenceHelper.instance.getNotificationList();
-
-    List<String> newStockSymbols = [];
-    for (var stock in finalList) {
-      bool exists = notificationsList.any(
-        (n) =>
-            n.stocksNameList?.toUpperCase().contains(
-              stock.symbol!.toUpperCase(),
-            ) ??
-            false,
-      );
-      if (!exists) {
-        newStockSymbols.add(stock.symbol!);
-      }
-    }
-
-    // Add new notifications
-    if (newStockSymbols.isNotEmpty) {
-      notificationsList.add(
-        NotificationModel(
-          stocksNameList: newStockSymbols.join(','),
-          time: DateTime.now().toString(),
-        ),
-      );
-      // Show notification
-      await NotificationService.showNotification(
-        id: 0,
-        title: "Stock Alert",
-        body: "${newStockSymbols.join(', ')} -- ${DateTime.now()}",
-      );
-      print("Notification triggered at ${DateTime.now()}");
-    }
-
-    await prefs.setStringList(
-      "notificationList",
-      notificationsList.map((n) => jsonEncode(n.toJson())).toList(),
+    Utilities.addAndShowNotification(finalList);
+    log(
+      "Final Filtered Stocks Count: ${finalList.length} \n${finalList.map((e) => e.symbol).join(", ")}",
     );
-    log("Final Filtered Stocks Count: ${finalList.length}");
-    log(finalList.map((e) => e.symbol).join(", "));
     return finalList.map((s) {
       return FinalStockModel(
         dateTime: DateTime.now().toString(),
@@ -214,64 +126,24 @@ class DashboardService {
     }).toList();
   }
 
+  // Fetch historical data for a given instrument token
   Future<List<HistoricalDataModel>?> fetchHistoricalData(
     int instrumentToken,
   ) async {
     final String interval = "5minute";
-
-    DateTime getLastWorkingDay(DateTime now) {
-      // Saturday → Friday
-      if (now.weekday == DateTime.saturday) {
-        return now.subtract(const Duration(days: 1));
-      }
-      // Sunday → Friday
-      else if (now.weekday == DateTime.sunday) {
-        return now.subtract(const Duration(days: 2));
-      }
-      // Monday before 9:05 AM → Friday
-      else if (now.weekday == DateTime.monday &&
-          (now.hour < 9 || (now.hour == 9 && now.minute < 5))) {
-        return now.subtract(const Duration(days: 3));
-      }
-      // Otherwise → same day
-      else {
-        return now;
-      }
-    }
-
-    DateTime getBusinessDaysAgo(DateTime today, int businessDays) {
-      DateTime date = today;
-      int daysCounted = 0;
-      while (daysCounted < businessDays) {
-        date = date.subtract(const Duration(days: 1));
-        if (date.weekday != DateTime.saturday &&
-            date.weekday != DateTime.sunday) {
-          daysCounted++;
-        }
-      }
-      return date;
-    }
-
-    DateTime today = getLastWorkingDay(DateTime.now());
-    final DateTime fromDate = getBusinessDaysAgo(today, 20);
-    final String from =
-        "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}";
+    DateTime today = Utilities.getLastWorkingDay(DateTime.now());
+    final String from = Utilities.getBusinessDaysAgo(today, 20);
     final String to =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
-    final url =
-        "https://api.kite.trade/instruments/historical/$instrumentToken/$interval?from=$from&to=$to";
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        "Authorization": "token $apiKey:$accessToken",
-        "X-Kite-Version": "3",
-      },
+    APIResponse response = await ApiService.instance.apiCall(
+      "${APIEndPoint.getHistoricalData}$instrumentToken/$interval?from=$from&to=$to",
+      HttpRequestType.get,
+      null,
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final candles = data["data"]["candles"] as List<dynamic>?;
+    if (response.status) {
+      final candles = response.data["data"]["candles"] as List<dynamic>?;
       if (candles == null) return null;
       List<HistoricalDataModel>? historyList =
           candles
@@ -279,13 +151,12 @@ class DashboardService {
               .toList();
       return historyList;
     } else {
-      print("Error: ${response.statusCode} - ${response.body}");
+      log("Error: ${response.error}");
       return null;
     }
   }
 
   /// Utility function to check if a stock is choppy
-  /// /// Utility function to check if a stock is choppy (loose version)
   bool isChoppyStockLoose(
     List<double> highs,
     List<double> lows,

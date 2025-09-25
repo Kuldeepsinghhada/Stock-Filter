@@ -67,7 +67,7 @@ class PositionTile extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 (position.pnl > 0 ? "+" : "") +
-                    formatIndianNumber(
+                    Utilities.formatIndianNumber(
                       double.parse(position.pnl.toStringAsFixed(2)),
                     ),
                 style: TextStyle(

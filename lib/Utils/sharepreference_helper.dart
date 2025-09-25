@@ -7,6 +7,8 @@ class SharedPreferenceHelper {
   String kNotificationListKey = 'notificationList';
   String kAlarmRunning = "alarmRunning";
   String quotesKey = "quotes";
+  String tokenKey = "access_token";
+  String accessTokenExpiry = "access_token_expiry";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -14,6 +16,41 @@ class SharedPreferenceHelper {
   // Singleton instance
   static final SharedPreferenceHelper instance =
       SharedPreferenceHelper._internal();
+
+  Future<bool?> setToken(String token) async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var status = await preferences.setString(tokenKey, token);
+    return status;
+  }
+
+  Future<String?> getToken() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var data = preferences.getString(tokenKey);
+    return data;
+  }
+
+  Future<bool?> setTokenExpiryToken() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    DateTime now = DateTime.now();
+    final midnight =
+        DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
+    var status = await preferences.setInt(accessTokenExpiry, midnight);
+    return status;
+  }
+
+  Future<int?> getTokenExpiry() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var data = preferences.getInt(accessTokenExpiry);
+    return data;
+  }
+
+  // await SharedPreferenceHelper.instance.clearNotifications();
+  // final prefs = await SharedPreferences.getInstance();
+  // final now = DateTime.now();
+  // final midnight =
+  //     DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
+  // await prefs.setString('access_token', token);
+  // await prefs.setInt('access_token_expiry', midnight);
 
   Future<void> saveStocks(List<FinalStockModel> quotes) async {
     final prefs = await SharedPreferences.getInstance();
@@ -62,5 +99,11 @@ class SharedPreferenceHelper {
   Future<bool> getAlarmRunning() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool(kAlarmRunning) ?? false;
+  }
+
+  Future<bool> clearData() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.clear();
+    return true;
   }
 }

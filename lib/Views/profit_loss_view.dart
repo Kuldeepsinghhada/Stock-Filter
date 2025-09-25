@@ -25,7 +25,7 @@ class ProfitLossHeader extends StatelessWidget {
           ),
           SizedBox(width: 12),
           Text(
-            "${isPositive ? "+" : "-"}${formatIndianNumber(int.parse(pnl.toStringAsFixed(0))).replaceAll("-", "")}",
+            "${isPositive ? "+" : "-"}${Utilities.formatIndianNumber(int.parse(pnl.toStringAsFixed(0))).replaceAll("-", "")}",
             style: TextStyle(
               color: isPositive ? greenColor : redColor,
               fontSize: 16,

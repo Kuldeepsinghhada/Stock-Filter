@@ -2,7 +2,8 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_screen.dart';
-import 'package:stock_demo/Screens/login_screen.dart';
+import 'package:stock_demo/Screens/login/login_screen.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Views/home_view/index_entry_view.dart';
 import 'package:stock_demo/model/data_model.dart';
 import 'package:stock_demo/model/position_model.dart';
@@ -14,15 +15,33 @@ import 'Screens/Notification/notification_screen.dart';
 import 'Services/notification_service.dart';
 import 'dart:io';
 
+Widget initialRoute = ZerodhaLoginPage();
+
 @pragma('vm:entry-point')
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if(Platform.isAndroid){
+  if (Platform.isAndroid) {
     await AndroidAlarmManager.initialize();
     await NotificationService.initialize();
   }
-  await loadStocksList();
+  await Utilities.loadStocksList();
+
+  var isLogin = await checkUserLoggedIn();
+  if (isLogin) {
+    initialRoute = const DashboardScreen();
+  }
   runApp(const TradingPrototype());
+}
+
+
+Future<bool> checkUserLoggedIn() async {
+  final token = await SharedPreferenceHelper.instance.getToken();
+  final expiry = await SharedPreferenceHelper.instance.getTokenExpiry();
+  final now = DateTime.now().millisecondsSinceEpoch;
+  if (token != null && expiry != null && now < expiry) {
+    return true;
+  }
+  return false;
 }
 
 class TradingPrototype extends StatelessWidget {
@@ -33,7 +52,7 @@ class TradingPrototype extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true),
-      home: const ZerodhaLoginPage(),
+      home: initialRoute,
       routes: {
         '/dashboard': (context) => const DashboardScreen(),
         '/notifications': (context) => NotificationScreen(),
@@ -86,15 +105,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ? nifty['percentChange'].toString()
               : "+${nifty['percentChange'].toString()}";
     }
-    if(sensex != null){
+    if (sensex != null) {
       sensexPriceController.text = sensex['ltp'].toString();
       sensexChangeController.text =
           sensex['chg'].toString().contains('-')
               ? sensex['chg'].toString()
               : "+${sensex['chg'].toString()}";
-      sensexPercentController.text =  sensex['perchg'].toString().contains('-')
-          ? sensex['perchg'].toString()
-          : "+${sensex['perchg'].toString()}";
+      sensexPercentController.text =
+          sensex['perchg'].toString().contains('-')
+              ? sensex['perchg'].toString()
+              : "+${sensex['perchg'].toString()}";
     }
   }
 
@@ -132,10 +152,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     final headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
       "Referer": "https://www.bseindia.com/",
       "Accept": "application/json, text/plain, */*",
-      "Origin": "https://www.bseindia.com"
+      "Origin": "https://www.bseindia.com",
     };
 
     try {

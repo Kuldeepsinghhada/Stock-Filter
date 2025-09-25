@@ -48,23 +48,6 @@ class FilterUtils {
 
     var isVolumeOk = volumes.isNotEmpty ? volumes.last > 30000 : false;
 
-    if (token == "1843201") {
-      print("Above EMA 20: $aboveEma20");
-      print("RSI OK: $rsiOk");
-      print("ATR OK: $atrOk");
-      print("Above VWAP: $aboveVwap");
-      print("Above Supertrend: $aboveSupertrend");
-      print("ADX +DI > -DI: ${adxRes["plusGreater"]}");
-      var result =
-          aboveEma20 &&
-          rsiOk &&
-          atrOk &&
-          aboveVwap &&
-          aboveSupertrend &&
-          adxRes["plusGreater"]!;
-      print(result.toString());
-    }
-
     return isVolumeOk &&
         aboveEma20 &&
         rsiOk &&
@@ -79,23 +62,34 @@ class FilterUtils {
     StockModel stock,
   ) async {
     final is5MinPass = await isPassHistoryChart(historyCandles, stock, 5);
+    if (!is5MinPass) return false;
     final is15MinPass = await isPassHistoryChart(
       resampleCandles(historyCandles ?? [], Duration(minutes: 15)),
       stock,
       15,
     );
+    if (!is15MinPass) return false;
     final is30MinPass = await isPassHistoryChart(
       resampleCandles(historyCandles ?? [], Duration(minutes: 30)),
       stock,
       30,
     );
+    if (!is30MinPass) return false;
     final is1HourPass = await isPassHistoryChart(
       resampleCandles(historyCandles ?? [], Duration(minutes: 60)),
       stock,
       60,
     );
+    if (!is1HourPass) return false;
 
-    return is5MinPass && is15MinPass && is30MinPass && is1HourPass;
+    final isMeetPercent = IndicatorUtils.checkAbove2PercentThenLastDay(
+      historyCandles ?? [],
+    );
+    if (!isMeetPercent) return false;
+
+    print("Stock Passed");
+
+    return true;
   }
 
   static Future<bool> isPassHistoryChart(

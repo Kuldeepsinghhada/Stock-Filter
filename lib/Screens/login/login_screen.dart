@@ -3,14 +3,13 @@ import 'dart:developer';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-const String apiKey = "ddjw8yq0ow1zd9ds";
-const String apiSecret = "xuvrpjx0agkro10uznz3ppxfuto5sb8w";
-const String redirectUrl =
-    "https://127.0.0.1"; // Zerodha panel me ye hi set karo
+import 'package:stock_demo/Screens/login/login_service.dart';
+import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/model/api_response.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class ZerodhaLoginPage extends StatefulWidget {
   const ZerodhaLoginPage({super.key});
@@ -26,7 +25,6 @@ class _ZerodhaLoginPageState extends State<ZerodhaLoginPage> {
   @override
   void initState() {
     super.initState();
-    _checkTokenAndNavigate();
     controller =
         WebViewController()
           ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -36,7 +34,7 @@ class _ZerodhaLoginPageState extends State<ZerodhaLoginPage> {
                 if (request.url.contains("request_token=")) {
                   final uri = Uri.parse(request.url);
                   final requestToken = uri.queryParameters["request_token"];
-                  log("✅ Request Token: $requestToken");
+                  log("Request Token: $requestToken");
                   if (requestToken != null) {
                     getAccessToken(requestToken);
                   }
@@ -48,61 +46,79 @@ class _ZerodhaLoginPageState extends State<ZerodhaLoginPage> {
           )
           ..loadRequest(
             Uri.parse(
-              "https://kite.zerodha.com/connect/login?v=3&api_key=$apiKey",
+              "https://kite.zerodha.com/connect/login?v=3&api_key=${DataManager.instance.apiKey}",
             ),
           );
   }
 
-  Future<void> _checkTokenAndNavigate() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
-    final expiry = prefs.getInt('access_token_expiry');
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (token != null && expiry != null && now < expiry) {
-      setState(() {
-        accessToken = token;
-      });
-      Future.delayed(Duration.zero, () {
-        Navigator.pushReplacementNamed(context, '/dashboard');
-      });
-    }
-  }
+  // Future<void> getAccessToken(String requestToken) async {
+  //   final url = Uri.parse("https://api.kite.trade/session/token");
+  //   final checksum =
+  //   sha256.convert(utf8.encode("${DataManager.instance.apiKey}$requestToken${DataManager.instance.apiSecret}")).toString();
+  //   final response = await http.post(url, body: {
+  //     "api_key": DataManager.instance.apiKey,
+  //     "request_token": requestToken,
+  //     "checksum": checksum,
+  //   });
+  //   if (response.statusCode == 200) {
+  //     final data = jsonDecode(response.body);
+  //     final token = data["data"]["access_token"];
+  //     setState(() {
+  //       accessToken = token;
+  //     });
+  //     log("🎯 Access Token: $accessToken");
+  //     // Save token and expiry (midnight)
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final now = DateTime.now();
+  //     final midnight = DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
+  //     await prefs.setString('access_token', token);
+  //     await prefs.setInt('access_token_expiry', midnight);
+  //     // Navigate to home screen
+  //     if (!mounted) {
+  //       return;
+  //     }
+  //     Future.delayed(Duration.zero, () {
+  //       Navigator.pushReplacementNamed(context, '/dashboard');
+  //     });
+  //   } else {
+  //     //Fluttertoast.showToast(msg: response.error);
+  //   }
+  // }
 
   Future<void> getAccessToken(String requestToken) async {
     final url = Uri.parse("https://api.kite.trade/session/token");
     final checksum =
         sha256
-            .convert(utf8.encode("$apiKey$requestToken$apiSecret"))
+            .convert(
+              utf8.encode(
+                "${DataManager.instance.apiKey}$requestToken${DataManager.instance.apiSecret}",
+              ),
+            )
             .toString();
     final response = await http.post(
       url,
       body: {
-        "api_key": apiKey,
+        "api_key": DataManager.instance.apiKey,
         "request_token": requestToken,
         "checksum": checksum,
       },
     );
     if (response.statusCode == 200) {
+      // Navigate to home screen
+      if (!mounted) {
+        return;
+      }
+      // Save token and expiry (midnight)
       final data = jsonDecode(response.body);
       final token = data["data"]["access_token"];
-      setState(() {
-        accessToken = token;
-      });
-      log("🎯 Access Token: $accessToken");
-      // Save token and expiry (midnight)
       await SharedPreferenceHelper.instance.clearNotifications();
-      final prefs = await SharedPreferences.getInstance();
-      final now = DateTime.now();
-      final midnight =
-          DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
-      await prefs.setString('access_token', token);
-      await prefs.setInt('access_token_expiry', midnight);
-      // Navigate to home screen
+      await SharedPreferenceHelper.instance.setToken(token);
+      await SharedPreferenceHelper.instance.setTokenExpiryToken();
       Future.delayed(Duration.zero, () {
         Navigator.pushReplacementNamed(context, '/dashboard');
       });
     } else {
-      log("❌ Error: ${response.body}");
+      Fluttertoast.showToast(msg: "Something went wrong");
     }
   }
 

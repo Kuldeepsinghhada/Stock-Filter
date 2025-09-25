@@ -21,6 +21,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Future<bool> getNotifications() async {
     notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
+    notificationsList = notificationsList.reversed.toList();
     setState(() {});
     return true;
   }

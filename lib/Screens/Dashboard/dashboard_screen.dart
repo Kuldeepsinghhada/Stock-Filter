@@ -36,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    fetchQuotesFromService();
     loadCachedStocks();
     getAlarmStatus();
   }
@@ -54,8 +55,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         quoteList = cached;
         isLoading = false;
       });
-    } else {
-      fetchQuotesFromService();
     }
   }
 
@@ -175,7 +174,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           Expanded(
             child: RefreshIndicator(
               onRefresh: fetchQuotesFromService,
-
               child: ListView.builder(
                 itemCount: quoteList.length,
                 itemBuilder: (context, index) {

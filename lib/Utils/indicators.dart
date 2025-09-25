@@ -1,7 +1,7 @@
 import 'package:stock_demo/model/historical_data_model.dart';
 
 class IndicatorUtils {
-// ---------- EMA ----------
+  // ---------- EMA ----------
   static bool isAboveEMA(List<double> prices, int period) {
     if (prices.length < period) return false;
 
@@ -18,22 +18,23 @@ class IndicatorUtils {
     return prices.last > ema;
   }
 
-// ---------- SMA ----------
+  // ---------- SMA ----------
   static bool isAboveSMA(List<double> prices, int period) {
     if (prices.length < period) return false;
 
     // Simple Moving Average = average of last 'period' prices
-    double sma = prices.sublist(prices.length - period).reduce((a, b) => a + b) / period;
+    double sma =
+        prices.sublist(prices.length - period).reduce((a, b) => a + b) / period;
 
     return prices.last > sma;
   }
 
   static bool isRsiBetween(
-      List<double> prices,
-      int period,
-      double min,
-      double max,
-      ) {
+    List<double> prices,
+    int period,
+    double min,
+    double max,
+  ) {
     if (prices.length < period + 1) return false;
 
     // --- Step 1: price changes
@@ -75,11 +76,11 @@ class IndicatorUtils {
   }
 
   static double calculateATR(
-      List<double> high,
-      List<double> low,
-      List<double> close,
-      int period,
-      ) {
+    List<double> high,
+    List<double> low,
+    List<double> close,
+    int period,
+  ) {
     if (close.length < period + 1) return 0.0;
 
     final start = close.length - (period + 1);
@@ -99,22 +100,22 @@ class IndicatorUtils {
   }
 
   static bool isAtrGreaterThan(
-      List<double> high,
-      List<double> low,
-      List<double> close,
-      int period,
-      double value,
-      ) {
+    List<double> high,
+    List<double> low,
+    List<double> close,
+    int period,
+    double value,
+  ) {
     return calculateATR(high, low, close, period) > value;
   }
 
-// ---------- VWAP (Session-based like TradingView/Fyers) ----------
+  // ---------- VWAP (Session-based like TradingView/Fyers) ----------
   static bool isCloseAboveVWAP(
-      List<double> high,
-      List<double> low,
-      List<double> close,
-      List<int> volume,
-      ) {
+    List<double> high,
+    List<double> low,
+    List<double> close,
+    List<int> volume,
+  ) {
     if (close.isEmpty || volume.isEmpty) return false;
 
     double tpVolSum = 0, volSum = 0;
@@ -133,12 +134,12 @@ class IndicatorUtils {
 
   // ---------- ADX ----------
   static Map<String, bool> adxConditions(
-      List<double> high,
-      List<double> low,
-      List<double> close,
-      int period,
-      double minAdx,
-      ) {
+    List<double> high,
+    List<double> low,
+    List<double> close,
+    int period,
+    double minAdx,
+  ) {
     if (close.length < period + 1) {
       return {"adxOk": false, "plusGreater": false};
     }
@@ -167,7 +168,8 @@ class IndicatorUtils {
     // --- Step 2: Wilder’s smoothing for TR, +DM, -DM ---
     double atr = tr.take(period).reduce((a, b) => a + b) / period;
     double smoothPlusDM = plusDM.take(period).reduce((a, b) => a + b) / period;
-    double smoothMinusDM = minusDM.take(period).reduce((a, b) => a + b) / period;
+    double smoothMinusDM =
+        minusDM.take(period).reduce((a, b) => a + b) / period;
 
     for (int i = period; i < tr.length; i++) {
       atr = ((atr * (period - 1)) + tr[i]) / period;
@@ -192,12 +194,12 @@ class IndicatorUtils {
 
   // ---------- Supertrend ----------
   static bool isCloseAboveSupertrend(
-      List<double> high,
-      List<double> low,
-      List<double> close,
-      int atrPeriod,
-      double multiplier,
-      ) {
+    List<double> high,
+    List<double> low,
+    List<double> close,
+    int atrPeriod,
+    double multiplier,
+  ) {
     if (close.length < atrPeriod + 1) return false;
 
     int len = close.length;
@@ -208,11 +210,13 @@ class IndicatorUtils {
       if (i == 0) {
         tr.add(high[i] - low[i]);
       } else {
-        tr.add([
-          high[i] - low[i],
-          (high[i] - close[i - 1]).abs(),
-          (low[i] - close[i - 1]).abs(),
-        ].reduce((a, b) => a > b ? a : b));
+        tr.add(
+          [
+            high[i] - low[i],
+            (high[i] - close[i - 1]).abs(),
+            (low[i] - close[i - 1]).abs(),
+          ].reduce((a, b) => a > b ? a : b),
+        );
       }
     }
 
@@ -238,19 +242,23 @@ class IndicatorUtils {
         supertrend[i] = upperBand[i]; // initialize
       } else {
         // Carry forward bands
-        upperBand[i] = (upperBand[i] < upperBand[i - 1] || close[i - 1] > upperBand[i - 1])
-            ? upperBand[i]
-            : upperBand[i - 1];
+        upperBand[i] =
+            (upperBand[i] < upperBand[i - 1] || close[i - 1] > upperBand[i - 1])
+                ? upperBand[i]
+                : upperBand[i - 1];
 
-        lowerBand[i] = (lowerBand[i] > lowerBand[i - 1] || close[i - 1] < lowerBand[i - 1])
-            ? lowerBand[i]
-            : lowerBand[i - 1];
+        lowerBand[i] =
+            (lowerBand[i] > lowerBand[i - 1] || close[i - 1] < lowerBand[i - 1])
+                ? lowerBand[i]
+                : lowerBand[i - 1];
 
         // Supertrend decision
         if (supertrend[i - 1] == upperBand[i - 1]) {
-          supertrend[i] = (close[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
+          supertrend[i] =
+              (close[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
         } else {
-          supertrend[i] = (close[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
+          supertrend[i] =
+              (close[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
         }
       }
     }
@@ -295,4 +303,50 @@ class IndicatorUtils {
     return emaValues;
   }
 
+  static bool checkAbove2PercentThenLastDay(List<HistoricalDataModel> candles) {
+
+    // Ensure sorted
+    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // Group by date (yyyy-MM-dd)
+    Map<DateTime, List<HistoricalDataModel>> grouped = {};
+    for (var c in candles) {
+      final date = DateTime(
+        c.timestamp.year,
+        c.timestamp.month,
+        c.timestamp.day,
+      );
+      grouped.putIfAbsent(date, () => []).add(c);
+    }
+
+    // Get all available trading dates
+    List<DateTime> dates = grouped.keys.toList()..sort();
+
+    // Last available date = "today"
+    DateTime lastDate = dates.last;
+    List<HistoricalDataModel> todayCandles = grouped[lastDate]!;
+    double todayLastClose = todayCandles.last.close;
+
+    // Find "yesterday working day" (skip weekends, skip missing dates)
+    DateTime? yesterdayDate;
+    for (int i = dates.length - 2; i >= 0; i--) {
+      if (dates[i].weekday != DateTime.saturday &&
+          dates[i].weekday != DateTime.sunday) {
+        yesterdayDate = dates[i];
+        break;
+      }
+    }
+
+    if (yesterdayDate == null) {
+      return false;
+    }
+
+    // Get yesterday’s high
+    double yesterdayHigh = grouped[yesterdayDate]!
+        .map((c) => c.high)
+        .reduce((a, b) => a > b ? a : b);
+    // Check condition
+    bool conditionMet = todayLastClose >= yesterdayHigh * 1.02;
+    return conditionMet;
+  }
 }
