@@ -1,5 +1,6 @@
+import 'dart:developer';
 import 'package:flutter/cupertino.dart';
-import 'package:stock_demo/Utils/data_resample.dart';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
@@ -64,29 +65,35 @@ class FilterUtils {
     final is5MinPass = await isPassHistoryChart(historyCandles, stock, 5);
     if (!is5MinPass) return false;
     final is15MinPass = await isPassHistoryChart(
-      resampleCandles(historyCandles ?? [], Duration(minutes: 15)),
+      Utilities.resampleCandles(historyCandles ?? [], Duration(minutes: 15)),
       stock,
       15,
     );
     if (!is15MinPass) return false;
     final is30MinPass = await isPassHistoryChart(
-      resampleCandles(historyCandles ?? [], Duration(minutes: 30)),
+      Utilities.resampleCandles(historyCandles ?? [], Duration(minutes: 30)),
       stock,
       30,
     );
     if (!is30MinPass) return false;
     final is1HourPass = await isPassHistoryChart(
-      resampleCandles(historyCandles ?? [], Duration(minutes: 60)),
+      Utilities.resampleCandles(historyCandles ?? [], Duration(minutes: 60)),
       stock,
       60,
     );
     if (!is1HourPass) return false;
 
-    final isMeetPercent = IndicatorUtils.checkAbove2PercentThenLastDay(
-      historyCandles ?? [],
+    // final isMeetPercent = IndicatorUtils.checkAbove2PercentThenLastDay(
+    //   historyCandles ?? [],
+    // );
+    // if (!isMeetPercent) return false;
+    final isDayPass = await isPassHistoryChart(
+      Utilities.convertToDaily(historyCandles ?? []),
+      stock,
+      1,
     );
-    if (!isMeetPercent) return false;
-    print("Stock Passed");
+    if (!isDayPass) return false;
+    log("Stock Passed");
     return true;
   }
 
@@ -132,6 +139,16 @@ class FilterUtils {
       // bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
       // bool isPass = isEma20 && isRsiOk;
       return isEma20;
+    } else if (timeFrame == 1) {
+      bool isEMA20 = IndicatorUtils.isAboveEMA(closes, 20);
+      bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+        highs,
+        lows,
+        closes,
+        9,
+        3,
+      );
+      return isEMA20 && aboveSupertrend;
     }
     return false;
   }
@@ -148,41 +165,41 @@ class FilterUtils {
 
     // 🛑 Null checks
     if (lastPrice == null) {
-      debugPrint("Rejected: lastPrice is null for ${stock.symbol}");
+      // debugPrint("Rejected: lastPrice is null for ${stock.symbol}");
       return false;
     }
     if (close == null) {
-      debugPrint("Rejected: close price is null for ${stock.symbol}");
+      // debugPrint("Rejected: close price is null for ${stock.symbol}");
       return false;
     }
     if (lowerLimit == null || upperLimit == null) {
-      debugPrint("Rejected: circuit limits missing for ${stock.symbol}");
+      // debugPrint("Rejected: circuit limits missing for ${stock.symbol}");
       return false;
     }
     if (volume == null) {
-      debugPrint("Rejected: volume is null for ${stock.symbol}");
+      // debugPrint("Rejected: volume is null for ${stock.symbol}");
       return false;
     }
 
     // Rule-based checks
     if (lastPrice <= 95 || lastPrice >= 1000) {
-      debugPrint(
-        "Rejected: price $lastPrice not in [95, 1000] for ${stock.symbol}",
-      );
+      // debugPrint(
+      //   "Rejected: price $lastPrice not in [95, 1000] for ${stock.symbol}",
+      // );
       return false;
     }
 
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) {
-      debugPrint(
-        "Rejected: price $lastPrice outside circuit limits [$lowerLimit, $upperLimit] for ${stock.symbol}",
-      );
+      // debugPrint(
+      //   "Rejected: price $lastPrice outside circuit limits [$lowerLimit, $upperLimit] for ${stock.symbol}",
+      // );
       return false;
     }
 
     if (lastPrice <= close) {
-      debugPrint(
-        "Rejected: price $lastPrice not greater than close $close for ${stock.symbol}",
-      );
+      // debugPrint(
+      //   "Rejected: price $lastPrice not greater than close $close for ${stock.symbol}",
+      // );
       return false;
     }
 

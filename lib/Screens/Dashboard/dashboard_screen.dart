@@ -2,14 +2,16 @@ import 'dart:async';
 import 'dart:developer';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:stock_demo/model/final_stock_model.dart';
-import 'dashboard_services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:stock_demo/Services/notification_service.dart';
+import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'dashboard_services.dart';
 
+/// Background task entry point
 @pragma('vm:entry-point')
 Future<void> repeatTask() async {
-  var result = await DashboardService.instance.fetchQuotes();
+  final result = await DashboardService.instance.fetchQuotes();
   await SharedPreferenceHelper.instance.saveStocks(result);
 }
 
@@ -22,33 +24,35 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with WidgetsBindingObserver {
-  bool isLoading = true;
-  List<String> messages = [];
-
-  String searchQuery = '';
-
   static const int alarmId = 1;
-  var isTaskRunning = false;
-  Timer? timer;
+
+  bool isLoading = true;
+  bool isTaskRunning = false;
+  String searchQuery = '';
   List<FinalStockModel> quoteList = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    fetchQuotesFromService();
-    loadCachedStocks();
-    getAlarmStatus();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await NotificationService.requestPermissions();
+    await _loadCachedStocks();
+    await _getAlarmStatus();
+    await fetchQuotesFromService(); // always fetch fresh data once
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      loadCachedStocks(); // reload latest cached data when app is foreground
+      _loadCachedStocks(); // reload latest cached data when app resumes
     }
   }
 
-  Future<void> loadCachedStocks() async {
+  Future<void> _loadCachedStocks() async {
     final cached = await SharedPreferenceHelper.instance.getStocks();
     if (cached.isNotEmpty) {
       setState(() {
@@ -58,47 +62,41 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Future<void> getAlarmStatus() async {
-    isTaskRunning = await SharedPreferenceHelper.instance.getAlarmRunning();
-    setState(() {});
-    if (isTaskRunning) {
-      // ensure alarm is still scheduled
-      startApiTask();
+  Future<void> _getAlarmStatus() async {
+    final status = await SharedPreferenceHelper.instance.getAlarmRunning();
+    setState(() => isTaskRunning = status);
+    if (status) startApiTask(); // re-ensure scheduled
+  }
+
+  Future<void> fetchQuotesFromService() async {
+    setState(() => isLoading = true);
+    try {
+      final result = await DashboardService.instance.fetchQuotes();
+      await SharedPreferenceHelper.instance.saveStocks(result);
+      setState(() => quoteList = result);
+    } catch (e) {
+      log("Fetch quotes failed: $e");
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  Future<bool> fetchQuotesFromService() async {
-    setState(() => isLoading = true);
-
-    final result = await DashboardService.instance.fetchQuotes();
-    await SharedPreferenceHelper.instance.saveStocks(result);
-
-    setState(() {
-      quoteList = result;
-      isLoading = false;
-    });
-    return true;
-  }
-
-  /// Start repeating task every 5 minutes
   Future<void> startApiTask() async {
-    AndroidAlarmManager.periodic(
-          const Duration(minutes: 1),
-          alarmId,
-          repeatTask,
-          wakeup: true,
-          rescheduleOnReboot: true,
-        )
-        .then((_) {
-          SharedPreferenceHelper.instance.setAlarmRunning(true);
-          setState(() => isTaskRunning = true);
-        })
-        .catchError((error) {
-          log("Failed to start AlarmManager: $error");
-        });
+    try {
+      await AndroidAlarmManager.periodic(
+        const Duration(minutes: 5),
+        alarmId,
+        repeatTask,
+        wakeup: true,
+        rescheduleOnReboot: true,
+      );
+      await SharedPreferenceHelper.instance.setAlarmRunning(true);
+      setState(() => isTaskRunning = true);
+    } catch (e) {
+      log("Failed to start AlarmManager: $e");
+    }
   }
 
-  /// Stop the repeating task
   Future<void> stopApiTask() async {
     await AndroidAlarmManager.cancel(alarmId);
     await SharedPreferenceHelper.instance.setAlarmRunning(false);
@@ -106,23 +104,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   static Future<bool> checkAndRequestExactAlarmPermission() async {
-    // Android 12+ → check permission
     var status = await Permission.scheduleExactAlarm.status;
+    if (status.isGranted) return true;
 
-    if (status.isGranted) {
-      return true;
-    } else {
-      // Request permission
-      status = await Permission.scheduleExactAlarm.request();
+    status = await Permission.scheduleExactAlarm.request();
+    if (status.isGranted) return true;
 
-      if (status.isGranted) {
-        return true;
-      } else {
-        // Permission denied
-        print("Exact alarm permission denied");
-        return false;
-      }
-    }
+    log("Exact alarm permission denied");
+    return false;
   }
 
   @override
@@ -131,27 +120,37 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
+  List<FinalStockModel> get _filteredQuotes {
+    if (searchQuery.isEmpty) return quoteList;
+    return quoteList
+        .where(
+          (s) => (s.stockSymbol ?? "").toLowerCase().contains(
+            searchQuery.toLowerCase(),
+          ),
+        )
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredQuotes;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          (isLoading && quoteList.isEmpty)
-              ? const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-              : SizedBox(),
+          if (isLoading && quoteList.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           IconButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/notifications');
-            },
-            icon: Icon(Icons.notifications),
+            onPressed: () => Navigator.pushNamed(context, '/notifications'),
+            icon: const Icon(Icons.notifications),
           ),
         ],
       ),
@@ -164,42 +163,37 @@ class _DashboardScreenState extends State<DashboardScreen>
                 labelText: 'Search by symbol',
                 border: OutlineInputBorder(),
               ),
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                });
-              },
+              onChanged: (value) => setState(() => searchQuery = value.trim()),
             ),
           ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: fetchQuotesFromService,
               child: ListView.builder(
-                itemCount: quoteList.length,
+                itemCount: filtered.length,
                 itemBuilder: (context, index) {
-                  final stock = quoteList[index];
+                  final stock = filtered[index];
+                  final symbol =
+                      stock.stockSymbol?.replaceAll("NSE:", "") ?? '';
+                  final percentChange =
+                      (stock.open != null &&
+                              stock.open != 0 &&
+                              stock.lastPrice != null)
+                          ? ((stock.lastPrice! - stock.open!) / stock.open!) *
+                              100
+                          : null;
+
                   return ListTile(
                     leading: Text(
-                      (index + 1).toString(),
-                      style: TextStyle(fontSize: 16),
+                      '${index + 1}',
+                      style: const TextStyle(fontSize: 16),
                     ),
-                    title: Text(
-                      stock.stockSymbol?.replaceAll("NSE:", "") ?? '',
-                    ),
+                    title: Text(symbol),
                     subtitle: Text(
                       'Token: ${stock.token}, Price: ${stock.lastPrice}',
                     ),
-                    trailing: Builder(
-                      builder: (context) {
-                        double? percentChange;
-                        if (stock.open != null &&
-                            stock.open != 0 &&
-                            stock.lastPrice != null) {
-                          percentChange =
-                              ((stock.lastPrice! - stock.open!) / stock.open!) *
-                              100;
-                        }
-                        return percentChange != null
+                    trailing:
+                        percentChange != null
                             ? Text(
                               '${percentChange.toStringAsFixed(2)}%',
                               style: TextStyle(
@@ -210,16 +204,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 fontWeight: FontWeight.bold,
                               ),
                             )
-                            : const SizedBox();
-                      },
-                    ),
+                            : const SizedBox(),
                     onTap: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //     builder: (context) => StockCheckScreen(stock: stock),
-                      //   ),
-                      // );
+                      // TODO: Navigate to detail screen
                     },
                   );
                 },
@@ -231,13 +218,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       floatingActionButton: FloatingActionButton(
         child: Text(isTaskRunning ? "STOP" : "START"),
         onPressed: () async {
-          var status = await checkAndRequestExactAlarmPermission();
-          if (!status) return;
-          if (isTaskRunning) {
-            stopApiTask();
-          } else {
-            startApiTask();
-          }
+          if (!await checkAndRequestExactAlarmPermission()) return;
+          isTaskRunning ? stopApiTask() : startApiTask();
         },
       ),
     );

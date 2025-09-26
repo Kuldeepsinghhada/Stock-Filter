@@ -5,7 +5,6 @@ import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/Utils/utilities.dart';
-import 'package:stock_demo/model/api_response.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -19,7 +18,7 @@ class DashboardService {
   /// Fetch live quotes, apply filters and historical data checks
   Future<List<FinalStockModel>> fetchQuotes() async {
     await Utilities.loadStocksList();
-
+    _finalList.clear();
     // Filter valid symbols
     final symbols =
         DataManager.instance.stocksList
@@ -32,7 +31,7 @@ class DashboardService {
 
     // Filter tradable stocks
     final quoteList = allQuotes.where(FilterUtils.isTradable).toList();
-    log("Filtered Quotes Count: ${quoteList.length}");
+    log("First Filter Count: ${quoteList.length}");
 
     // Fetch historical data in throttled batches
     await _fetchHistoricalDataWithFilter(quoteList, maxCallsPerSecond: 12);
@@ -102,7 +101,7 @@ class DashboardService {
 
       final batchResults = await Future.wait(
         batch.map((stock) async {
-          try{
+          try {
             final history = await fetchHistoricalData(
               int.tryParse(stock.token.toString()) ?? 0,
             );
@@ -113,7 +112,7 @@ class DashboardService {
                 historyFiveMin: history,
               );
             }
-          }catch(e){
+          } catch (e) {
             log("Error processing ${stock.symbol} : ${stock.token}: $e");
           }
           return null;

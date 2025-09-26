@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
@@ -39,7 +40,9 @@ class Utilities {
   }
 
   // -----------Convert Live Data to StockModel-------------
-  static List<StockModel> convertDataToStockModel(Map<String, dynamic> stockMap) {
+  static List<StockModel> convertDataToStockModel(
+    Map<String, dynamic> stockMap,
+  ) {
     List<StockModel> stockList = [];
     stockMap.forEach((key, value) {
       stockList.add(
@@ -71,15 +74,15 @@ class Utilities {
   // ------------Notification Process---------------
   static Future<void> addAndShowNotification(List<StockModel> finalList) async {
     List<NotificationModel> notificationsList =
-    await SharedPreferenceHelper.instance.getNotificationList();
+        await SharedPreferenceHelper.instance.getNotificationList();
 
     List<String> newStockSymbols = [];
     for (var stock in finalList) {
       bool exists = notificationsList.any(
-            (n) =>
-        n.stocksNameList?.toUpperCase().contains(
-          stock.symbol!.toUpperCase(),
-        ) ??
+        (n) =>
+            n.stocksNameList?.toUpperCase().contains(
+              stock.symbol!.toUpperCase(),
+            ) ??
             false,
       );
       if (!exists) {
@@ -144,5 +147,122 @@ class Utilities {
     final String fromDate =
         "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
     return fromDate;
+  }
+
+  static List<HistoricalDataModel> resampleCandles(
+    List<HistoricalDataModel> candles,
+    Duration interval,
+  ) {
+    if (candles.isEmpty) return [];
+
+    List<HistoricalDataModel> result = [];
+    List<HistoricalDataModel> bucket = [];
+    DateTime? bucketStart;
+
+    for (var candle in candles) {
+      final marketOpen = DateTime(
+        candle.timestamp.year,
+        candle.timestamp.month,
+        candle.timestamp.day,
+        9,
+        15,
+      );
+      final marketClose = DateTime(
+        candle.timestamp.year,
+        candle.timestamp.month,
+        candle.timestamp.day,
+        15,
+        30,
+      );
+
+      // skip anything outside market hours
+      if (candle.timestamp.isBefore(marketOpen) ||
+          candle.timestamp.isAfter(marketClose)) {
+        continue;
+      }
+
+      // reset bucket start if it's a new day
+      if (bucketStart == null || candle.timestamp.day != bucketStart.day) {
+        // flush old bucket
+        if (bucket.isNotEmpty) {
+          result.add(_aggregate(bucket, bucketStart!));
+          bucket.clear();
+        }
+
+        bucketStart = marketOpen;
+      }
+
+      // move bucketStart forward until candle fits
+      while (candle.timestamp.isAfter(bucketStart!.add(interval))) {
+        if (bucket.isNotEmpty) {
+          result.add(_aggregate(bucket, bucketStart));
+          bucket.clear();
+        }
+        bucketStart = bucketStart.add(interval);
+
+        // stop creating buckets beyond market close
+        if (bucketStart.isAfter(marketClose)) break;
+      }
+
+      // add candle to current bucket
+      if (bucketStart.isBefore(marketClose.add(Duration(seconds: 1)))) {
+        bucket.add(candle);
+      }
+    }
+
+    // last bucket
+    if (bucket.isNotEmpty && bucketStart != null) {
+      result.add(_aggregate(bucket, bucketStart));
+    }
+
+    return result;
+  }
+
+  static HistoricalDataModel _aggregate(
+    List<HistoricalDataModel> bucket,
+    DateTime start,
+  ) {
+    return HistoricalDataModel(
+      timestamp: start,
+      open: bucket.first.open,
+      high: bucket.map((c) => c.high).reduce((a, b) => a > b ? a : b),
+      low: bucket.map((c) => c.low).reduce((a, b) => a < b ? a : b),
+      close: bucket.last.close,
+      volume: bucket.map((c) => c.volume).reduce((a, b) => a + b),
+    );
+  }
+
+  /// Convert 5-min candles → Daily candles using `_aggregate`
+  static List<HistoricalDataModel> convertToDaily(
+    List<HistoricalDataModel> fiveMinCandles,
+  ) {
+    if (fiveMinCandles.isEmpty) return [];
+
+    final Map<String, List<HistoricalDataModel>> grouped = {};
+
+    for (var c in fiveMinCandles) {
+      final dayKey =
+          "${c.timestamp.year}-${c.timestamp.month}-${c.timestamp.day}";
+      grouped.putIfAbsent(dayKey, () => []).add(c);
+    }
+
+    final daily = <HistoricalDataModel>[];
+    for (var entry in grouped.entries) {
+      final candles = entry.value;
+      candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+      // mark bucket start as market open
+      final bucketStart = DateTime(
+        candles.first.timestamp.year,
+        candles.first.timestamp.month,
+        candles.first.timestamp.day,
+        9,
+        15,
+      );
+      // use existing aggregate
+      daily.add(_aggregate(candles, bucketStart));
+    }
+    daily.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return daily;
   }
 }
