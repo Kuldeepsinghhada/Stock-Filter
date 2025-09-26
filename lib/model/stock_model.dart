@@ -24,6 +24,7 @@ class StockModel {
   final String? name;
   final dynamic token;
   final String? sector;
+  final String? link;
   final String? timestamp;
   final String? lastTradeTime;
   final double? lastPrice;
@@ -47,6 +48,7 @@ class StockModel {
   StockModel({
     this.symbol,
     this.name,
+    this.link,
     this.token,
     this.sector,
     this.timestamp,
@@ -74,6 +76,7 @@ class StockModel {
     return StockModel(
       symbol: map['symbol']?.toString(),
       name: map['name']?.toString(),
+      link: map['link']?.toString(),
       token: map['token'],
       timestamp: map['timestamp']?.toString(),
       lastTradeTime: map['last_trade_time']?.toString(),

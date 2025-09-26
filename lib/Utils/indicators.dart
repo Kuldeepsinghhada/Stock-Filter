@@ -303,7 +303,7 @@ class IndicatorUtils {
     return emaValues;
   }
 
-  static bool checkAbove2PercentThenLastDay(List<HistoricalDataModel> candles) {
+  static bool checkAbove2PercentThenLastDayHigh(List<HistoricalDataModel> candles) {
 
     // Ensure sorted
     candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -349,4 +349,48 @@ class IndicatorUtils {
     bool conditionMet = todayLastClose >= yesterdayHigh * 1.02;
     return conditionMet;
   }
+
+  static bool checkAbove2PercentThenLastDayClose(
+      List<HistoricalDataModel> candles) {
+    // Ensure sorted
+    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // Group by date (yyyy-MM-dd)
+    Map<DateTime, List<HistoricalDataModel>> grouped = {};
+    for (var c in candles) {
+      final date = DateTime(c.timestamp.year, c.timestamp.month, c.timestamp.day);
+      grouped.putIfAbsent(date, () => []).add(c);
+    }
+
+    // Get all available trading dates
+    List<DateTime> dates = grouped.keys.toList()..sort();
+
+    // Last available date = "today"
+    DateTime lastDate = dates.last;
+    List<HistoricalDataModel> todayCandles = grouped[lastDate]!;
+    double todayLastClose = todayCandles.last.close;
+
+    // Find "yesterday working day" (skip weekends, skip missing dates)
+    DateTime? yesterdayDate;
+    for (int i = dates.length - 2; i >= 0; i--) {
+      if (dates[i].weekday != DateTime.saturday &&
+          dates[i].weekday != DateTime.sunday) {
+        yesterdayDate = dates[i];
+        break;
+      }
+    }
+
+    if (yesterdayDate == null) {
+      return false;
+    }
+
+    // ✅ Get yesterday’s CLOSE (not high)
+    List<HistoricalDataModel> yesterdayCandles = grouped[yesterdayDate]!;
+    double yesterdayClose = yesterdayCandles.last.close;
+
+    // ✅ Check condition: today close >= yesterday close * 1.02
+    print("Today Last Close:$todayLastClose : $yesterdayClose");
+    return todayLastClose >= yesterdayClose * 1.02;
+  }
+
 }

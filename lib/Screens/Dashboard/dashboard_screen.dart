@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:io';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -30,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool isTaskRunning = false;
   String searchQuery = '';
   List<FinalStockModel> quoteList = [];
+  Timer? _timer;
 
   @override
   void initState() {
@@ -206,7 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             )
                             : const SizedBox(),
                     onTap: () {
-                      // TODO: Navigate to detail screen
+                      print(stock.link);
                     },
                   );
                 },
@@ -218,8 +220,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       floatingActionButton: FloatingActionButton(
         child: Text(isTaskRunning ? "STOP" : "START"),
         onPressed: () async {
-          if (!await checkAndRequestExactAlarmPermission()) return;
-          isTaskRunning ? stopApiTask() : startApiTask();
+          if (Platform.isAndroid) {
+            if (!await checkAndRequestExactAlarmPermission()) return;
+            isTaskRunning ? stopApiTask() : startApiTask();
+          } else {
+            if (!isTaskRunning) {
+              _timer = Timer.periodic(Duration(minutes: 1), (timer) async {
+                await fetchQuotesFromService();
+                isTaskRunning = true;
+              });
+            } else {
+              isTaskRunning = false;
+              _timer?.cancel();
+            }
+            setState(() {});
+          }
         },
       ),
     );

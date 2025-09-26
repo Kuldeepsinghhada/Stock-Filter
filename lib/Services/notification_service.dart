@@ -2,7 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
     const androidSettings = AndroidInitializationSettings(
@@ -23,28 +23,27 @@ class NotificationService {
     await _notificationsPlugin.initialize(initSettings);
   }
 
-  /// Request permissions explicitly for iOS (and Android 13+)
   static Future<void> requestPermissions() async {
     // iOS
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
+        IOSFlutterLocalNotificationsPlugin>()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
-    // Android 13+ also needs runtime permission for notifications
+    // Android 13+
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+        AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
   }
 
   static Future<void> showNotification({
-    required int id,
     required String title,
     required String body,
   }) async {
+    // Use unique ID each time
+    int uniqueId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
     const androidDetails = AndroidNotificationDetails(
       'alarm_channel',
       'Alarm Notifications',
@@ -59,6 +58,6 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    await _notificationsPlugin.show(id, title, body, notificationDetails);
+    await _notificationsPlugin.show(uniqueId, title, body, notificationDetails);
   }
 }

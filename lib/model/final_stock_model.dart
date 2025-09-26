@@ -1,5 +1,7 @@
 class FinalStockModel {
   String? dateTime;
+  String? name;
+  String? link;
   String? stockSymbol;
   int? token;
   double? lastPrice;
@@ -8,6 +10,8 @@ class FinalStockModel {
 
   FinalStockModel({
     this.dateTime,
+    this.name,
+    this.link,
     this.stockSymbol,
     this.token,
     this.lastPrice,

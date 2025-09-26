@@ -95,16 +95,18 @@ class Utilities {
       notificationsList.add(
         NotificationModel(
           stocksNameList: newStockSymbols.join(','),
-          time: DateTime.now().toString(),
+          time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
         ),
       );
       // Show notification
       await NotificationService.showNotification(
-        id: 0,
         title: "Stock Alert",
-        body: "${newStockSymbols.join(', ')} -- ${DateTime.now()}",
+        body:
+            "${newStockSymbols.join(', ')} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
       );
-      log("Notification triggered at ${DateTime.now()}");
+      log(
+        "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
+      );
     }
 
     await SharedPreferenceHelper.instance.saveNotificationList(
@@ -264,5 +266,10 @@ class Utilities {
     }
     daily.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return daily;
+  }
+
+  static String formatDDMMMHHMMDateTime(DateTime dateTime) {
+    final DateFormat formatter = DateFormat('dd MMM HH:mm');
+    return formatter.format(dateTime);
   }
 }

@@ -1,9 +1,7 @@
 import 'dart:developer';
-import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
-
 import 'indicators.dart';
 
 class FilterUtils {
@@ -83,16 +81,18 @@ class FilterUtils {
     );
     if (!is1HourPass) return false;
 
-    // final isMeetPercent = IndicatorUtils.checkAbove2PercentThenLastDay(
-    //   historyCandles ?? [],
-    // );
-    // if (!isMeetPercent) return false;
     final isDayPass = await isPassHistoryChart(
       Utilities.convertToDaily(historyCandles ?? []),
       stock,
       1,
     );
     if (!isDayPass) return false;
+
+    final isMeetPercent = IndicatorUtils.checkAbove2PercentThenLastDayClose(
+      historyCandles ?? [],
+    );
+    if (!isMeetPercent) return false;
+
     log("Stock Passed");
     return true;
   }
@@ -204,14 +204,14 @@ class FilterUtils {
     }
 
     if (percentChange <= 1.0) {
-      debugPrint(
-        "Rejected: percent change $percentChange ≤ 1% for ${stock.symbol}",
-      );
+      // debugPrint(
+      //   "Rejected: percent change $percentChange ≤ 1% for ${stock.symbol}",
+      // );
       return false;
     }
 
     if (volume <= 40000) {
-      debugPrint("Rejected: low volume $volume ≤ 50000 for ${stock.symbol}");
+      //debugPrint("Rejected: low volume $volume ≤ 50000 for ${stock.symbol}");
       return false;
     }
 

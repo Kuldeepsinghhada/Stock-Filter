@@ -42,18 +42,22 @@ class DashboardService {
       "Final Filtered Stocks Count: ${_finalList.length} \n${_finalList.map((e) => e.symbol).join(", ")}",
     );
 
-    return _finalList
-        .map(
-          (s) => FinalStockModel(
-            dateTime: DateTime.now().toString(),
-            stockSymbol: s.symbol,
-            token: s.token,
-            lastPrice: s.lastPrice,
-            open: s.ohlc?.open,
-            close: s.ohlc?.close,
-          ),
-        )
-        .toList();
+    return _finalList.map((s) {
+      final refStock = DataManager.instance.stocksList.indexWhere((obj) {
+        return obj.token == s.token;
+      });
+      print(refStock);
+      return FinalStockModel(
+        dateTime: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
+        stockSymbol: s.symbol,
+        token: s.token,
+        name: "",
+        link: "",
+        lastPrice: s.lastPrice,
+        open: s.ohlc?.open,
+        close: s.ohlc?.close,
+      );
+    }).toList();
   }
 
   /// Fetch live data in batches to reduce API calls
