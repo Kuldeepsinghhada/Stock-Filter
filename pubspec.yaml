@@ -47,6 +47,7 @@ dependencies:
   flutter_local_notifications: ^19.4.2
   fluttertoast: ^8.2.12
   connectivity_plus: ^6.1.2
+  audioplayers: ^6.5.1
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +78,7 @@ flutter:
     - assets/down_arrow.png
     - assets/menu.png
     - assets/main.json
+    - assets/not.wav
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -37,13 +37,7 @@ class FilterUtils {
       3,
     );
 
-    Map<String, bool> adxRes = IndicatorUtils.adxConditions(
-      highs,
-      lows,
-      closes,
-      14,
-      15,
-    );
+    bool adxRes = IndicatorUtils.isADXConditions(highs, lows, closes);
 
     var isVolumeOk = volumes.isNotEmpty ? volumes.last > 30000 : false;
 
@@ -51,9 +45,9 @@ class FilterUtils {
         aboveEma20 &&
         rsiOk &&
         atrOk &&
-        aboveVwap &&
+        //aboveVwap &&
         aboveSupertrend &&
-        adxRes["plusGreater"]!;
+        adxRes;
   }
 
   static Future<bool> isPassAllTimeFrame(

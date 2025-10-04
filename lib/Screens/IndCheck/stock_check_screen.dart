@@ -62,8 +62,7 @@ class _StockCheckScreenState extends State<StockCheckScreen> {
       closes,
       volumes,
     );
-    final adx = IndicatorUtils.adxConditions(highs, lows, closes, 14, 15);
-    final adxPass = adx['adxOk'] == true && adx['plusGreater'] == true;
+    final adx = IndicatorUtils.isADXConditions(highs, lows, closes);
     final supertrendPass = IndicatorUtils.isCloseAboveSupertrend(
       highs,
       lows,
@@ -77,7 +76,7 @@ class _StockCheckScreenState extends State<StockCheckScreen> {
         rsiPass &&
         atrPass &&
         vwapPass &&
-        adxPass &&
+        adx &&
         supertrendPass;
     showDialog(
       context: context,
@@ -99,7 +98,7 @@ class _StockCheckScreenState extends State<StockCheckScreen> {
                 Text("RSI (14) 55-85: ${rsiPass ? 'Pass' : 'Fail'}"),
                 Text("ATR (14) > 1.0: ${atrPass ? 'Pass' : 'Fail'}"),
                 Text("VWAP (20): ${vwapPass ? 'Pass' : 'Fail'}"),
-                Text("ADX (14) > 20 & +DI > -DI: ${adxPass ? 'Pass' : 'Fail'}"),
+                Text("ADX (14) > 20 & +DI > -DI: ${adx ? 'Pass' : 'Fail'}"),
                 Text("Supertrend (9,3): ${supertrendPass ? 'Pass' : 'Fail'}"),
               ],
             ),

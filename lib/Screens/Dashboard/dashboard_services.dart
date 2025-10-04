@@ -100,6 +100,9 @@ class DashboardService {
     List<StockModel> quoteList, {
     int maxCallsPerSecond = 12,
   }) async {
+    List<StockModel> preFilteredList =
+        []; // 👈 new list for only history != null
+
     for (var i = 0; i < quoteList.length; i += maxCallsPerSecond) {
       final batch = quoteList.skip(i).take(maxCallsPerSecond).toList();
 
@@ -109,12 +112,21 @@ class DashboardService {
             final history = await fetchHistoricalData(
               int.tryParse(stock.token.toString()) ?? 0,
             );
-            if (history != null &&
-                await FilterUtils.isPassAllTimeFrame(history, stock)) {
-              return stock.copyWith(
-                symbol: stock.symbol?.replaceAll("NSE:", ""),
-                historyFiveMin: history,
+            if (history != null) {
+              // Add to preFilteredList 👈
+              preFilteredList.add(
+                stock.copyWith(
+                  symbol: stock.symbol?.replaceAll("NSE:", ""),
+                  historyFiveMin: history,
+                ),
               );
+              // Apply final filter check
+              if (await FilterUtils.isPassAllTimeFrame(history, stock)) {
+                return stock.copyWith(
+                  symbol: stock.symbol?.replaceAll("NSE:", ""),
+                  historyFiveMin: history,
+                );
+              }
             }
           } catch (e) {
             log("Error processing ${stock.symbol} : ${stock.token}: $e");
@@ -129,6 +141,10 @@ class DashboardService {
         await Future.delayed(const Duration(seconds: 1));
       }
     }
+
+    DataManager.instance.preFilteredStocksList = preFilteredList;
+    log("PreFiltered List Count: ${preFilteredList.length}");
+    log("Final Filtered List Count: ${_finalList.length}");
   }
 
   /// Fetch historical data for a given instrument token

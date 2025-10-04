@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:stock_demo/model/historical_data_model.dart';
 
 class IndicatorUtils {
@@ -133,65 +135,66 @@ class IndicatorUtils {
   }
 
   // ---------- ADX ----------
-  static Map<String, bool> adxConditions(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    int period,
-    double minAdx,
-  ) {
-    if (close.length < period + 1) {
-      return {"adxOk": false, "plusGreater": false};
+  static bool isADXConditions(List<double> high, List<double> low, List<double> close) {
+    const int diPeriod = 14;       // DI period
+    const int adxSmoothing = 14;   // ADX smoothing period
+    const double minAdx = 20;      // ADX threshold
+
+    // Need at least 28 candles (14 DI + 14 ADX smoothing)
+    if (close.length < diPeriod + adxSmoothing) return false;
+
+    List<double> trList = [];
+    List<double> plusDMList = [];
+    List<double> minusDMList = [];
+
+    // Step 1: Calculate TR, +DM, -DM
+    for (int i = 1; i < high.length; i++) {
+      double highDiff = high[i] - high[i - 1];
+      double lowDiff = low[i - 1] - low[i];
+
+      double tr = max(high[i] - low[i], max((high[i] - close[i - 1]).abs(), (low[i] - close[i - 1]).abs()));
+      trList.add(tr);
+
+      plusDMList.add(highDiff > lowDiff && highDiff > 0 ? highDiff : 0);
+      minusDMList.add(lowDiff > highDiff && lowDiff > 0 ? lowDiff : 0);
     }
 
-    List<double> plusDM = [];
-    List<double> minusDM = [];
-    List<double> tr = [];
+    // Step 2: Wilder smoothing for DI
+    double smoothedTR = trList.sublist(trList.length - (diPeriod + adxSmoothing), trList.length - adxSmoothing).reduce((a, b) => a + b);
+    double smoothedPlusDM = plusDMList.sublist(plusDMList.length - (diPeriod + adxSmoothing), plusDMList.length - adxSmoothing).reduce((a, b) => a + b);
+    double smoothedMinusDM = minusDMList.sublist(minusDMList.length - (diPeriod + adxSmoothing), minusDMList.length - adxSmoothing).reduce((a, b) => a + b);
 
-    // --- Step 1: Calculate DM and TR for whole history ---
-    for (int i = 1; i < close.length; i++) {
-      double upMove = high[i] - high[i - 1];
-      double downMove = low[i - 1] - low[i];
+    List<double> dxList = [];
+    double plusDILast = 0;
+    double minusDILast = 0;
 
-      plusDM.add((upMove > downMove && upMove > 0) ? upMove : 0);
-      minusDM.add((downMove > upMove && downMove > 0) ? downMove : 0);
+    for (int i = trList.length - adxSmoothing; i < trList.length; i++) {
+      smoothedTR = smoothedTR - (smoothedTR / diPeriod) + trList[i];
+      smoothedPlusDM = smoothedPlusDM - (smoothedPlusDM / diPeriod) + plusDMList[i];
+      smoothedMinusDM = smoothedMinusDM - (smoothedMinusDM / diPeriod) + minusDMList[i];
 
-      double trVal = [
-        high[i] - low[i],
-        (high[i] - close[i - 1]).abs(),
-        (low[i] - close[i - 1]).abs(),
-      ].reduce((a, b) => a > b ? a : b);
+      double plusDI = 100 * (smoothedPlusDM / smoothedTR);
+      double minusDI = 100 * (smoothedMinusDM / smoothedTR);
+      double dx = 100 * ((plusDI - minusDI).abs() / (plusDI + minusDI));
 
-      tr.add(trVal);
+      dxList.add(dx);
+
+      // Keep the last DI values
+      if (i == trList.length - 1) {
+        plusDILast = plusDI;
+        minusDILast = minusDI;
+      }
     }
 
-    // --- Step 2: Wilder’s smoothing for TR, +DM, -DM ---
-    double atr = tr.take(period).reduce((a, b) => a + b) / period;
-    double smoothPlusDM = plusDM.take(period).reduce((a, b) => a + b) / period;
-    double smoothMinusDM =
-        minusDM.take(period).reduce((a, b) => a + b) / period;
-
-    for (int i = period; i < tr.length; i++) {
-      atr = ((atr * (period - 1)) + tr[i]) / period;
-      smoothPlusDM = ((smoothPlusDM * (period - 1)) + plusDM[i]) / period;
-      smoothMinusDM = ((smoothMinusDM * (period - 1)) + minusDM[i]) / period;
+    // Step 3: Smooth DX → ADX
+    double adx = dxList.sublist(0, adxSmoothing).reduce((a, b) => a + b) / adxSmoothing;
+    for (int i = adxSmoothing; i < dxList.length; i++) {
+      adx = ((adx * (adxSmoothing - 1)) + dxList[i]) / adxSmoothing;
     }
 
-    // --- Step 3: Calculate DI ---
-    double plusDI = 100 * (smoothPlusDM / atr);
-    double minusDI = 100 * (smoothMinusDM / atr);
-
-    // --- Step 4: DX (last value) ---
-    double dx = 100 * (plusDI - minusDI).abs() / (plusDI + minusDI);
-
-    // --- Step 5: ADX (smoothing DX series) ---
-    // To match TradingView/Fyers we should smooth DX too,
-    // but since we only need last value condition, we use this.
-    // For full ADX line, we’d maintain DX list and smooth it similarly.
-
-    return {"adxOk": dx > minAdx, "plusGreater": plusDI > minusDI};
+    // Step 4: Return true only if ADX > 20 AND +DI > -DI (strong bullish)
+    return adx > minAdx && plusDILast > minusDILast;
   }
-
   // ---------- Supertrend ----------
   static bool isCloseAboveSupertrend(
     List<double> high,
@@ -281,7 +284,7 @@ class IndicatorUtils {
     final latestVolume = volumes.last;
     final latestEma = ema20.last;
 
-    return latestVolume > latestEma * 1.4;
+    return latestVolume > latestEma * 1.5;
   }
 
   /// Calculate EMA on given values
@@ -303,8 +306,62 @@ class IndicatorUtils {
     return emaValues;
   }
 
-  static bool checkAbove2PercentThenLastDayHigh(List<HistoricalDataModel> candles) {
+  static bool checkAboveLast5DaysHigh(List<HistoricalDataModel> candles) {
+    // Ensure sorted by timestamp
+    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
+    // Group by date (yyyy-MM-dd)
+    Map<DateTime, List<HistoricalDataModel>> grouped = {};
+    for (var c in candles) {
+      final date = DateTime(
+        c.timestamp.year,
+        c.timestamp.month,
+        c.timestamp.day,
+      );
+      grouped.putIfAbsent(date, () => []).add(c);
+    }
+
+    // Get all available trading dates
+    List<DateTime> dates = grouped.keys.toList()..sort();
+
+    if (dates.length < 6) {
+      // Not enough days of data (need today + 5 previous days)
+      return false;
+    }
+
+    // Today (last trading date in list)
+    DateTime lastDate = dates.last;
+    List<HistoricalDataModel> todayCandles = grouped[lastDate]!;
+    double todayLastClose = todayCandles.last.close;
+
+    // Collect last 5 trading days before today
+    List<DateTime> previousDates = [];
+    for (int i = dates.length - 2; i >= 0 && previousDates.length < 5; i--) {
+      if (dates[i].weekday != DateTime.saturday &&
+          dates[i].weekday != DateTime.sunday) {
+        previousDates.add(dates[i]);
+      }
+    }
+
+    if (previousDates.length < 5) {
+      // Not enough valid previous trading days
+      return false;
+    }
+
+    // Find highest high among last 5 trading days
+    double last5DaysHigh = previousDates
+        .map(
+          (d) => grouped[d]!.map((c) => c.high).reduce((a, b) => a > b ? a : b),
+        )
+        .reduce((a, b) => a > b ? a : b);
+
+    // Condition: today's close above last 5 days' high
+    return todayLastClose > last5DaysHigh;
+  }
+
+  static bool checkAbove2PercentThenLastDayHigh(
+    List<HistoricalDataModel> candles,
+  ) {
     // Ensure sorted
     candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
@@ -351,14 +408,19 @@ class IndicatorUtils {
   }
 
   static bool checkAbove2PercentThenLastDayClose(
-      List<HistoricalDataModel> candles) {
+    List<HistoricalDataModel> candles,
+  ) {
     // Ensure sorted
     candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     // Group by date (yyyy-MM-dd)
     Map<DateTime, List<HistoricalDataModel>> grouped = {};
     for (var c in candles) {
-      final date = DateTime(c.timestamp.year, c.timestamp.month, c.timestamp.day);
+      final date = DateTime(
+        c.timestamp.year,
+        c.timestamp.month,
+        c.timestamp.day,
+      );
       grouped.putIfAbsent(date, () => []).add(c);
     }
 
@@ -386,11 +448,12 @@ class IndicatorUtils {
 
     // ✅ Get yesterday’s CLOSE (not high)
     List<HistoricalDataModel> yesterdayCandles = grouped[yesterdayDate]!;
+
+    double yesterdayOpen = yesterdayCandles.first.open;
     double yesterdayClose = yesterdayCandles.last.close;
 
     // ✅ Check condition: today close >= yesterday close * 1.02
-    print("Today Last Close:$todayLastClose : $yesterdayClose");
-    return todayLastClose >= yesterdayClose * 1.02;
+    return (todayLastClose >= yesterdayClose * 1.02) &&
+        (yesterdayOpen < yesterdayClose);
   }
-
 }

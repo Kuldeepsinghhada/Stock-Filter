@@ -2,7 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
-  FlutterLocalNotificationsPlugin();
+      FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
     const androidSettings = AndroidInitializationSettings(
@@ -27,13 +27,15 @@ class NotificationService {
     // iOS
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>()
+          IOSFlutterLocalNotificationsPlugin
+        >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
     // Android 13+
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
   }
 
