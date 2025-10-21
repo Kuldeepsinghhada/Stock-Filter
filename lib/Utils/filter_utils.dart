@@ -13,15 +13,9 @@ class FilterUtils {
     String token,
   ) {
     bool aboveEma20 = IndicatorUtils.isAboveEMA(closes, 20);
-    bool rsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
+    bool rsiOk = IndicatorUtils.isRsiBetween(closes, 14, 60, 90);
 
-    bool atrOk = IndicatorUtils.isAtrGreaterThan(
-      highs,
-      lows,
-      closes,
-      14,
-      closes.last * 0.003,
-    );
+    bool atrOk = IndicatorUtils.isAtrGreaterThan(highs, lows, closes, 14);
     bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(
       highs,
       lows,
@@ -45,7 +39,7 @@ class FilterUtils {
         aboveEma20 &&
         rsiOk &&
         atrOk &&
-        //aboveVwap &&
+        aboveVwap &&
         aboveSupertrend &&
         adxRes;
   }
@@ -197,7 +191,7 @@ class FilterUtils {
       return false;
     }
 
-    if (percentChange <= 1.0) {
+    if (percentChange <= 1.5) {
       // debugPrint(
       //   "Rejected: percent change $percentChange ≤ 1% for ${stock.symbol}",
       // );

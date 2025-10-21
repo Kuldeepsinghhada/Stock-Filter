@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
@@ -10,6 +9,7 @@ import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// Background task entry point
 @pragma('vm:entry-point')
@@ -88,7 +88,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   Future<void> startApiTask() async {
     try {
       await AndroidAlarmManager.periodic(
-        const Duration(minutes: 5),
+        const Duration(minutes: 1),
         alarmId,
         repeatTask,
         wakeup: true,
@@ -232,21 +232,25 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       floatingActionButton: FloatingActionButton(
         child: Text(isTaskRunning ? "STOP" : "START"),
         onPressed: () async {
-          if (Platform.isAndroid) {
-            if (!await checkAndRequestExactAlarmPermission()) return;
-            isTaskRunning ? stopApiTask() : startApiTask();
+          // if (Platform.isAndroid) {
+          //   if (!await checkAndRequestExactAlarmPermission()) return;
+          //   isTaskRunning ? stopApiTask() : startApiTask();
+          // } else {
+          await WakelockPlus.enable();
+          if (!isTaskRunning) {
+            isTaskRunning = true;
+            await fetchQuotesFromService();
+            //setState(() {});
+            _timer = Timer.periodic(Duration(seconds: 45), (timer) async {
+              await fetchQuotesFromService();
+            });
           } else {
-            if (!isTaskRunning) {
-              _timer = Timer.periodic(Duration(minutes: 1), (timer) async {
-                await fetchQuotesFromService();
-                isTaskRunning = true;
-              });
-            } else {
-              isTaskRunning = false;
-              _timer?.cancel();
-            }
-            setState(() {});
+            isTaskRunning = false;
+            await WakelockPlus.disable();
+            _timer?.cancel();
           }
+          setState(() {});
+          // }
         },
       ),
     );

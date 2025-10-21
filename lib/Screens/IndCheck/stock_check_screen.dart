@@ -48,14 +48,12 @@ class _StockCheckScreenState extends State<StockCheckScreen> {
     // Indicator checks
     final emaPass = IndicatorUtils.isAboveEMA(closes, 20);
     final smaPass = IndicatorUtils.isAboveSMA(closes, 20);
-    final rsiPass = IndicatorUtils.isRsiBetween(closes, 14, 55, 85);
+    final rsiPass = IndicatorUtils.isRsiBetween(closes, 14, 60, 90);
     final atrPass = IndicatorUtils.isAtrGreaterThan(
       highs,
       lows,
       closes,
-      14,
-      1.0,
-    );
+      14);
     final vwapPass = IndicatorUtils.isCloseAboveVWAP(
       highs,
       lows,

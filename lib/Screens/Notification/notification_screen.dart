@@ -34,7 +34,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Today's Alert")),
+      appBar: AppBar(
+        title: const Text("Today's Alert"),
+        actions: [
+          IconButton(
+            onPressed: () {
+              SharedPreferenceHelper.instance.clearNotifications();
+              getNotifications();
+            },
+            icon: Icon(Icons.delete),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: getNotifications,
         child: ListView.builder(

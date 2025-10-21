@@ -43,10 +43,6 @@ class DashboardService {
     );
 
     return _finalList.map((s) {
-      final refStock = DataManager.instance.stocksList.indexWhere((obj) {
-        return obj.token == s.token;
-      });
-      print(refStock);
       return FinalStockModel(
         dateTime: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
         stockSymbol: s.symbol,

@@ -77,14 +77,16 @@ class IndicatorUtils {
     return rsi >= min && rsi <= max;
   }
 
-  static double calculateATR(
+  static bool isAtrGreaterThan(
     List<double> high,
     List<double> low,
     List<double> close,
     int period,
   ) {
-    if (close.length < period + 1) return 0.0;
+    // Ensure we have enough data
+    if (close.length < period + 1) return false;
 
+    // --- Calculate ATR ---
     final start = close.length - (period + 1);
     final lastHigh = high.sublist(start);
     final lastLow = low.sublist(start);
@@ -98,17 +100,16 @@ class IndicatorUtils {
       tr.add([hL, hC, lC].reduce((a, b) => a > b ? a : b));
     }
 
-    return tr.reduce((a, b) => a + b) / period;
-  }
+    double atr = tr.reduce((a, b) => a + b) / period;
 
-  static bool isAtrGreaterThan(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    int period,
-    double value,
-  ) {
-    return calculateATR(high, low, close, period) > value;
+    // --- Adaptive Threshold ---
+    double lastClosePrice = close.last;
+    double factor = lastClosePrice < 200 ? 0.006 : 0.004;
+
+    // --- Compare ATR vs Threshold ---
+    bool isAtrHigh = atr > (lastClosePrice * factor);
+
+    return isAtrHigh;
   }
 
   // ---------- VWAP (Session-based like TradingView/Fyers) ----------
@@ -135,10 +136,14 @@ class IndicatorUtils {
   }
 
   // ---------- ADX ----------
-  static bool isADXConditions(List<double> high, List<double> low, List<double> close) {
-    const int diPeriod = 14;       // DI period
-    const int adxSmoothing = 14;   // ADX smoothing period
-    const double minAdx = 20;      // ADX threshold
+  static bool isADXConditions(
+    List<double> high,
+    List<double> low,
+    List<double> close,
+  ) {
+    const int diPeriod = 14; // DI period
+    const int adxSmoothing = 14; // ADX smoothing period
+    const double minAdx = 20; // ADX threshold
 
     // Need at least 28 candles (14 DI + 14 ADX smoothing)
     if (close.length < diPeriod + adxSmoothing) return false;
@@ -152,7 +157,10 @@ class IndicatorUtils {
       double highDiff = high[i] - high[i - 1];
       double lowDiff = low[i - 1] - low[i];
 
-      double tr = max(high[i] - low[i], max((high[i] - close[i - 1]).abs(), (low[i] - close[i - 1]).abs()));
+      double tr = max(
+        high[i] - low[i],
+        max((high[i] - close[i - 1]).abs(), (low[i] - close[i - 1]).abs()),
+      );
       trList.add(tr);
 
       plusDMList.add(highDiff > lowDiff && highDiff > 0 ? highDiff : 0);
@@ -160,9 +168,24 @@ class IndicatorUtils {
     }
 
     // Step 2: Wilder smoothing for DI
-    double smoothedTR = trList.sublist(trList.length - (diPeriod + adxSmoothing), trList.length - adxSmoothing).reduce((a, b) => a + b);
-    double smoothedPlusDM = plusDMList.sublist(plusDMList.length - (diPeriod + adxSmoothing), plusDMList.length - adxSmoothing).reduce((a, b) => a + b);
-    double smoothedMinusDM = minusDMList.sublist(minusDMList.length - (diPeriod + adxSmoothing), minusDMList.length - adxSmoothing).reduce((a, b) => a + b);
+    double smoothedTR = trList
+        .sublist(
+          trList.length - (diPeriod + adxSmoothing),
+          trList.length - adxSmoothing,
+        )
+        .reduce((a, b) => a + b);
+    double smoothedPlusDM = plusDMList
+        .sublist(
+          plusDMList.length - (diPeriod + adxSmoothing),
+          plusDMList.length - adxSmoothing,
+        )
+        .reduce((a, b) => a + b);
+    double smoothedMinusDM = minusDMList
+        .sublist(
+          minusDMList.length - (diPeriod + adxSmoothing),
+          minusDMList.length - adxSmoothing,
+        )
+        .reduce((a, b) => a + b);
 
     List<double> dxList = [];
     double plusDILast = 0;
@@ -170,8 +193,10 @@ class IndicatorUtils {
 
     for (int i = trList.length - adxSmoothing; i < trList.length; i++) {
       smoothedTR = smoothedTR - (smoothedTR / diPeriod) + trList[i];
-      smoothedPlusDM = smoothedPlusDM - (smoothedPlusDM / diPeriod) + plusDMList[i];
-      smoothedMinusDM = smoothedMinusDM - (smoothedMinusDM / diPeriod) + minusDMList[i];
+      smoothedPlusDM =
+          smoothedPlusDM - (smoothedPlusDM / diPeriod) + plusDMList[i];
+      smoothedMinusDM =
+          smoothedMinusDM - (smoothedMinusDM / diPeriod) + minusDMList[i];
 
       double plusDI = 100 * (smoothedPlusDM / smoothedTR);
       double minusDI = 100 * (smoothedMinusDM / smoothedTR);
@@ -187,7 +212,8 @@ class IndicatorUtils {
     }
 
     // Step 3: Smooth DX → ADX
-    double adx = dxList.sublist(0, adxSmoothing).reduce((a, b) => a + b) / adxSmoothing;
+    double adx =
+        dxList.sublist(0, adxSmoothing).reduce((a, b) => a + b) / adxSmoothing;
     for (int i = adxSmoothing; i < dxList.length; i++) {
       adx = ((adx * (adxSmoothing - 1)) + dxList[i]) / adxSmoothing;
     }
@@ -195,6 +221,7 @@ class IndicatorUtils {
     // Step 4: Return true only if ADX > 20 AND +DI > -DI (strong bullish)
     return adx > minAdx && plusDILast > minusDILast;
   }
+
   // ---------- Supertrend ----------
   static bool isCloseAboveSupertrend(
     List<double> high,
