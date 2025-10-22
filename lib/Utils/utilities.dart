@@ -8,8 +8,10 @@ import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
+import 'filter_utils.dart';
 
 class Utilities {
   static String formatIndianNumber(num value) {
@@ -126,23 +128,68 @@ class Utilities {
 
   // -----------GET END DATE FOR HISTORICAL DATA -----------
   static DateTime getLastWorkingDay(DateTime now) {
-    // Saturday → Friday
-    if (now.weekday == DateTime.saturday) {
-      return now.subtract(const Duration(days: 1));
+    // --- Define market holidays for 2025 & 2026 ---
+    final List<DateTime> holidays = [
+      // ------- 2025 HOLIDAYS -------
+      DateTime(2025, 2, 26), // Mahashivratri
+      DateTime(2025, 3, 14), // Holi
+      DateTime(2025, 3, 31), // Eid-ul-Fitr
+      DateTime(2025, 4, 10), // Mahavir Jayanti
+      DateTime(2025, 4, 14), // Dr. Ambedkar Jayanti
+      DateTime(2025, 4, 18), // Good Friday
+      DateTime(2025, 5, 1), // Maharashtra Day
+      DateTime(2025, 8, 15), // Independence Day
+      DateTime(2025, 8, 27), // Ganesh Chaturthi
+      DateTime(2025, 10, 2), // Gandhi Jayanti / Dussehra
+      DateTime(2025, 10, 21), // Diwali (Laxmi Pujan) - Muhurat only
+      DateTime(2025, 10, 22), // Diwali Balipratipada
+      DateTime(2025, 11, 5), // Gurunanak Jayanti
+      DateTime(2025, 12, 25), // Christmas
+      // ------- 2026 HOLIDAYS -------
+      DateTime(2026, 1, 26), // Republic Day
+      DateTime(2026, 3, 2), // Mahashivratri
+      DateTime(2026, 3, 19), // Holi
+      DateTime(2026, 3, 30), // Eid-ul-Fitr
+      DateTime(2026, 4, 2), // Ram Navami
+      DateTime(2026, 4, 14), // Dr. Ambedkar Jayanti
+      DateTime(2026, 4, 17), // Good Friday
+      DateTime(2026, 5, 1), // Maharashtra Day
+      DateTime(2026, 8, 15), // Independence Day
+      DateTime(2026, 8, 28), // Ganesh Chaturthi
+      DateTime(2026, 10, 19), // Diwali (Laxmi Pujan)
+      DateTime(2026, 10, 20), // Diwali (Balipratipada)
+      DateTime(2026, 11, 24), // Gurunanak Jayanti
+      DateTime(2026, 12, 25), // Christmas
+    ];
+
+    DateTime date = now;
+
+    // --- Weekend adjustment ---
+    if (date.weekday == DateTime.saturday) {
+      date = date.subtract(const Duration(days: 1)); // Saturday → Friday
+    } else if (date.weekday == DateTime.sunday) {
+      date = date.subtract(const Duration(days: 2)); // Sunday → Friday
+    } else if (date.weekday == DateTime.monday &&
+        (date.hour < 9 || (date.hour == 9 && date.minute < 5))) {
+      date = date.subtract(
+        const Duration(days: 3),
+      ); // Monday before 9:05 → Friday
     }
-    // Sunday → Friday
-    else if (now.weekday == DateTime.sunday) {
-      return now.subtract(const Duration(days: 2));
+
+    // --- Check for holiday (loop backward until working day) ---
+    while (holidays.any(
+      (h) => h.year == date.year && h.month == date.month && h.day == date.day,
+    )) {
+      date = date.subtract(const Duration(days: 1));
+      // If holiday falls on Monday, also skip weekend behind
+      if (date.weekday == DateTime.sunday) {
+        date = date.subtract(const Duration(days: 2));
+      } else if (date.weekday == DateTime.saturday) {
+        date = date.subtract(const Duration(days: 1));
+      }
     }
-    // Monday before 9:05 AM → Friday
-    else if (now.weekday == DateTime.monday &&
-        (now.hour < 9 || (now.hour == 9 && now.minute < 5))) {
-      return now.subtract(const Duration(days: 3));
-    }
-    // Otherwise → same day
-    else {
-      return now;
-    }
+
+    return date;
   }
 
   // -----------GET START DATE FOR HISTORICAL DATA -----------
@@ -281,6 +328,75 @@ class Utilities {
   static String formatDDMMMHHMMDateTime(DateTime dateTime) {
     final DateFormat formatter = DateFormat('dd MMM HH:mm');
     return formatter.format(dateTime);
+  }
+
+  static String timeKey(DateTime ts) {
+    return "${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}";
+  }
+
+  // main scanner
+  static Future<List<HistoryModel>> buildTodayHistory(
+    List<HistoricalDataModel> candles,
+    StockModel model,
+  ) async {
+    // sort
+    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // identify today's date
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    // filter only today's candles
+    final todayCandles =
+        candles
+            .where(
+              (c) =>
+                  c.timestamp.year == todayDate.year &&
+                  c.timestamp.month == todayDate.month &&
+                  c.timestamp.day == todayDate.day,
+            )
+            .toList();
+    List<HistoryModel> historyThisList = [];
+    for (var current in todayCandles) {
+      // collect all candles of 20 days till this time-of-day
+      var historySoFar =
+          candles.where((c) {
+            return (c.timestamp.hour < current.timestamp.hour) ||
+                (c.timestamp.hour == current.timestamp.hour &&
+                    c.timestamp.minute <= current.timestamp.minute);
+          }).toList();
+
+      // run your filter
+      try {
+        bool passed = await FilterUtils.isPassAllTimeFrame(historySoFar, model);
+
+        if (passed) {
+          historyThisList.add(
+            HistoryModel(
+              dateTime: current.timestamp,
+              price: current.close,
+              isPassed: passed,
+            ),
+          );
+        }
+      } catch (e) {
+        log(e.toString());
+      }
+    }
+    return historyThisList;
+  }
+
+  static bool candleTillCandle(
+    HistoricalDataModel candle,
+    List<HistoricalDataModel> historySoFar,
+  ) {
+    if (historySoFar.isEmpty) return false;
+
+    double lastHigh = historySoFar
+        .map((c) => c.high)
+        .fold<double>(-double.infinity, (a, b) => a > b ? a : b);
+
+    return candle.close > lastHigh; // breakout
   }
 
   // LARGE CAP STOCKS

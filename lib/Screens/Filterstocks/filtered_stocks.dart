@@ -11,6 +11,8 @@ import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../SearchStocks/search_stocks_screen.dart';
+
 /// Background task entry point
 @pragma('vm:entry-point')
 Future<void> repeatTask() async {
@@ -149,6 +151,17 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         //   icon: Icon(Icons.notification_add),
         // ),
         actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchStocksScreen(),
+                ),
+              );
+            },
+            icon: Icon(Icons.search),
+          ),
           if (isLoading && quoteList.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),

@@ -7,6 +7,8 @@ import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
+import '../../Utils/utilities.dart';
+
 class PreFilteredStock extends StatefulWidget {
   const PreFilteredStock({super.key});
 
@@ -32,7 +34,10 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
         isLoading = true;
       });
       for (var item in DataManager.instance.preFilteredStocksList) {
-        var result = await buildTodayHistory(item.historyFiveMin ?? [], item);
+        var result = await Utilities.buildTodayHistory(
+          item.historyFiveMin ?? [],
+          item,
+        );
         if (result.isNotEmpty) {
           quoteList.add(item);
           historyList.add(result);
@@ -43,82 +48,6 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
       });
     });
   }
-
-  String timeKey(DateTime ts) {
-    return "${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}";
-  }
-
-  // main scanner
-  Future<List<HistoryModel>> buildTodayHistory(
-    List<HistoricalDataModel> candles,
-    StockModel model,
-  ) async {
-    // sort
-    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-
-    // identify today's date
-    final today = DateTime.now();
-    final todayDate = DateTime(today.year, today.month, today.day);
-
-    // filter only today's candles
-    final todayCandles =
-        candles
-            .where(
-              (c) =>
-                  c.timestamp.year == todayDate.year &&
-                  c.timestamp.month == todayDate.month &&
-                  c.timestamp.day == todayDate.day,
-            )
-            .toList();
-    List<HistoryModel> historyThisList = [];
-    for (var current in todayCandles) {
-      // collect all candles of 20 days till this time-of-day
-      var historySoFar =
-          candles.where((c) {
-            return (c.timestamp.hour < current.timestamp.hour) ||
-                (c.timestamp.hour == current.timestamp.hour &&
-                    c.timestamp.minute <= current.timestamp.minute);
-          }).toList();
-
-      // run your filter
-      try {
-        bool passed = await FilterUtils.isPassAllTimeFrame(historySoFar, model);
-
-        if (passed) {
-          historyThisList.add(
-            HistoryModel(
-              dateTime: current.timestamp,
-              price: current.close,
-              isPassed: passed,
-            ),
-          );
-        }
-      } catch (e) {
-        print(e.toString());
-      }
-    }
-    return historyThisList;
-  }
-
-  bool passesFilter(
-    HistoricalDataModel candle,
-    List<HistoricalDataModel> historySoFar,
-  ) {
-    if (historySoFar.isEmpty) return false;
-
-    double lastHigh = historySoFar
-        .map((c) => c.high)
-        .fold<double>(-double.infinity, (a, b) => a > b ? a : b);
-
-    return candle.close > lastHigh; // breakout
-  }
-
-  // // Helper: compare only intraday time (hh:mm)
-  // bool isBeforeOrEqualTime(DateTime a, DateTime b) {
-  //   if (a.hour < b.hour) return true;
-  //   if (a.hour == b.hour && a.minute <= b.minute) return true;
-  //   return false;
-  // }
 
   @override
   void dispose() {
