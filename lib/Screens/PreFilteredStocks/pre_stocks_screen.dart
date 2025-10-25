@@ -41,6 +41,9 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
         if (result.isNotEmpty) {
           quoteList.add(item);
           historyList.add(result);
+          if(quoteList.length == 5){
+            break;
+          }
         }
       }
       setState(() {

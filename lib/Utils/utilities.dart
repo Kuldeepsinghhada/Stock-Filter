@@ -343,8 +343,11 @@ class Utilities {
     candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     // identify today's date
-    final today = DateTime.now();
-    final todayDate = DateTime(today.year, today.month, today.day);
+    // Use last working day as the reference date so on weekends/holidays
+    // we operate on the previous trading day.
+    final now = DateTime.now();
+    final lastWorking = getLastWorkingDay(now);
+    final todayDate = DateTime(lastWorking.year, lastWorking.month, lastWorking.day);
 
     // filter only today's candles
     final todayCandles =
