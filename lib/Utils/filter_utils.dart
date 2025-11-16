@@ -54,36 +54,11 @@ class FilterUtils {
         isVolumeOk &&
         aboveEma20 &&
         rsiOk &&
-        atrOk &&
         aboveVwap &&
         aboveSupertrend &&
         adxRes &&
+        atrOk &&
         is2PcChange;
-
-    if(token == '1897729'){
-      log("Debug breakpoint for token 1897729");
-          print("""
-      -------------------------------
-      Filter Debug for $token
-      -------------------------------
-      Volume        : $isVolumeOk
-      EMA20         : $aboveEma20
-      RSI (60–90)   : $rsiOk
-      ATR           : $atrOk
-      VWAP          : $aboveVwap
-      Supertrend(9,3): $aboveSupertrend
-      ADX Bullish   : $adxRes
-      2%+ Change    : $is2PcChange
-      -------------------------------
-      ✅ Final Result: ${isVolumeOk && aboveEma20 && rsiOk && atrOk && aboveVwap && aboveSupertrend && adxRes && is2PcChange}
-      -------------------------------
-      """);
-
-          if(result) {
-            print("Final TRUE");
-          }
-
-    }
     return result;
   }
 

@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:stock_demo/Screens/IndCheck/stock_check_screen.dart';
 import 'package:stock_demo/Screens/history/history_screen.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
-
-import '../../Utils/utilities.dart';
 
 class PreFilteredStock extends StatefulWidget {
   const PreFilteredStock({super.key});
@@ -41,11 +39,9 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
         if (result.isNotEmpty) {
           quoteList.add(item);
           historyList.add(result);
-          if(quoteList.length == 5){
-            break;
-          }
         }
       }
+      print(historyList.length);
       setState(() {
         isLoading = false;
       });

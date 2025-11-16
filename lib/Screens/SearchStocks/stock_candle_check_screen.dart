@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
@@ -24,14 +23,15 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
 
   Future<void> _initialize() async {
     Future.delayed(const Duration(milliseconds: 200), () async {
-      for (var item in DataManager.instance.preFilteredStocksList) {
-        var result = await Utilities.buildTodayHistory(
-          item.historyFiveMin ?? [],
-          item,
-        );
-        if (result.isNotEmpty) {
-          historyList = result;
-        }
+      setState(() {
+        // isLoading = true;
+      });
+      var result = await Utilities.buildTodayHistory(
+        widget.stock.historyFiveMin ?? [],
+        widget.stock,
+      );
+      if (result.isNotEmpty) {
+        historyList = result;
       }
       setState(() {
         //isLoading = false;
@@ -43,7 +43,7 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.stock.symbol ?? ''} - 5m candle check'),
+        title: Text('${widget.stock.symbol ?? ''}'),
       ),
       body:
           historyList.isEmpty
@@ -61,9 +61,9 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
                       color: (obj.isPassed == true) ? Colors.green : Colors.red,
                     ),
                     title: Text(obj.price.toString()),
-                    // subtitle: Text(
-                    //   'O: $open  H: $high  L: $low  C: $close',
-                    // ),
+                    subtitle: Text(
+                      obj.dateTime.toString(),
+                    ),
                     dense: true,
                   );
                 },
