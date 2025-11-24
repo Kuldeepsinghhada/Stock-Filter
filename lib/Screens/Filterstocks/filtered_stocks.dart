@@ -37,6 +37,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   List<FinalStockModel> quoteList = [];
   Timer? _timer;
 
+  DateTime selectedDate = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -151,6 +153,18 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         //   icon: Icon(Icons.notification_add),
         // ),
         actions: [
+          IconButton(onPressed: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: selectedDate,
+              firstDate: DateTime(2000),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) {
+              setState(() => selectedDate = picked);
+              await fetchQuotesFromService();
+            }
+          }, icon: Icon(Icons.calendar_month)),
           IconButton(
             onPressed: () {
               Navigator.push(

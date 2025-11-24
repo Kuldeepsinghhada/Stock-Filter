@@ -11,6 +11,7 @@ import 'package:stock_demo/portfolio_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/utilities.dart';
+import 'Screens/Investments/investment_screen.dart';
 import 'Screens/Notification/notification_screen.dart';
 import 'Services/notification_service.dart';
 import 'dart:io';
@@ -32,7 +33,6 @@ void main() async {
   }
   runApp(const TradingPrototype());
 }
-
 
 Future<bool> checkUserLoggedIn() async {
   final token = await SharedPreferenceHelper.instance.getToken();
