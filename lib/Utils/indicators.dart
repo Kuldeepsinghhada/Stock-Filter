@@ -1,352 +1,507 @@
+import 'dart:math';
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'candle_utils.dart';
+import 'math_utils.dart';
 
+/// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
-  // ---------- EMA ----------
-  static bool isAboveEMA(List<double> prices, int period) {
-    if (prices.length < period) return false;
-
-    double multiplier = 2 / (period + 1);
-
-    // Initial EMA = SMA of first 'period' prices
-    double ema = prices.sublist(0, period).reduce((a, b) => a + b) / period;
-
-    // Continue EMA calculation for the rest of the prices
-    for (int i = period; i < prices.length; i++) {
-      ema = ((prices[i] - ema) * multiplier) + ema;
-    }
-
-    return prices.last > ema;
+  /// ---------- EMA / SMA ----------
+  static bool isCloseAboveEMA(List<HistoricalDataModel> candles, int period) {
+    if (candles.length < period) return false;
+    CandleUtils.sortByTime(candles);
+    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final ema = MathUtils.emaAligned(closes, period);
+    final lastEma = ema.isNotEmpty ? ema.last : null;
+    if (lastEma == null) return false;
+    return closes.last > lastEma;
   }
 
-  // ---------- SMA ----------
-  static bool isAboveSMA(List<double> prices, int period) {
-    if (prices.length < period) return false;
-
-    // Simple Moving Average = average of last 'period' prices
-    double sma =
-        prices.sublist(prices.length - period).reduce((a, b) => a + b) / period;
-
-    return prices.last > sma;
-  }
-
+  /// ---------- RSI (Wilder's) ----------
   static bool isRsiBetween(
-    List<double> prices,
-    int period,
-    double min,
-    double max,
-  ) {
-    if (prices.length < period + 1) return false;
+    List<HistoricalDataModel> candles,
+    int period, {
+    required double min,
+    required double max,
+  }) {
+    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    if (closes.length < period + 1) return false;
 
-    // --- Step 1: price changes
-    List<double> deltas = [];
-    for (int i = 1; i < prices.length; i++) {
-      deltas.add(prices[i] - prices[i - 1]);
+    final deltas = <double>[];
+    for (int i = 1; i < closes.length; i++) {
+      deltas.add(closes[i] - closes[i - 1]);
     }
 
-    // --- Step 2: initial average gain/loss over first `period`
-    double avgGain = 0.0;
-    double avgLoss = 0.0;
+    double avgGain = 0.0, avgLoss = 0.0;
     for (int i = 0; i < period; i++) {
-      double delta = deltas[i];
-      if (delta > 0) {
-        avgGain += delta;
+      final d = deltas[i];
+      if (d > 0) {
+        avgGain += d;
       } else {
-        avgLoss += -delta;
+        avgLoss += -d;
       }
     }
     avgGain /= period;
     avgLoss /= period;
 
-    // --- Step 3: Wilder’s smoothing for the rest of deltas
     for (int i = period; i < deltas.length; i++) {
-      double delta = deltas[i];
-      double gain = delta > 0 ? delta : 0;
-      double loss = delta < 0 ? -delta : 0;
-
+      final d = deltas[i];
+      final gain = d > 0 ? d : 0.0;
+      final loss = d < 0 ? -d : 0.0;
       avgGain = ((avgGain * (period - 1)) + gain) / period;
       avgLoss = ((avgLoss * (period - 1)) + loss) / period;
     }
 
-    // --- Step 4: RSI
-    double rs = avgLoss == 0 ? double.infinity : avgGain / avgLoss;
-    double rsi = 100 - (100 / (1 + rs));
-
-    // --- Step 5: check
+    final rs = (avgLoss == 0) ? double.infinity : (avgGain / avgLoss);
+    final rsi = 100 - (100 / (1 + rs));
     return rsi >= min && rsi <= max;
   }
 
-  static double calculateATR(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    int period,
-  ) {
-    if (close.length < period + 1) return 0.0;
-
-    final start = close.length - (period + 1);
-    final lastHigh = high.sublist(start);
-    final lastLow = low.sublist(start);
-    final lastClose = close.sublist(start);
+  /// ---------- ATR ----------
+  /// returns ATR for last candle or null if not enough data
+  static double? atrLast(
+    List<double> highs,
+    List<double> lows,
+    List<double> closes, {
+    required int period,
+  }) {
+    final n = closes.length;
+    if (n < period + 1 || highs.length != n || lows.length != n) return null;
 
     List<double> tr = [];
-    for (int i = 1; i < lastClose.length; i++) {
-      double hL = lastHigh[i] - lastLow[i];
-      double hC = (lastHigh[i] - lastClose[i - 1]).abs();
-      double lC = (lastLow[i] - lastClose[i - 1]).abs();
-      tr.add([hL, hC, lC].reduce((a, b) => a > b ? a : b));
+    for (int i = 1; i < n; i++) {
+      final hL = highs[i] - lows[i];
+      final hC = (highs[i] - closes[i - 1]).abs();
+      final lC = (lows[i] - closes[i - 1]).abs();
+      tr.add(max(hL, max(hC, lC)));
     }
 
-    return tr.reduce((a, b) => a + b) / period;
-  }
-
-  static bool isAtrGreaterThan(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    int period,
-    double value,
-  ) {
-    return calculateATR(high, low, close, period) > value;
-  }
-
-  // ---------- VWAP (Session-based like TradingView/Fyers) ----------
-  static bool isCloseAboveVWAP(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    List<int> volume,
-  ) {
-    if (close.isEmpty || volume.isEmpty) return false;
-
-    double tpVolSum = 0, volSum = 0;
-
-    // Use ALL candles of the session (not just last N)
-    for (int i = 0; i < close.length; i++) {
-      double tp = (high[i] + low[i] + close[i]) / 3; // Typical price
-      tpVolSum += tp * volume[i];
-      volSum += volume[i];
+    // Wilder smoothing: initial ATR = average of first 'period' TRs (use tr[0..period-1])
+    if (tr.length < period) return null;
+    double atr = 0.0;
+    for (int i = 0; i < period; i++) {
+      atr += tr[i];
     }
-
-    double vwap = tpVolSum / volSum;
-
-    return close.last >= vwap;
-  }
-
-  // ---------- ADX ----------
-  static Map<String, bool> adxConditions(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    int period,
-    double minAdx,
-  ) {
-    if (close.length < period + 1) {
-      return {"adxOk": false, "plusGreater": false};
-    }
-
-    List<double> plusDM = [];
-    List<double> minusDM = [];
-    List<double> tr = [];
-
-    // --- Step 1: Calculate DM and TR for whole history ---
-    for (int i = 1; i < close.length; i++) {
-      double upMove = high[i] - high[i - 1];
-      double downMove = low[i - 1] - low[i];
-
-      plusDM.add((upMove > downMove && upMove > 0) ? upMove : 0);
-      minusDM.add((downMove > upMove && downMove > 0) ? downMove : 0);
-
-      double trVal = [
-        high[i] - low[i],
-        (high[i] - close[i - 1]).abs(),
-        (low[i] - close[i - 1]).abs(),
-      ].reduce((a, b) => a > b ? a : b);
-
-      tr.add(trVal);
-    }
-
-    // --- Step 2: Wilder’s smoothing for TR, +DM, -DM ---
-    double atr = tr.take(period).reduce((a, b) => a + b) / period;
-    double smoothPlusDM = plusDM.take(period).reduce((a, b) => a + b) / period;
-    double smoothMinusDM =
-        minusDM.take(period).reduce((a, b) => a + b) / period;
-
+    atr /= period;
     for (int i = period; i < tr.length; i++) {
       atr = ((atr * (period - 1)) + tr[i]) / period;
-      smoothPlusDM = ((smoothPlusDM * (period - 1)) + plusDM[i]) / period;
-      smoothMinusDM = ((smoothMinusDM * (period - 1)) + minusDM[i]) / period;
     }
-
-    // --- Step 3: Calculate DI ---
-    double plusDI = 100 * (smoothPlusDM / atr);
-    double minusDI = 100 * (smoothMinusDM / atr);
-
-    // --- Step 4: DX (last value) ---
-    double dx = 100 * (plusDI - minusDI).abs() / (plusDI + minusDI);
-
-    // --- Step 5: ADX (smoothing DX series) ---
-    // To match TradingView/Fyers we should smooth DX too,
-    // but since we only need last value condition, we use this.
-    // For full ADX line, we’d maintain DX list and smooth it similarly.
-
-    return {"adxOk": dx > minAdx, "plusGreater": plusDI > minusDI};
+    return atr;
   }
 
-  // ---------- Supertrend ----------
+  /// Adaptive ATR threshold check
+  /// ✅ Smart Adaptive ATR Check
+  /// Combines price-based adaptive threshold + ATR rising trend detection.
+  static bool isAtrGreaterThanAdaptive(
+    List<HistoricalDataModel> candles, {
+    int atrPeriod = 7,
+    double lowPriceMinPct = 0.006,
+    double lowPriceMaxPct = 0.04,
+    double highPriceMinPct = 0.004,
+    double highPriceMaxPct = 0.03,
+    double priceThreshold = 200.0,
+  }) {
+    if (candles.length < atrPeriod + 2) return false;
+    CandleUtils.sortByTime(candles);
+    final arrs = CandleUtils.toArrays(candles);
+    final highs = arrs['high']!.cast<double>();
+    final lows = arrs['low']!.cast<double>();
+    final closes = arrs['close']!.cast<double>();
+
+    final atrList = atrSeries(highs, lows, closes, period: atrPeriod);
+    if (atrList.isEmpty) return false;
+
+    final atr = atrList.last;
+    final prevAtr = atrList[atrList.length - 2];
+    final lastClose = closes.last;
+
+    // ATR as % of price
+    final atrPct = atr / lastClose;
+
+    // Adaptive range based on price bracket
+    final minPct =
+        lastClose < priceThreshold ? lowPriceMinPct : highPriceMinPct;
+    final maxPct =
+        lastClose < priceThreshold ? lowPriceMaxPct : highPriceMaxPct;
+
+    // ✅ Condition: ATR within ideal range + rising
+    final inRange = atrPct >= minPct && atrPct <= maxPct;
+    final rising = atr > prevAtr;
+
+    final result = inRange && rising;
+
+    return result;
+  }
+
+  /// ---------- VWAP ----------
+  /// If sessionBased = true, calculates VWAP for the session of the last candle only.
+  static bool isCloseAboveVWAP(
+    List<HistoricalDataModel> candles, {
+    bool sessionBased = true,
+  }) {
+    if (candles.isEmpty) return false;
+    CandleUtils.sortByTime(candles);
+
+    if (!sessionBased) {
+      // simple whole-list VWAP
+      double tpVol = 0.0, volSum = 0.0;
+      for (var c in candles) {
+        final tp = (c.high + c.low + c.close) / 3.0;
+        tpVol += tp * c.volume;
+        volSum += c.volume;
+      }
+      if (volSum == 0) return false;
+      final vwap = tpVol / volSum;
+      return candles.last.close >= vwap;
+    } else {
+      // session-based: find last trading day's candles and compute VWAP for them
+      final grouped = CandleUtils.groupByDate(candles);
+      final dates = grouped.keys.toList()..sort();
+      final lastDate = dates.last;
+      final sessionCandles = grouped[lastDate]!;
+      double tpVol = 0.0, volSum = 0.0;
+      for (var c in sessionCandles) {
+        final tp = (c.high + c.low + c.close) / 3.0;
+        tpVol += tp * c.volume;
+        volSum += c.volume;
+      }
+      if (volSum == 0) return false;
+      final vwap = tpVol / volSum;
+      return sessionCandles.last.close >= vwap;
+    }
+  }
+
+  /// ---------- ADX (14,14) ----------
+  static bool isAdxBullish(
+    List<HistoricalDataModel> candles, {
+    int diPeriod = 10,
+    int adxSmoothing = 8,
+    double minAdx = 18.0,
+  }) {
+    if (candles.length < diPeriod + adxSmoothing + 2) return false;
+
+    CandleUtils.sortByTime(candles);
+    final arrs = CandleUtils.toArrays(candles);
+    final highs = arrs['high']!.cast<double>();
+    final lows = arrs['low']!.cast<double>();
+    final closes = arrs['close']!.cast<double>();
+    final n = highs.length;
+
+    final tr = <double>[];
+    final plusDM = <double>[];
+    final minusDM = <double>[];
+
+    // Step 1️⃣ Calculate TR, +DM, -DM
+    for (int i = 1; i < n; i++) {
+      final upMove = highs[i] - highs[i - 1];
+      final downMove = lows[i - 1] - lows[i];
+      tr.add(
+        max(
+          highs[i] - lows[i],
+          max(
+            (highs[i] - closes[i - 1]).abs(),
+            (lows[i] - closes[i - 1]).abs(),
+          ),
+        ),
+      );
+      plusDM.add((upMove > downMove && upMove > 0) ? upMove : 0.0);
+      minusDM.add((downMove > upMove && downMove > 0) ? downMove : 0.0);
+    }
+
+    if (tr.length < diPeriod + adxSmoothing) return false;
+
+    // Step 2️⃣ Wilder’s smoothing initialization
+    double atr = tr.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;
+    double pdm = plusDM.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;
+    double mdm =
+        minusDM.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;
+
+    final dxList = <double>[];
+
+    // Step 3️⃣ Compute DX values
+    for (int i = diPeriod; i < tr.length; i++) {
+      atr = ((atr * (diPeriod - 1)) + tr[i]) / diPeriod;
+      pdm = ((pdm * (diPeriod - 1)) + plusDM[i]) / diPeriod;
+      mdm = ((mdm * (diPeriod - 1)) + minusDM[i]) / diPeriod;
+
+      final plusDI = 100 * (pdm / (atr + 1e-9));
+      final minusDI = 100 * (mdm / (atr + 1e-9));
+      final dx = 100 * ((plusDI - minusDI).abs() / ((plusDI + minusDI) + 1e-9));
+      dxList.add(dx);
+    }
+
+    if (dxList.length < adxSmoothing + 1) return false;
+
+    // Step 4️⃣ ADX smoothing
+    double adx =
+        dxList.sublist(0, adxSmoothing).reduce((a, b) => a + b) / adxSmoothing;
+    final adxSeries = <double>[adx];
+
+    for (int i = adxSmoothing; i < dxList.length; i++) {
+      adx = ((adx * (adxSmoothing - 1)) + dxList[i]) / adxSmoothing;
+      adxSeries.add(adx);
+    }
+
+    final adxLast = adxSeries.last;
+    final adxPrev = adxSeries[adxSeries.length - 2];
+
+    // Step 5️⃣ Compute final +DI and -DI again
+    atr = tr.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;
+    pdm = plusDM.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;
+    mdm = minusDM.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;
+
+    for (int i = diPeriod; i < tr.length; i++) {
+      atr = ((atr * (diPeriod - 1)) + tr[i]) / diPeriod;
+      pdm = ((pdm * (diPeriod - 1)) + plusDM[i]) / diPeriod;
+      mdm = ((mdm * (diPeriod - 1)) + minusDM[i]) / diPeriod;
+    }
+
+    final plusDIFinal = 100 * (pdm / (atr + 1e-9));
+    final minusDIFinal = 100 * (mdm / (atr + 1e-9));
+
+    final bullish = adxLast > minAdx && plusDIFinal > minusDIFinal;
+    final adxRising = adxLast > adxPrev;
+
+    final result = bullish && adxRising;
+
+    return result;
+  }
+
+  /// ---------- Supertrend ----------
+  /// Returns true if last close >= supertrend (bullish)
   static bool isCloseAboveSupertrend(
-    List<double> high,
-    List<double> low,
-    List<double> close,
-    int atrPeriod,
-    double multiplier,
-  ) {
-    if (close.length < atrPeriod + 1) return false;
+    List<HistoricalDataModel> candles, {
+    int atrPeriod = 9,
+    double multiplier = 3.0,
+  }) {
+    CandleUtils.sortByTime(candles);
+    final arrs = CandleUtils.toArrays(candles);
+    final highs = arrs['high']!.cast<double>();
+    final lows = arrs['low']!.cast<double>();
+    final closes = arrs['close']!.cast<double>();
 
-    int len = close.length;
+    final n = closes.length;
+    if (n < atrPeriod + 1) return false;
 
-    // --- Step 1: True Range ---
-    List<double> tr = [];
-    for (int i = 0; i < len; i++) {
+    // TR
+    final tr = List<double>.filled(n, 0.0);
+    for (int i = 0; i < n; i++) {
       if (i == 0) {
-        tr.add(high[i] - low[i]);
+        tr[i] = highs[i] - lows[i];
       } else {
-        tr.add(
-          [
-            high[i] - low[i],
-            (high[i] - close[i - 1]).abs(),
-            (low[i] - close[i - 1]).abs(),
-          ].reduce((a, b) => a > b ? a : b),
+        tr[i] = max(
+          highs[i] - lows[i],
+          max(
+            (highs[i] - closes[i - 1]).abs(),
+            (lows[i] - closes[i - 1]).abs(),
+          ),
         );
       }
     }
 
-    // --- Step 2: Wilder’s ATR ---
-    List<double> atr = List.filled(len, 0.0);
-    atr[atrPeriod - 1] = tr.take(atrPeriod).reduce((a, b) => a + b) / atrPeriod;
-
-    for (int i = atrPeriod; i < len; i++) {
+    // ATR (Wilder) aligned (fill zeros until index atrPeriod-1)
+    final atr = List<double>.filled(n, 0.0);
+    double initialAtr = 0.0;
+    for (int i = 0; i < atrPeriod; i++) {
+      initialAtr += tr[i];
+    }
+    initialAtr /= atrPeriod;
+    atr[atrPeriod - 1] = initialAtr;
+    for (int i = atrPeriod; i < n; i++) {
       atr[i] = ((atr[i - 1] * (atrPeriod - 1)) + tr[i]) / atrPeriod;
     }
 
-    // --- Step 3: Bands + Supertrend line ---
-    List<double> upperBand = List.filled(len, 0.0);
-    List<double> lowerBand = List.filled(len, 0.0);
-    List<double> supertrend = List.filled(len, 0.0);
+    final upperBand = List<double>.filled(n, 0.0);
+    final lowerBand = List<double>.filled(n, 0.0);
+    final supertrend = List<double>.filled(n, 0.0);
 
-    for (int i = 0; i < len; i++) {
-      double hl2 = (high[i] + low[i]) / 2;
+    for (int i = 0; i < n; i++) {
+      final hl2 = (highs[i] + lows[i]) / 2;
       upperBand[i] = hl2 + (multiplier * atr[i]);
       lowerBand[i] = hl2 - (multiplier * atr[i]);
 
       if (i == 0) {
-        supertrend[i] = upperBand[i]; // initialize
+        supertrend[i] = upperBand[i];
       } else {
-        // Carry forward bands
-        upperBand[i] =
-            (upperBand[i] < upperBand[i - 1] || close[i - 1] > upperBand[i - 1])
-                ? upperBand[i]
-                : upperBand[i - 1];
+        // carry forward
+        if (upperBand[i] < upperBand[i - 1] ||
+            closes[i - 1] > upperBand[i - 1]) {
+          // keep current upperBand
+        } else {
+          upperBand[i] = upperBand[i - 1];
+        }
 
-        lowerBand[i] =
-            (lowerBand[i] > lowerBand[i - 1] || close[i - 1] < lowerBand[i - 1])
-                ? lowerBand[i]
-                : lowerBand[i - 1];
+        if (lowerBand[i] > lowerBand[i - 1] ||
+            closes[i - 1] < lowerBand[i - 1]) {
+          // keep current lowerBand
+        } else {
+          lowerBand[i] = lowerBand[i - 1];
+        }
 
-        // Supertrend decision
         if (supertrend[i - 1] == upperBand[i - 1]) {
           supertrend[i] =
-              (close[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
+              (closes[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
         } else {
           supertrend[i] =
-              (close[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
+              (closes[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
         }
       }
     }
 
-    // --- Step 4: Final check ---
-    return close.last >= supertrend.last;
+    return closes.last >= supertrend.last;
   }
 
-  /// Check if latest volume > EMA(volume,20) * 1.2
-  static bool isVolumeBreakout(List<HistoricalDataModel> candles) {
-    if (candles.length < 20) return false;
-
-    // get volume list
-    final volumes = candles.map((c) => c.volume).toList();
-
-    // calculate EMA20 on volume
-    final ema20 = ema(volumes, 20);
-
-    // align because ema list is shorter
-    final latestVolume = volumes.last;
-    final latestEma = ema20.last;
-
-    return latestVolume > latestEma * 1.4;
+  /// ---------- Volume Breakout ----------
+  /// checks latest volume > EMA(volume, period) * factor
+  static bool isVolumeBreakout(
+    List<HistoricalDataModel> candles, {
+    int emaPeriod = 20,
+    double factor = 1.5,
+  }) {
+    if (candles.length < emaPeriod) return false;
+    CandleUtils.sortByTime(candles);
+    final volumes =
+        CandleUtils.toArrays(
+          candles,
+        )['volume']!.map((e) => e.toDouble()).toList();
+    final emaVol = MathUtils.emaAligned(volumes, emaPeriod);
+    final latestVol = volumes.last;
+    final latestEma = emaVol.last;
+    if (latestEma == null) return false;
+    return latestVol > latestEma * factor;
   }
 
-  /// Calculate EMA on given values
-  static List<double> ema(List<int> values, int period) {
-    if (values.isEmpty) return [];
+  /// ---------- Day-specific checks ----------
+  /// true if today's close > highest high of previous N trading days (skips weekends)
+  static bool isCloseAboveLastNDaysHigh(
+    List<HistoricalDataModel> candles, {
+    int lastDays = 5,
+  }) {
+    CandleUtils.sortByTime(candles);
+    final grouped = CandleUtils.groupByDate(candles);
+    final dates = grouped.keys.toList()..sort();
+    if (dates.length < lastDays + 1) return false; // need today + lastDays
 
-    final emaValues = <double>[];
-    final k = 2 / (period + 1);
+    final lastDate = dates.last;
+    final todayCandles = grouped[lastDate]!;
+    final todayClose = todayCandles.last.close;
 
-    // start with SMA for first EMA
-    double sma = values.take(period).reduce((a, b) => a + b) / period;
-    emaValues.add(sma);
-
-    for (int i = period; i < values.length; i++) {
-      double prevEma = emaValues.last;
-      double nextEma = values[i] * k + prevEma * (1 - k);
-      emaValues.add(nextEma);
+    final prevDates = <DateTime>[];
+    for (int i = dates.length - 2; i >= 0 && prevDates.length < lastDays; i--) {
+      final d = dates[i];
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday)
+        continue;
+      prevDates.add(d);
     }
-    return emaValues;
+    if (prevDates.length < lastDays) return false;
+
+    double highest = double.negativeInfinity;
+    for (var d in prevDates) {
+      final hh = grouped[d]!.map((c) => c.high).reduce(max);
+      if (hh > highest) highest = hh;
+    }
+    return todayClose > highest;
   }
 
-  static bool checkAbove2PercentThenLastDay(List<HistoricalDataModel> candles) {
+  /// today close >= yesterday high * (1 + pct)
+  static bool isCloseAboveYesterdayHighByPct(
+    List<HistoricalDataModel> candles, {
+    double pct = 0.02,
+  }) {
+    CandleUtils.sortByTime(candles);
+    final grouped = CandleUtils.groupByDate(candles);
+    final dates = grouped.keys.toList()..sort();
+    if (dates.length < 2) return false;
+    final lastDate = dates.last;
+    final todayClose = grouped[lastDate]!.last.close;
 
-    // Ensure sorted
-    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-
-    // Group by date (yyyy-MM-dd)
-    Map<DateTime, List<HistoricalDataModel>> grouped = {};
-    for (var c in candles) {
-      final date = DateTime(
-        c.timestamp.year,
-        c.timestamp.month,
-        c.timestamp.day,
-      );
-      grouped.putIfAbsent(date, () => []).add(c);
-    }
-
-    // Get all available trading dates
-    List<DateTime> dates = grouped.keys.toList()..sort();
-
-    // Last available date = "today"
-    DateTime lastDate = dates.last;
-    List<HistoricalDataModel> todayCandles = grouped[lastDate]!;
-    double todayLastClose = todayCandles.last.close;
-
-    // Find "yesterday working day" (skip weekends, skip missing dates)
-    DateTime? yesterdayDate;
+    // find last working day before today
+    DateTime? yesterday;
     for (int i = dates.length - 2; i >= 0; i--) {
-      if (dates[i].weekday != DateTime.saturday &&
-          dates[i].weekday != DateTime.sunday) {
-        yesterdayDate = dates[i];
-        break;
+      final d = dates[i];
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday)
+        continue;
+      yesterday = d;
+      break;
+    }
+    if (yesterday == null) return false;
+    final yHigh = grouped[yesterday]!.map((c) => c.high).reduce(max);
+    return todayClose >= yHigh * (1.0 + pct);
+  }
+
+  /// today close >= yesterday close * (1 + pct) AND yesterday was bullish (open < close)
+  static bool isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
+    List<HistoricalDataModel> candles, {
+    double pct = 0.01,
+  }) {
+    CandleUtils.sortByTime(candles);
+    final grouped = CandleUtils.groupByDate(candles);
+    final dates = grouped.keys.toList()..sort();
+    if (dates.length < 2) return false;
+    final lastDate = dates.last;
+    final todayClose = grouped[lastDate]!.last.close;
+
+    DateTime? yesterday;
+    for (int i = dates.length - 2; i >= 0; i--) {
+      final d = dates[i];
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday)
+        continue;
+      yesterday = d;
+      break;
+    }
+    if (yesterday == null) return false;
+    final yCandles = grouped[yesterday]!;
+    final yOpen = yCandles.first.open;
+    final yClose = yCandles.last.close;
+    return todayClose >= yClose * (1.0 + pct) && (yOpen < yClose);
+  }
+
+  /// Returns ATR series aligned with input length.
+  /// - The returned list has length == closes.length.
+  /// - Entries before index (period-1) are 0.0.
+  /// - atr[period-1] = initial ATR (simple average of first `period` TRs).
+  /// - Subsequent atr[i] use Wilder smoothing.
+  static List<double> atrSeries(
+    List<double> highs,
+    List<double> lows,
+    List<double> closes, {
+    int period = 14,
+  }) {
+    final n = closes.length;
+    if (n < 2 || highs.length != n || lows.length != n) return [];
+
+    // Build TR list (length n) matching Supertrend earlier: tr[0] = high0-low0
+    final tr = List<double>.filled(n, 0.0);
+    for (int i = 0; i < n; i++) {
+      if (i == 0) {
+        tr[i] = highs[i] - lows[i];
+      } else {
+        tr[i] = max(
+          highs[i] - lows[i],
+          max(
+            (highs[i] - closes[i - 1]).abs(),
+            (lows[i] - closes[i - 1]).abs(),
+          ),
+        );
       }
     }
 
-    if (yesterdayDate == null) {
-      return false;
+    if (n < period) return []; // not enough data to compute ATR series
+
+    final atr = List<double>.filled(n, 0.0);
+
+    // initial ATR at index period-1 = average of tr[0..period-1]
+    double initialAtr = 0.0;
+    for (int i = 0; i < period; i++) {
+      initialAtr += tr[i];
+    }
+    initialAtr /= period;
+    atr[period - 1] = initialAtr;
+
+    // Wilder smoothing for subsequent ATR values
+    for (int i = period; i < n; i++) {
+      atr[i] = ((atr[i - 1] * (period - 1)) + tr[i]) / period;
     }
 
-    // Get yesterday’s high
-    double yesterdayHigh = grouped[yesterdayDate]!
-        .map((c) => c.high)
-        .reduce((a, b) => a > b ? a : b);
-    // Check condition
-    bool conditionMet = todayLastClose >= yesterdayHigh * 1.02;
-    return conditionMet;
+    return atr;
   }
 }

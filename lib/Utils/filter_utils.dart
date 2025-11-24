@@ -1,143 +1,158 @@
-import 'package:flutter/cupertino.dart';
-import 'package:stock_demo/Utils/data_resample.dart';
+import 'dart:developer';
+import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
-import 'indicators.dart';
-
 class FilterUtils {
-  static bool passesFilter(
-    List<double> highs,
-    List<double> lows,
-    List<double> closes,
-    List<int> volumes,
-    String token,
-  ) {
-    bool aboveEma20 = IndicatorUtils.isAboveEMA(closes, 20);
-    bool rsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
-
-    bool atrOk = IndicatorUtils.isAtrGreaterThan(
-      highs,
-      lows,
-      closes,
-      14,
-      closes.last * 0.003,
-    );
-    bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(
-      highs,
-      lows,
-      closes,
-      volumes,
-    );
-
+  /// 🔹 Checks if all core indicator filters are passed
+  static bool passesFilter(List<HistoricalDataModel> candles, String token) {
+    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20);
+    bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 60, max: 90);
+    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
+    bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
     bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-      highs,
-      lows,
-      closes,
-      9,
-      3,
+      candles,
+      atrPeriod: 9,
+      multiplier: 3,
     );
+    bool adxRes = IndicatorUtils.isAdxBullish(candles);
+    List<int> volumes = candles.map((e) => e.volume).toList();
+    // Determine whether today is a working day according to Utilities.
+    final now = DateTime.now();
+    final lastWorking = Utilities.getLastWorkingDay(now);
+    final isWorkingDay =
+        lastWorking.year == now.year &&
+        lastWorking.month == now.month &&
+        lastWorking.day == now.day;
 
-    Map<String, bool> adxRes = IndicatorUtils.adxConditions(
-      highs,
-      lows,
-      closes,
-      14,
-      15,
-    );
+    int? volumeToCheck;
+    if (volumes.isNotEmpty) {
+      if (isWorkingDay) {
+        // On working day: use the latest available volume
+        volumeToCheck = volumes.last;
+      } else {
+        // On non-working day (weekend/holiday): prefer the last volume from the last working day
+        final lastWorkDayCandle = candles.lastWhere((c) {
+          final ts = c.timestamp.toLocal();
+          return ts.year == lastWorking.year &&
+              ts.month == lastWorking.month &&
+              ts.day == lastWorking.day;
+        }, orElse: () => candles.last);
+        volumeToCheck = lastWorkDayCandle.volume;
+      }
+    }
 
-    var isVolumeOk = volumes.isNotEmpty ? volumes.last > 30000 : false;
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 30000) : false;
 
-    return isVolumeOk &&
+    bool is2PcChange =
+        IndicatorUtils.isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
+          candles,
+        );
+
+    bool result =
+        isVolumeOk &&
         aboveEma20 &&
         rsiOk &&
-        atrOk &&
         aboveVwap &&
         aboveSupertrend &&
-        adxRes["plusGreater"]!;
+        adxRes &&
+        atrOk &&
+        is2PcChange;
+    return result;
   }
 
+  /// 🔹 Main multi-timeframe validation
   static Future<bool> isPassAllTimeFrame(
     List<HistoricalDataModel>? historyCandles,
     StockModel stock,
   ) async {
     final is5MinPass = await isPassHistoryChart(historyCandles, stock, 5);
     if (!is5MinPass) return false;
+
     final is15MinPass = await isPassHistoryChart(
-      resampleCandles(historyCandles ?? [], Duration(minutes: 15)),
+      Utilities.resampleCandles(
+        historyCandles ?? [],
+        const Duration(minutes: 15),
+      ),
       stock,
       15,
     );
     if (!is15MinPass) return false;
+
     final is30MinPass = await isPassHistoryChart(
-      resampleCandles(historyCandles ?? [], Duration(minutes: 30)),
+      Utilities.resampleCandles(
+        historyCandles ?? [],
+        const Duration(minutes: 30),
+      ),
       stock,
       30,
     );
     if (!is30MinPass) return false;
+
     final is1HourPass = await isPassHistoryChart(
-      resampleCandles(historyCandles ?? [], Duration(minutes: 60)),
+      Utilities.resampleCandles(
+        historyCandles ?? [],
+        const Duration(minutes: 60),
+      ),
       stock,
       60,
     );
     if (!is1HourPass) return false;
 
-    final isMeetPercent = IndicatorUtils.checkAbove2PercentThenLastDay(
-      historyCandles ?? [],
+    final isDayPass = await isPassHistoryChart(
+      Utilities.convertToDaily(historyCandles ?? []),
+      stock,
+      1,
     );
-    if (!isMeetPercent) return false;
+    if (!isDayPass) return false;
 
-    print("Stock Passed");
+    // final isMeetPercent = IndicatorUtils.isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
+    //   historyCandles ?? [],
+    // );
+    // if (!isMeetPercent) return false;
 
+    log("✅ Stock Passed All Timeframes: ${stock.symbol}");
     return true;
   }
 
+  /// 🔹 Handles individual timeframe logic
   static Future<bool> isPassHistoryChart(
     List<HistoricalDataModel>? historyCandles,
     StockModel stock,
     int timeFrame,
   ) async {
-    // Parse highs, lows, closes, volumes from historicalData
-    List<double> highs = historyCandles?.map((e) => e.high).toList() ?? [];
-    List<double> lows = historyCandles?.map((e) => e.low).toList() ?? [];
-    List<double> closes = historyCandles?.map((e) => e.close).toList() ?? [];
-    List<int> volumes = historyCandles?.map((e) => e.volume).toList() ?? [];
+    if (historyCandles == null || historyCandles.isEmpty) return false;
 
-    if (timeFrame == 5) {
-      bool isPass = FilterUtils.passesFilter(
-        highs,
-        lows,
-        closes,
-        volumes,
-        stock.token.toString(),
-      );
-      bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(
-        historyCandles ?? [],
-      );
-      return isPass && isVolumeBreakout;
-    } else if (timeFrame == 15) {
-      // For 15 min, only check EMA and RSI
-      bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
-      // bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(historyCandles ?? []);
-      //bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
-      //bool isPass = isEma20 && isRsiOk;
-      return isEma20;
-    } else if (timeFrame == 30) {
-      // For 30 min, only check EMA and RSI
-      bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
-      // bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
-      // bool isPass = isEma20 && isRsiOk;
-      return isEma20;
-    } else if (timeFrame == 60) {
-      // For 1 hour, only check EMA and RSI
-      bool isEma20 = IndicatorUtils.isAboveEMA(closes, 20);
-      // bool isRsiOk = IndicatorUtils.isRsiBetween(closes, 14, 50, 85);
-      // bool isPass = isEma20 && isRsiOk;
-      return isEma20;
+    switch (timeFrame) {
+      case 5:
+        if (stock.token == 1897729) {
+          log("Debug breakpoint for token 1897729");
+        }
+        bool isPass = passesFilter(historyCandles, stock.token.toString());
+        bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(historyCandles);
+        return isPass && isVolumeBreakout;
+
+      case 15:
+      case 30:
+      case 60:
+        bool isEma20 = IndicatorUtils.isCloseAboveEMA(historyCandles, 20);
+        return isEma20;
+
+      case 1:
+        bool isEMA20 = IndicatorUtils.isCloseAboveEMA(historyCandles, 20);
+        bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+          historyCandles,
+          atrPeriod: 9,
+        );
+        return isEMA20 && aboveSupertrend;
+
+      default:
+        return false;
     }
-    return false;
   }
 
+  /// 🔹 Final tradability rule check (price, circuit, volume etc.)
   static bool isTradable(StockModel stock) {
     final lastPrice = stock.lastPrice;
     final lowerLimit = stock.lowerCircuitLimit;
@@ -148,59 +163,32 @@ class FilterUtils {
     final percentChange =
         ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) * 100;
 
-    // 🛑 Null checks
-    if (lastPrice == null) {
-      debugPrint("Rejected: lastPrice is null for ${stock.symbol}");
-      return false;
-    }
-    if (close == null) {
-      debugPrint("Rejected: close price is null for ${stock.symbol}");
-      return false;
-    }
-    if (lowerLimit == null || upperLimit == null) {
-      debugPrint("Rejected: circuit limits missing for ${stock.symbol}");
-      return false;
-    }
-    if (volume == null) {
-      debugPrint("Rejected: volume is null for ${stock.symbol}");
+    if (lastPrice == null ||
+        close == null ||
+        lowerLimit == null ||
+        upperLimit == null ||
+        volume == null) {
       return false;
     }
 
-    // Rule-based checks
-    if (lastPrice <= 95 || lastPrice >= 1000) {
-      debugPrint(
-        "Rejected: price $lastPrice not in [95, 1000] for ${stock.symbol}",
-      );
-      return false;
-    }
+    if (lastPrice <= 95 || lastPrice >= 2000) return false;
+    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
+    if (lastPrice <= close) return false;
+    if (percentChange <= 1.5) return false;
 
-    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) {
-      debugPrint(
-        "Rejected: price $lastPrice outside circuit limits [$lowerLimit, $upperLimit] for ${stock.symbol}",
-      );
-      return false;
-    }
+    // Only enforce the volume threshold on working days.
+    // If today is a weekend or a holiday (Utilities.getLastWorkingDay shifts back),
+    // skip the volume check.
+    final now = DateTime.now();
+    final lastWorking = Utilities.getLastWorkingDay(now);
+    final isWorkingDay =
+        lastWorking.year == now.year &&
+        lastWorking.month == now.month &&
+        lastWorking.day == now.day;
 
-    if (lastPrice <= close) {
-      debugPrint(
-        "Rejected: price $lastPrice not greater than close $close for ${stock.symbol}",
-      );
-      return false;
+    if (isWorkingDay) {
+      if (volume <= 40000) return false;
     }
-
-    if (percentChange <= 1.0) {
-      debugPrint(
-        "Rejected: percent change $percentChange ≤ 1% for ${stock.symbol}",
-      );
-      return false;
-    }
-
-    if (volume <= 40000) {
-      debugPrint("Rejected: low volume $volume ≤ 50000 for ${stock.symbol}");
-      return false;
-    }
-
-    // 🎯 Passed all checks
     return true;
   }
 }

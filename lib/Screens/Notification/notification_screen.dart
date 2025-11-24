@@ -27,10 +27,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: const Text("Today's Alert"),
         actions: [
           IconButton(
             onPressed: () {

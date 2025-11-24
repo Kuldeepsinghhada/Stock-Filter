@@ -9,5 +9,6 @@ class DataManager {
   String apiSecret = "xuvrpjx0agkro10uznz3ppxfuto5sb8w";
   String redirectUrl = "https://127.0.0.1";
 
+  List<StockModel> preFilteredStocksList = [];
   List<StockModel> stocksList = [];
 }

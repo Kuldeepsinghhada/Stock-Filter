@@ -22,8 +22,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isAndroid) {
     await AndroidAlarmManager.initialize();
-    await NotificationService.initialize();
   }
+  await NotificationService.initialize();
   await Utilities.loadStocksList();
 
   var isLogin = await checkUserLoggedIn();
