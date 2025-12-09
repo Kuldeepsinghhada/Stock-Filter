@@ -13,7 +13,7 @@ class FilterUtils {
     bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
     bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
       candles,
-      atrPeriod: 9,
+      atrPeriod: 10,
       multiplier: 3,
     );
     bool adxRes = IndicatorUtils.isAdxBullish(candles);
@@ -43,7 +43,7 @@ class FilterUtils {
       }
     }
 
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 30000) : false;
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 15000) : false;
 
     bool is2PcChange =
         IndicatorUtils.isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
@@ -130,7 +130,7 @@ class FilterUtils {
           log("Debug breakpoint for token 1897729");
         }
         bool isPass = passesFilter(historyCandles, stock.token.toString());
-        bool isVolumeBreakout = IndicatorUtils.isVolumeBreakout(historyCandles);
+        bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(historyCandles);
         return isPass && isVolumeBreakout;
 
       case 15:
@@ -143,9 +143,10 @@ class FilterUtils {
         bool isEMA20 = IndicatorUtils.isCloseAboveEMA(historyCandles, 20);
         bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
           historyCandles,
-          atrPeriod: 9,
+          atrPeriod: 10,
         );
-        return isEMA20 && aboveSupertrend;
+        bool rsiOk = IndicatorUtils.isRsiBetween(historyCandles, 14, min: 50, max: 70);
+        return isEMA20 && aboveSupertrend && rsiOk;
 
       default:
         return false;
@@ -171,7 +172,7 @@ class FilterUtils {
       return false;
     }
 
-    if (lastPrice <= 95 || lastPrice >= 2000) return false;
+    if (lastPrice <= 50 || lastPrice >= 1000) return false;
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
     if (lastPrice <= close) return false;
     if (percentChange <= 1.5) return false;
@@ -187,7 +188,7 @@ class FilterUtils {
         lastWorking.day == now.day;
 
     if (isWorkingDay) {
-      if (volume <= 40000) return false;
+      if (volume <= 15000) return false;
     }
     return true;
   }

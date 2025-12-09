@@ -149,7 +149,7 @@ class DashboardService {
   ) async {
     final interval = "5minute";
     final today = Utilities.getLastWorkingDay(DateTime.now());
-    final from = Utilities.getBusinessDaysAgo(today, 40);
+    final from = Utilities.getBusinessDaysAgo(today, 60);
     final to =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 

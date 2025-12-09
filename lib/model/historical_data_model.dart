@@ -25,5 +25,29 @@ class HistoricalDataModel {
       volume: (data[5] as num).toInt(),
     );
   }
+
+  /// ➕ Add this
+  factory HistoricalDataModel.fromJson(Map<String, dynamic> json) {
+    return HistoricalDataModel(
+      timestamp: DateTime.parse(json['timestamp']),
+      open: (json['open'] as num).toDouble(),
+      high: (json['high'] as num).toDouble(),
+      low: (json['low'] as num).toDouble(),
+      close: (json['close'] as num).toDouble(),
+      volume: json['volume'] as int,
+    );
+  }
+
+  /// ➕ Add this
+  Map<String, dynamic> toJson() {
+    return {
+      'timestamp': timestamp.toIso8601String(),
+      'open': open,
+      'high': high,
+      'low': low,
+      'close': close,
+      'volume': volume,
+    };
+  }
 }
 

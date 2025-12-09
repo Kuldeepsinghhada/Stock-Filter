@@ -175,7 +175,7 @@ class IndicatorUtils {
     List<HistoricalDataModel> candles, {
     int diPeriod = 10,
     int adxSmoothing = 8,
-    double minAdx = 18.0,
+    double minAdx = 25.0,
   }) {
     if (candles.length < diPeriod + adxSmoothing + 2) return false;
 
@@ -352,22 +352,27 @@ class IndicatorUtils {
 
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
-  static bool isVolumeBreakout(
-    List<HistoricalDataModel> candles, {
-    int emaPeriod = 20,
-    double factor = 1.5,
-  }) {
-    if (candles.length < emaPeriod) return false;
+  static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
+    if (candles.length < 30) return false;
+
     CandleUtils.sortByTime(candles);
-    final volumes =
-        CandleUtils.toArrays(
-          candles,
-        )['volume']!.map((e) => e.toDouble()).toList();
-    final emaVol = MathUtils.emaAligned(volumes, emaPeriod);
-    final latestVol = volumes.last;
-    final latestEma = emaVol.last;
-    if (latestEma == null) return false;
-    return latestVol > latestEma * factor;
+    final volumes = candles.map((e) => e.volume.toDouble()).toList();
+
+    final last = volumes.last;
+
+    // EMA20
+    final emaVol = MathUtils.emaAligned(volumes, 20);
+    final ema20 = emaVol.last;
+
+    // Avg20
+    final avg20 =
+        volumes.sublist(volumes.length - 20).reduce((a, b) => a + b) / 20;
+
+    // Avg5
+    final avg5 =
+        volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
+
+    return last > ema20! * 1.5 && last > avg20 * 1.5 && last > avg5 * 2;
   }
 
   /// ---------- Day-specific checks ----------

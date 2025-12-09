@@ -93,7 +93,7 @@ class Utilities {
             false,
       );
       if (!exists) {
-        newStockSymbols.add(stock.symbol!);
+        newStockSymbols.add("${stock.symbol!} - ${stock.lastPrice ?? ''}");
       }
     }
 
@@ -347,7 +347,11 @@ class Utilities {
     // we operate on the previous trading day.
     final now = DateTime.now();
     final lastWorking = getLastWorkingDay(now);
-    final todayDate = DateTime(lastWorking.year, lastWorking.month, lastWorking.day);
+    final todayDate = DateTime(
+      lastWorking.year,
+      lastWorking.month,
+      lastWorking.day,
+    );
 
     // filter only today's candles
     final todayCandles =

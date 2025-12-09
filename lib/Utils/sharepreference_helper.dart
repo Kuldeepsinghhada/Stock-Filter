@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
+import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 
 class SharedPreferenceHelper {
@@ -9,6 +10,7 @@ class SharedPreferenceHelper {
   String quotesKey = "quotes";
   String tokenKey = "access_token";
   String accessTokenExpiry = "access_token_expiry";
+  String daily = "daily";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -44,13 +46,20 @@ class SharedPreferenceHelper {
     return data;
   }
 
-  // await SharedPreferenceHelper.instance.clearNotifications();
-  // final prefs = await SharedPreferences.getInstance();
-  // final now = DateTime.now();
-  // final midnight =
-  //     DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
-  // await prefs.setString('access_token', token);
-  // await prefs.setInt('access_token_expiry', midnight);
+  Future<void> saveDailyData(List<HistoricalDataModel> candles) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = candles.map((e) => e.toJson()).toList();
+    await prefs.setString(daily, jsonEncode(jsonList));
+  }
+
+  Future<List<HistoricalDataModel>> loadDailyData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(daily);
+    if (data == null) return [];
+
+    final list = jsonDecode(data) as List;
+    return list.map((e) => HistoricalDataModel.fromJson(e)).toList();
+  }
 
   Future<void> saveStocks(List<FinalStockModel> quotes) async {
     final prefs = await SharedPreferences.getInstance();
