@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
+import 'package:stock_demo/Utils/candle_utils.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -334,63 +335,81 @@ class Utilities {
     return "${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}";
   }
 
-  // main scanner
+  /// Builds intraday scan history using
+  /// last 20 trading days + today's candles till current time
   static Future<List<HistoryModel>> buildTodayHistory(
-    List<HistoricalDataModel> candles,
-    StockModel model,
-  ) async {
-    // sort
+      List<HistoricalDataModel> candles,
+      StockModel model,
+      ) async {
+    // 1️⃣ Sort candles
     candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
-    // identify today's date
-    // Use last working day as the reference date so on weekends/holidays
-    // we operate on the previous trading day.
     final now = DateTime.now();
-    final lastWorking = getLastWorkingDay(now);
+    final lastWorkingDay = getLastWorkingDay(now);
+
     final todayDate = DateTime(
-      lastWorking.year,
-      lastWorking.month,
-      lastWorking.day,
+      lastWorkingDay.year,
+      lastWorkingDay.month,
+      lastWorkingDay.day,
     );
 
-    // filter only today's candles
-    final todayCandles =
-        candles
-            .where(
-              (c) =>
-                  c.timestamp.year == todayDate.year &&
-                  c.timestamp.month == todayDate.month &&
-                  c.timestamp.day == todayDate.day,
-            )
-            .toList();
-    List<HistoryModel> historyThisList = [];
-    for (var current in todayCandles) {
-      // collect all candles of 20 days till this time-of-day
-      var historySoFar =
-          candles.where((c) {
-            return (c.timestamp.hour < current.timestamp.hour) ||
-                (c.timestamp.hour == current.timestamp.hour &&
-                    c.timestamp.minute <= current.timestamp.minute);
-          }).toList();
+    // 2️⃣ Group candles by date
+    final groupedByDate = CandleUtils.groupByDate(candles);
+    final tradingDates = groupedByDate.keys.toList()..sort();
 
-      // run your filter
+    // 3️⃣ Get last 20 trading days (including today)
+    final last20Dates = tradingDates
+        .where((d) => !d.isAfter(todayDate))
+        .toList()
+        .reversed
+        .take(20)
+        .toList()
+        .reversed
+        .toList();
+
+    // 4️⃣ Collect base history (full candles of last 20 days except today)
+    final baseHistory = <HistoricalDataModel>[];
+    for (final d in last20Dates) {
+      if (d.isBefore(todayDate)) {
+        baseHistory.addAll(groupedByDate[d]!);
+      }
+    }
+
+    // 5️⃣ Today's candles only
+    final todayCandles = groupedByDate[todayDate] ?? [];
+
+    final List<HistoryModel> result = [];
+
+    // 6️⃣ Iterate candle-by-candle for today
+    for (final current in todayCandles) {
+      // History till current candle (NO future candles)
+      final historySoFar = [
+        ...baseHistory,
+        ...todayCandles.where(
+              (c) => !c.timestamp.isAfter(current.timestamp),
+        ),
+      ];
+
       try {
-        bool passed = await FilterUtils.isPassAllTimeFrame(historySoFar, model);
+        final passed =
+        await FilterUtils.isPassAllTimeFrame(historySoFar, model);
 
         if (passed) {
-          historyThisList.add(
+          result.add(
             HistoryModel(
               dateTime: current.timestamp,
               price: current.close,
-              isPassed: passed,
+              isPassed: true,
             ),
           );
         }
-      } catch (e) {
-        log(e.toString());
+      } catch (e, s) {
+        log("Scanner error: $e");
+        log(s.toString());
       }
     }
-    return historyThisList;
+
+    return result;
   }
 
   static bool candleTillCandle(

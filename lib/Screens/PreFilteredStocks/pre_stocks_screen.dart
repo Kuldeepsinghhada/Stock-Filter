@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:stock_demo/Screens/IndCheck/stock_check_screen.dart';
 import 'package:stock_demo/Screens/history/history_screen.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/utilities.dart';

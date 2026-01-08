@@ -249,6 +249,20 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           //   if (!await checkAndRequestExactAlarmPermission()) return;
           //   isTaskRunning ? stopApiTask() : startApiTask();
           // } else {
+
+          DateTime now = DateTime.now();
+
+          // Today 9:30 AM
+          DateTime targetTime = DateTime(now.year, now.month, now.day, 9, 30);
+
+          if (!now.isAfter(targetTime)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Task can only be started after 9:30 AM'),
+              ),
+            );
+            return;
+          }
           await WakelockPlus.enable();
           if (!isTaskRunning) {
             isTaskRunning = true;

@@ -1,19 +1,26 @@
 import 'dart:math';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/model/indicator_result.dart';
 import 'candle_utils.dart';
 import 'math_utils.dart';
 
 /// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
   /// ---------- EMA / SMA ----------
-  static bool isCloseAboveEMA(List<HistoricalDataModel> candles, int period) {
-    if (candles.length < period) return false;
+  static IndicatorResult isCloseAboveEMA(
+    List<HistoricalDataModel> candles,
+    int period,
+  ) {
+    if (candles.length < period) {
+      return IndicatorResult(isPassed: false, value: null);
+    }
     CandleUtils.sortByTime(candles);
     final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
     final ema = MathUtils.emaAligned(closes, period);
     final lastEma = ema.isNotEmpty ? ema.last : null;
-    if (lastEma == null) return false;
-    return closes.last > lastEma;
+    if (lastEma == null) return IndicatorResult(isPassed: false, value: null);
+    return IndicatorResult(isPassed: closes.last > lastEma, value: lastEma);
   }
 
   /// ---------- RSI (Wilder's) ----------
@@ -94,7 +101,7 @@ class IndicatorUtils {
   static bool isAtrGreaterThanAdaptive(
     List<HistoricalDataModel> candles, {
     int atrPeriod = 7,
-    double lowPriceMinPct = 0.006,
+    double lowPriceMinPct = 0.004,
     double lowPriceMaxPct = 0.04,
     double highPriceMinPct = 0.004,
     double highPriceMaxPct = 0.03,
@@ -268,7 +275,7 @@ class IndicatorUtils {
 
   /// ---------- Supertrend ----------
   /// Returns true if last close >= supertrend (bullish)
-  static bool isCloseAboveSupertrend(
+  static IndicatorResult isCloseAboveSupertrend(
     List<HistoricalDataModel> candles, {
     int atrPeriod = 9,
     double multiplier = 3.0,
@@ -280,7 +287,7 @@ class IndicatorUtils {
     final closes = arrs['close']!.cast<double>();
 
     final n = closes.length;
-    if (n < atrPeriod + 1) return false;
+    if (n < atrPeriod + 1) return IndicatorResult(isPassed: false, value: null);
 
     // TR
     final tr = List<double>.filled(n, 0.0);
@@ -347,7 +354,10 @@ class IndicatorUtils {
       }
     }
 
-    return closes.last >= supertrend.last;
+    return IndicatorResult(
+      isPassed: closes.last >= supertrend.last,
+      value: supertrend.last,
+    );
   }
 
   /// ---------- Volume Breakout ----------
@@ -373,6 +383,59 @@ class IndicatorUtils {
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
 
     return last > ema20! * 1.5 && last > avg20 * 1.5 && last > avg5 * 2;
+  }
+
+  static bool isVolumeBreakoutStrongMore(
+    List<HistoricalDataModel> candles, {
+    double emaMultiplier = 1.4,
+    double avgYesMultiplier = 1.4,
+    double avgAllMultiplier = 1.2,
+    double avg5Multiplier = 1.5,
+    double prevMultiplier = 1.1, // previous candle check
+  }) {
+    if (candles.length < 30) return false;
+
+    CandleUtils.sortByTime(candles);
+    final volumes = candles.map((e) => e.volume.toDouble()).toList();
+    final last = volumes.last;
+    final prevVol = volumes[volumes.length - 2]; // previous candle
+
+    final now = DateTime.now();
+    final yesterday = Utilities.getLastWorkingDay(
+      now,
+    ).subtract(Duration(days: 1));
+
+    // Yesterday volumes
+    final yesterdayVolumes =
+        candles
+            .where((c) {
+              final ts = c.timestamp.toLocal();
+              return ts.year == yesterday.year &&
+                  ts.month == yesterday.month &&
+                  ts.day == yesterday.day;
+            })
+            .map((c) => c.volume.toDouble())
+            .toList();
+
+    if (yesterdayVolumes.isEmpty) return false;
+
+    // EMA20 of all candles (could switch to yesterdayVolumes if preferred)
+    final emaVol = MathUtils.emaAligned(volumes, 20);
+    final ema20 = emaVol.last;
+
+    // Averages
+    final avgYes20 =
+        yesterdayVolumes.reduce((a, b) => a + b) / yesterdayVolumes.length;
+    final avg20 = volumes.reduce((a, b) => a + b) / volumes.length;
+    final avg5 =
+        volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
+
+    // --- Conditions ---
+    return last > ema20! * emaMultiplier &&
+        last > avgYes20 * avgYesMultiplier &&
+        last > avg20 * avgAllMultiplier &&
+        last > avg5 * avg5Multiplier &&
+        last > prevVol * prevMultiplier; // ✅ Previous candle check
   }
 
   /// ---------- Day-specific checks ----------
@@ -434,30 +497,47 @@ class IndicatorUtils {
   }
 
   /// today close >= yesterday close * (1 + pct) AND yesterday was bullish (open < close)
-  static bool isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
+  /// today close >= yesterday high * (1 + pct)
+  /// AND yesterday was bullish (open < close)
+  static bool isCloseAboveYesterdayHighByPctAndYesterdayBullish(
     List<HistoricalDataModel> candles, {
-    double pct = 0.01,
+    double pct = 0.01, // 1%
   }) {
     CandleUtils.sortByTime(candles);
     final grouped = CandleUtils.groupByDate(candles);
     final dates = grouped.keys.toList()..sort();
     if (dates.length < 2) return false;
-    final lastDate = dates.last;
-    final todayClose = grouped[lastDate]!.last.close;
 
+    // Today
+    final todayDate = dates.last;
+    final todayClose = grouped[todayDate]!.last.close;
+
+    // Find previous working day
     DateTime? yesterday;
     for (int i = dates.length - 2; i >= 0; i--) {
       final d = dates[i];
-      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday)
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
         continue;
+      }
       yesterday = d;
       break;
     }
     if (yesterday == null) return false;
+
     final yCandles = grouped[yesterday]!;
-    final yOpen = yCandles.first.open;
+
+    final yOpen = yCandles[1].open;
     final yClose = yCandles.last.close;
-    return todayClose >= yClose * (1.0 + pct) && (yOpen < yClose);
+
+    // 🔑 Yesterday HIGH
+    final yHigh = yCandles.map((c) => c.high).reduce((a, b) => a > b ? a : b);
+
+    // Yesterday bullish?
+    final isYesterdayBullish = yClose > yOpen;
+
+    // Breakout condition
+    final breakoutLevel = yHigh * (1.0 + pct);
+    return todayClose >= breakoutLevel;
   }
 
   /// Returns ATR series aligned with input length.
@@ -508,5 +588,35 @@ class IndicatorUtils {
     }
 
     return atr;
+  }
+
+  static bool isYesterdayAverageVolumeAbove(
+    List<HistoricalDataModel> candles,
+    String token, {
+    int avgVolumeThreshold = 3000,
+  }) {
+    /// 🔥 NEW: Yesterday average volume > 5k
+    final now = DateTime.now();
+    final yesterday = Utilities.getLastWorkingDay(now);
+
+    final yesterdayVolumes =
+        candles
+            .where((c) {
+              final ts = c.timestamp.toLocal();
+              return ts.year == yesterday.year &&
+                  ts.month == yesterday.month &&
+                  ts.day == yesterday.day;
+            })
+            .map((c) => c.volume.toDouble())
+            .toList();
+
+    if (yesterdayVolumes.isEmpty) return false;
+    final yesterdayAvg =
+        yesterdayVolumes.reduce((a, b) => a + b) / yesterdayVolumes.length;
+
+    if (yesterdayAvg < avgVolumeThreshold) {
+      return false;
+    }
+    return true;
   }
 }

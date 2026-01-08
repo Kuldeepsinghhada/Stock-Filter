@@ -7,18 +7,34 @@ import 'package:stock_demo/model/stock_model.dart';
 class FilterUtils {
   /// 🔹 Checks if all core indicator filters are passed
   static bool passesFilter(List<HistoricalDataModel> candles, String token) {
-    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20);
-    bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 60, max: 90);
+    List<String> failedReasons = [];
+
+    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
+    if (!aboveEma20) failedReasons.add("Close NOT above EMA20");
+
+    bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 60, max: 95);
+    if (!rsiOk) failedReasons.add("RSI not between 60–90");
+
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
+    if (!atrOk) failedReasons.add("ATR not greater than adaptive threshold");
+
     bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
-    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-      candles,
-      atrPeriod: 10,
-      multiplier: 3,
-    );
+    if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
+
+    bool aboveSupertrend =
+        IndicatorUtils.isCloseAboveSupertrend(
+          candles,
+          atrPeriod: 10,
+          multiplier: 3,
+        ).isPassed;
+    if (!aboveSupertrend) failedReasons.add("Close NOT above Supertrend");
+
     bool adxRes = IndicatorUtils.isAdxBullish(candles);
+    if (!adxRes) failedReasons.add("ADX NOT bullish");
+
+    // Volume check
     List<int> volumes = candles.map((e) => e.volume).toList();
-    // Determine whether today is a working day according to Utilities.
+
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
     final isWorkingDay =
@@ -29,10 +45,8 @@ class FilterUtils {
     int? volumeToCheck;
     if (volumes.isNotEmpty) {
       if (isWorkingDay) {
-        // On working day: use the latest available volume
         volumeToCheck = volumes.last;
       } else {
-        // On non-working day (weekend/holiday): prefer the last volume from the last working day
         final lastWorkDayCandle = candles.lastWhere((c) {
           final ts = c.timestamp.toLocal();
           return ts.year == lastWorking.year &&
@@ -44,12 +58,27 @@ class FilterUtils {
     }
 
     bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 15000) : false;
+    if (!isVolumeOk) {
+      failedReasons.add("Volume NOT > 15000 (vol=$volumeToCheck)");
+    }
+
+    // bool isYesterdayAvgVolumeOk = IndicatorUtils.isYesterdayAverageVolumeAbove(
+    //   candles,token
+    // );
+    // if (!isYesterdayAvgVolumeOk) {
+    //   failedReasons.add("Yesterday Volume Not Enough");
+    // }
+
+    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
+    if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
 
     bool is2PcChange =
-        IndicatorUtils.isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
+        IndicatorUtils.isCloseAboveYesterdayHighByPctAndYesterdayBullish(
           candles,
         );
+    if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
+    // FINAL RESULT
     bool result =
         isVolumeOk &&
         aboveEma20 &&
@@ -58,7 +87,15 @@ class FilterUtils {
         aboveSupertrend &&
         adxRes &&
         atrOk &&
-        is2PcChange;
+        is2PcChange &&
+        isVolumeBreakout;
+
+    // 🔥 Print only when exactly ONE condition failed
+    if (failedReasons.length == 1) {
+      log(
+        "⚠️ $token — Only 1 Less Failed: ${failedReasons} : ${candles.last.timestamp}",
+      );
+    }
     return result;
   }
 
@@ -126,26 +163,30 @@ class FilterUtils {
 
     switch (timeFrame) {
       case 5:
-        if (stock.token == 1897729) {
-          log("Debug breakpoint for token 1897729");
-        }
         bool isPass = passesFilter(historyCandles, stock.token.toString());
-        bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(historyCandles);
-        return isPass && isVolumeBreakout;
+        return isPass;
 
       case 15:
       case 30:
       case 60:
-        bool isEma20 = IndicatorUtils.isCloseAboveEMA(historyCandles, 20);
+        bool isEma20 =
+            IndicatorUtils.isCloseAboveEMA(historyCandles, 20).isPassed;
         return isEma20;
 
       case 1:
-        bool isEMA20 = IndicatorUtils.isCloseAboveEMA(historyCandles, 20);
-        bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+        bool isEMA20 =
+            IndicatorUtils.isCloseAboveEMA(historyCandles, 20).isPassed;
+        bool aboveSupertrend =
+            IndicatorUtils.isCloseAboveSupertrend(
+              historyCandles,
+              atrPeriod: 10,
+            ).isPassed;
+        bool rsiOk = IndicatorUtils.isRsiBetween(
           historyCandles,
-          atrPeriod: 10,
+          14,
+          min: 50,
+          max: 70,
         );
-        bool rsiOk = IndicatorUtils.isRsiBetween(historyCandles, 14, min: 50, max: 70);
         return isEMA20 && aboveSupertrend && rsiOk;
 
       default:
@@ -172,7 +213,7 @@ class FilterUtils {
       return false;
     }
 
-    if (lastPrice <= 50 || lastPrice >= 1000) return false;
+    if (lastPrice <= 20 || lastPrice >= 500) return false;
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
     if (lastPrice <= close) return false;
     if (percentChange <= 1.5) return false;

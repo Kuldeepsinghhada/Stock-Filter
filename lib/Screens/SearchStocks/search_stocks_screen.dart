@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'stock_candle_check_screen.dart';
 
@@ -86,7 +87,9 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
         actions: [
           IconButton(
             tooltip: _sortDescending ? 'Sort by % (desc)' : 'Sort by % (asc)',
-            icon: Icon(_sortDescending ? Icons.arrow_downward : Icons.arrow_upward),
+            icon: Icon(
+              _sortDescending ? Icons.arrow_downward : Icons.arrow_upward,
+            ),
             onPressed: () {
               _sortDescending = !_sortDescending;
               _applySort();
@@ -140,13 +143,19 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                         final last = obj.lastPrice;
                         String pctText = '';
                         Color pctColor = Colors.black54;
-                        if (last != null && ohlc?.open != null && ohlc!.open! != 0) {
+                        if (last != null &&
+                            ohlc?.open != null &&
+                            ohlc!.open! != 0) {
                           final pct = ((last - ohlc.open!) / ohlc.open!) * 100;
-                          pctText = '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
+                          pctText =
+                              '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
                           pctColor = pct >= 0 ? Colors.green : Colors.red;
                         }
                         return ListTile(
-                          leading: Text(pctText, style: TextStyle(color: pctColor)),
+                          leading: Text(
+                            pctText,
+                            style: TextStyle(color: pctColor),
+                          ),
                           title: Text(
                             obj.symbol ?? '',
                             style: const TextStyle(fontSize: 18),
@@ -154,6 +163,22 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                           dense: true,
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
+                            var ema = IndicatorUtils.isCloseAboveEMA(
+                              obj.historyFiveMin ?? [],
+                              20,
+                            );
+                            print(
+                              'EMA20 Check for ${obj.symbol}: ${ema.value}',
+                            );
+
+                            var supertrend =
+                                IndicatorUtils.isCloseAboveSupertrend(
+                                  obj.historyFiveMin ?? [],
+                                );
+                            print(
+                              'SUPERTREND Check for ${obj.symbol}: ${supertrend.value}',
+                            );
+
                             // Navigate to the candle check screen for this stock
                             Navigator.of(context).push(
                               MaterialPageRoute(
