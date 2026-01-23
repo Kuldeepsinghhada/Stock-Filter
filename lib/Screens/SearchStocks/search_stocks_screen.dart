@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'stock_candle_check_screen.dart';
 
@@ -162,22 +164,39 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                           ),
                           dense: true,
                           trailing: const Icon(Icons.arrow_forward_ios),
-                          onTap: () {
-                            var ema = IndicatorUtils.isCloseAboveEMA(
-                              obj.historyFiveMin ?? [],
-                              20,
-                            );
-                            print(
-                              'EMA20 Check for ${obj.symbol}: ${ema.value}',
-                            );
+                          onTap: () async {
+                            var savedTokenList =
+                                await SharedPreferenceHelper.instance
+                                    .getStockTokenList();
+                            if (savedTokenList.contains(obj.token.toString())) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Already Saved for Candle Check',
+                                  ),
+                                ),
+                              );
+                            } else {
+                              savedTokenList.add(obj.token.toString());
+                              await SharedPreferenceHelper.instance
+                                  .setStockTokenLists(savedTokenList);
+                            }
 
-                            var supertrend =
-                                IndicatorUtils.isCloseAboveSupertrend(
-                                  obj.historyFiveMin ?? [],
-                                );
-                            print(
-                              'SUPERTREND Check for ${obj.symbol}: ${supertrend.value}',
-                            );
+                            // var ema = IndicatorUtils.isCloseAboveEMA(
+                            //   obj.historyFiveMin ?? [],
+                            //   20,
+                            // );
+                            // print(
+                            //   'EMA20 Check for ${obj.symbol}: ${ema.value}',
+                            // );
+                            //
+                            // var supertrend =
+                            //     IndicatorUtils.isCloseAboveSupertrend(
+                            //       obj.historyFiveMin ?? [],
+                            //     );
+                            // print(
+                            //   'SUPERTREND Check for ${obj.symbol}: ${supertrend.value}',
+                            // );
 
                             // Navigate to the candle check screen for this stock
                             Navigator.of(context).push(

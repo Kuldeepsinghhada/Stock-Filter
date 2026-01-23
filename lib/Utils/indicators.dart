@@ -619,4 +619,81 @@ class IndicatorUtils {
     }
     return true;
   }
+
+  static bool isNearEMA20OrSupertrendAuto(
+    List<HistoricalDataModel> candles, {
+    double tolerancePercent = 0.25, // ±0.10%
+    int emaPeriod = 20,
+    int atrPeriod = 10,
+    double supertrendMultiplier = 3.0,
+  }) {
+    if (candles.length < 30) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final tolerance = tolerancePercent / 100;
+
+    // -------- EMA 20 --------
+    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final emaList = MathUtils.emaAligned(closes, emaPeriod);
+    final ema20 = emaList.isNotEmpty ? emaList.last : null;
+    if (ema20 == null || ema20 == 0) return false;
+
+    // -------- Supertrend --------
+    final stResult = isCloseAboveSupertrend(
+      candles,
+      atrPeriod: atrPeriod,
+      multiplier: supertrendMultiplier,
+    );
+    final supertrend = stResult.value;
+    if (supertrend == null || supertrend == 0) return false;
+
+    // -------- Latest price --------
+    final price = closes.last;
+
+    final nearEMA20 =
+        price >= ema20 * (1 - tolerance) && price <= ema20 * (1 + tolerance);
+
+    final nearSupertrend =
+        price >= supertrend * (1 - tolerance) &&
+        price <= supertrend * (1 + tolerance);
+
+    return nearEMA20 || nearSupertrend;
+  }
+
+  static bool isVolumeOk(List<HistoricalDataModel> candles) {
+    // Volume check
+    List<int> volumes = candles.map((e) => e.volume).toList();
+
+    // ❌ NEW RULE:
+    // If ANY of last 8 candles has volume <= 2000 → reject
+    final last8 = volumes.sublist(volumes.length - 20);
+    if (last8.any((v) => v <= 2000)) {
+      return false;
+    }
+
+    final now = DateTime.now();
+    final lastWorking = Utilities.getLastWorkingDay(now);
+    final isWorkingDay =
+        lastWorking.year == now.year &&
+        lastWorking.month == now.month &&
+        lastWorking.day == now.day;
+
+    int? volumeToCheck;
+    if (volumes.isNotEmpty) {
+      if (isWorkingDay) {
+        volumeToCheck = volumes.last;
+      } else {
+        final lastWorkDayCandle = candles.lastWhere((c) {
+          final ts = c.timestamp.toLocal();
+          return ts.year == lastWorking.year &&
+              ts.month == lastWorking.month &&
+              ts.day == lastWorking.day;
+        }, orElse: () => candles.last);
+        volumeToCheck = lastWorkDayCandle.volume;
+      }
+    }
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 15000) : false;
+    return isVolumeOk;
+  }
 }

@@ -11,6 +11,7 @@ class SharedPreferenceHelper {
   String tokenKey = "access_token";
   String accessTokenExpiry = "access_token_expiry";
   String daily = "daily";
+  String tokenList = "tokenList";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -108,6 +109,16 @@ class SharedPreferenceHelper {
   Future<bool> getAlarmRunning() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool(kAlarmRunning) ?? false;
+  }
+
+  Future<void> setStockTokenLists(List<String> stockList) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(tokenList, stockList);
+  }
+
+  Future<List<String>> getStockTokenList() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(tokenList) ?? [];
   }
 
   Future<bool> clearData() async {

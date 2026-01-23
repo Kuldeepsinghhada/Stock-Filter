@@ -13,7 +13,7 @@ class FilterUtils {
     if (!aboveEma20) failedReasons.add("Close NOT above EMA20");
 
     bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 60, max: 95);
-    if (!rsiOk) failedReasons.add("RSI not between 60–90");
+    if (!rsiOk) failedReasons.add("RSI not between 60–95");
 
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
     if (!atrOk) failedReasons.add("ATR not greater than adaptive threshold");
@@ -32,34 +32,9 @@ class FilterUtils {
     bool adxRes = IndicatorUtils.isAdxBullish(candles);
     if (!adxRes) failedReasons.add("ADX NOT bullish");
 
-    // Volume check
-    List<int> volumes = candles.map((e) => e.volume).toList();
-
-    final now = DateTime.now();
-    final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay =
-        lastWorking.year == now.year &&
-        lastWorking.month == now.month &&
-        lastWorking.day == now.day;
-
-    int? volumeToCheck;
-    if (volumes.isNotEmpty) {
-      if (isWorkingDay) {
-        volumeToCheck = volumes.last;
-      } else {
-        final lastWorkDayCandle = candles.lastWhere((c) {
-          final ts = c.timestamp.toLocal();
-          return ts.year == lastWorking.year &&
-              ts.month == lastWorking.month &&
-              ts.day == lastWorking.day;
-        }, orElse: () => candles.last);
-        volumeToCheck = lastWorkDayCandle.volume;
-      }
-    }
-
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 15000) : false;
+    bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
     if (!isVolumeOk) {
-      failedReasons.add("Volume NOT > 15000 (vol=$volumeToCheck)");
+      failedReasons.add("Volume NOT > 15000 (vol=$isVolumeOk)");
     }
 
     // bool isYesterdayAvgVolumeOk = IndicatorUtils.isYesterdayAverageVolumeAbove(

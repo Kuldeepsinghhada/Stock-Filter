@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer';
-import 'dart:io';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -80,6 +79,17 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       final result = await DashboardService.instance.fetchQuotes();
       await SharedPreferenceHelper.instance.saveStocks(result);
       setState(() => quoteList = result);
+      var savedTokenList =
+          await SharedPreferenceHelper.instance.getStockTokenList();
+      List<String> tokenList =
+          quoteList.map((e) => e.token.toString()).toList();
+      // merge without duplicates
+      savedTokenList = {...savedTokenList, ...tokenList}.toList();
+      await SharedPreferenceHelper.instance.setStockTokenLists(savedTokenList);
+
+      if (isTaskRunning == true) {
+        fetchQuotesFromService();
+      }
     } catch (e) {
       log("Fetch quotes failed: $e");
     } finally {
@@ -268,13 +278,13 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             isTaskRunning = true;
             await fetchQuotesFromService();
             //setState(() {});
-            _timer = Timer.periodic(Duration(seconds: 45), (timer) async {
-              await fetchQuotesFromService();
-            });
+            // _timer = Timer.periodic(Duration(seconds: 45), (timer) async {
+            //   await fetchQuotesFromService();
+            // });
           } else {
             isTaskRunning = false;
             await WakelockPlus.disable();
-            _timer?.cancel();
+            //_timer?.cancel();
           }
           setState(() {});
           // }

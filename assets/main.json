@@ -14985,5 +14985,12 @@
   "exchange_token": 759759,
   "name": "TAURIAN MPS",
   "link": "taurian-mps-ltd"
+ },
+ {
+  "tradingsymbol": "PWL",
+  "instrument_token": 194489089,
+  "exchange_token": 759723,
+  "name": "PHYSICSWALA",
+  "link": "taurian-mps-ltd"
  }
 ]
