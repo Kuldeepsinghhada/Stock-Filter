@@ -1,8 +1,11 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
+import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'stock_candle_check_screen.dart';
 
@@ -18,6 +21,8 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
   late List<StockModel> _filteredList;
   bool _sortDescending = true; // true = highest percent first
 
+  List<NotificationModel> notificationList = [];
+
   @override
   void initState() {
     super.initState();
@@ -27,7 +32,10 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
     // keep clear icon reactive
     _searchController.addListener(() => setState(() {}));
     // Apply initial sort after first frame so UI shows sorted list by default
-    WidgetsBinding.instance.addPostFrameCallback((_) => _applySort());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _applySort();
+      getSavedTokenList();
+    });
   }
 
   double? _percentChange(StockModel s) {
@@ -73,6 +81,12 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
       // apply current sort after filtering
       _applySort();
     });
+  }
+
+  getSavedTokenList() async {
+    notificationList =
+        await SharedPreferenceHelper.instance.getNotificationList();
+    setState(() {});
   }
 
   @override
@@ -153,6 +167,14 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                               '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
                           pctColor = pct >= 0 ? Colors.green : Colors.red;
                         }
+                        var nIndex = notificationList.indexWhere(
+                          (item) =>
+                              item.stocksNameList?.toUpperCase().contains(
+                                obj.symbol!.toUpperCase(),
+                              ) ??
+                              false,
+                        );
+
                         return ListTile(
                           leading: Text(
                             pctText,
@@ -163,7 +185,33 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                             style: const TextStyle(fontSize: 18),
                           ),
                           dense: true,
-                          trailing: const Icon(Icons.arrow_forward_ios),
+                          trailing: IconButton(
+                            onPressed: () {
+                              if (nIndex != -1) {
+                                notificationList.removeAt(nIndex);
+                              } else {
+                                notificationList.add(
+                                  NotificationModel(
+                                    stocksNameList: obj.symbol,
+                                    time: DateTime.now().toIso8601String(),
+                                  ),
+                                );
+                              }
+                              SharedPreferenceHelper.instance
+                                  .saveNotificationList(notificationList);
+                              setState(() {});
+                            },
+                            icon:
+                                nIndex != -1
+                                    ? Icon(
+                                      Icons.remove_circle_outline,
+                                      color: Colors.red,
+                                    )
+                                    : Icon(
+                                      Icons.add_circle_outline,
+                                      color: Colors.green,
+                                    ),
+                          ),
                           onTap: () async {
                             var savedTokenList =
                                 await SharedPreferenceHelper.instance
@@ -215,6 +263,39 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  static Future<void> addAndShowNotification(StockModel stockModel) async {
+    List<NotificationModel> notificationsList =
+        await SharedPreferenceHelper.instance.getNotificationList();
+
+    var title = "";
+    bool exists = notificationsList.any(
+      (n) =>
+          n.stocksNameList?.toUpperCase().contains(
+            stockModel.symbol!.toUpperCase(),
+          ) ??
+          false,
+    );
+    if (!exists) {
+      title = "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''} - M";
+    }
+
+    // Add new notifications
+    if (title.isNotEmpty) {
+      notificationsList.add(
+        NotificationModel(
+          stocksNameList: title,
+          time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
+        ),
+      );
+      log(
+        "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
+      );
+    }
+    await SharedPreferenceHelper.instance.saveNotificationList(
+      notificationsList,
     );
   }
 }

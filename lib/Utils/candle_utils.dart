@@ -29,18 +29,21 @@ class CandleUtils {
     final highs = <num>[];
     final lows = <num>[];
     final volumes = <num>[];
+    final open = <num>[];
 
     for (var c in candles) {
       closes.add(c.close);
       highs.add(c.high);
       lows.add(c.low);
       volumes.add(c.volume);
+      open.add(c.open);
     }
     return {
       'close': closes,
       'high': highs,
       'low': lows,
       'volume': volumes,
+      'open': open
     };
   }
 }

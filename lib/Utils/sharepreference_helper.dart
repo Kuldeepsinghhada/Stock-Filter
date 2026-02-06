@@ -12,6 +12,8 @@ class SharedPreferenceHelper {
   String accessTokenExpiry = "access_token_expiry";
   String daily = "daily";
   String tokenList = "tokenList";
+  String bullishKey = "isBullish";
+  String bearishKey = "isBearish";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -19,6 +21,26 @@ class SharedPreferenceHelper {
   // Singleton instance
   static final SharedPreferenceHelper instance =
       SharedPreferenceHelper._internal();
+
+  Future<void> setBullish(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(bullishKey, value);
+  }
+
+  Future<bool> getBullish() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(bullishKey) ?? false;
+  }
+
+  Future<void> setBearish(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(bearishKey, value);
+  }
+
+  Future<bool> getBearish() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(bearishKey) ?? false;
+  }
 
   Future<bool?> setToken(String token) async {
     SharedPreferences preferences = await SharedPreferences.getInstance();

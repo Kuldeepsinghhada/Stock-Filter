@@ -1,13 +1,10 @@
 import 'dart:developer';
-import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/Utils/indicators.dart';
-import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
@@ -120,21 +117,6 @@ class DashboardService {
                   historyFiveMin: history,
                 ),
               );
-
-              var list =
-                  await SharedPreferenceHelper.instance.getStockTokenList();
-              if (list.contains(stock.token.toString())) {
-                var isNear20EMA = IndicatorUtils.isNearEMA20OrSupertrendAuto(
-                  history,
-                );
-                if (isNear20EMA) {
-                  await NotificationService.showNotification(
-                    title: "BUY Alert",
-                    body:
-                        "${stock.symbol} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
-                  );
-                }
-              }
               // Apply final filter check
               if (await FilterUtils.isPassAllTimeFrame(history, stock)) {
                 return stock.copyWith(

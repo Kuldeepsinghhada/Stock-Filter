@@ -365,9 +365,13 @@ class IndicatorUtils {
   static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
     if (candles.length < 30) return false;
 
+    if (candles.last.timestamp.hour == 9 &&
+        candles.last.timestamp.minute == 50) {
+      print("Checking Volume Breakout for ${candles.last.timestamp}");
+    }
+
     CandleUtils.sortByTime(candles);
     final volumes = candles.map((e) => e.volume.toDouble()).toList();
-
     final last = volumes.last;
 
     // EMA20
@@ -696,4 +700,76 @@ class IndicatorUtils {
     bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 15000) : false;
     return isVolumeOk;
   }
+
+  static bool breakoutRetestBuyEntry({
+    required List<HistoricalDataModel> candles,
+    // Indicator params
+    int emaPeriod = 20,
+    int atrPeriod = 10,
+    double supertrendMultiplier = 3.0,
+    double rsiMin = 55,
+    double tolerancePercent = 0.25, // EMA/ST proximity
+  }) {
+    if (candles.length < 30) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final arrs = CandleUtils.toArrays(candles);
+    final closes = arrs['close']!.cast<double>();
+    final lows = arrs['low']!.cast<double>();
+    final opens = arrs['open']!.cast<double>();
+    final volumes = arrs['volume']!.cast<int>();
+
+    final lastClose = closes.last;
+    final lastLow = lows.last;
+    final lastOpen = opens.last;
+    final lastVolume = volumes.last;
+
+    // ---------------- EMA 20 ----------------
+    final emaList = MathUtils.emaAligned(closes, emaPeriod);
+    if (emaList.isEmpty) return false;
+    final ema20 = emaList.last;
+
+    // ---------------- Supertrend ----------------
+    final stResult = isCloseAboveSupertrend(
+      candles,
+      atrPeriod: atrPeriod,
+      multiplier: supertrendMultiplier,
+    );
+    final supertrend = stResult.value;
+    if (supertrend == null) return false;
+
+    final tolerance = tolerancePercent / 100;
+
+    // ---------------- Retest zone ----------------
+    final emaRetest = lastLow <= ema20! * (1 + tolerance) && lastClose >= ema20;
+
+    final stRetest =
+        lastLow <= supertrend * (1 + tolerance) && lastClose >= supertrend;
+
+    final retest = emaRetest || stRetest;
+    if (!retest) return false;
+
+    // ---------------- RSI ----------------
+    final rsiOk = isRsiBetween(candles, 14, min: rsiMin, max: 80);
+    if (!rsiOk) return false;
+
+    // ---------------- Volume confirmation ----------------
+    final avgVol =
+        volumes.sublist(volumes.length - 20).reduce((a, b) => a + b) / 20;
+
+    final volumeOk = lastVolume > avgVol;
+    if (!volumeOk) return false;
+
+    // ---------------- Bullish confirmation candle ----------------
+    final bullishCandle = lastClose > lastOpen && lastClose > ema20;
+
+    if (!bullishCandle) return false;
+    return true;
+  }
+}
+
+class RetestEntryState {
+  bool waitingForRetest = false;
+  bool buyTriggered = false;
 }

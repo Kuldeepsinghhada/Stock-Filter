@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/history_model.dart';
@@ -132,21 +131,6 @@ class Utilities {
   static DateTime getLastWorkingDay(DateTime now) {
     // --- Define market holidays for 2025 & 2026 ---
     final List<DateTime> holidays = [
-      // ------- 2025 HOLIDAYS -------
-      DateTime(2025, 2, 26), // Mahashivratri
-      DateTime(2025, 3, 14), // Holi
-      DateTime(2025, 3, 31), // Eid-ul-Fitr
-      DateTime(2025, 4, 10), // Mahavir Jayanti
-      DateTime(2025, 4, 14), // Dr. Ambedkar Jayanti
-      DateTime(2025, 4, 18), // Good Friday
-      DateTime(2025, 5, 1), // Maharashtra Day
-      DateTime(2025, 8, 15), // Independence Day
-      DateTime(2025, 8, 27), // Ganesh Chaturthi
-      DateTime(2025, 10, 2), // Gandhi Jayanti / Dussehra
-      DateTime(2025, 10, 21), // Diwali (Laxmi Pujan) - Muhurat only
-      DateTime(2025, 10, 22), // Diwali Balipratipada
-      DateTime(2025, 11, 5), // Gurunanak Jayanti
-      DateTime(2025, 12, 25), // Christmas
       // ------- 2026 HOLIDAYS -------
       DateTime(2026, 1, 26), // Republic Day
       DateTime(2026, 3, 2), // Mahashivratri

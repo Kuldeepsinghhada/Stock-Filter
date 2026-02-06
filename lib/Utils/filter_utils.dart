@@ -188,7 +188,7 @@ class FilterUtils {
       return false;
     }
 
-    if (lastPrice <= 20 || lastPrice >= 500) return false;
+    if (lastPrice <= 20 || lastPrice >= 800) return false;
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
     if (lastPrice <= close) return false;
     if (percentChange <= 1.5) return false;
@@ -206,6 +206,54 @@ class FilterUtils {
     if (isWorkingDay) {
       if (volume <= 15000) return false;
     }
+    return true;
+  }
+
+  static bool isBreakDownTradable(StockModel stock) {
+    final lastPrice = stock.lastPrice;
+    final lowerLimit = stock.lowerCircuitLimit;
+    final upperLimit = stock.upperCircuitLimit;
+    final ohlc = stock.ohlc;
+    final open = ohlc?.open;
+    final close = ohlc?.close;
+    final volume = stock.volume;
+
+    if (lastPrice == null ||
+        open == null ||
+        close == null ||
+        lowerLimit == null ||
+        upperLimit == null ||
+        volume == null) {
+      return false;
+    }
+
+    // Price range filter
+    if (lastPrice <= 20 || lastPrice >= 500) return false;
+
+    // Avoid circuit stocks
+    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
+
+    // 🔴 Breakdown condition: price below previous close
+    if (lastPrice >= close) return false;
+
+    // % change calculation (negative expected)
+    final percentChange = ((lastPrice - open) / open) * 100;
+
+    // Strong red candle only
+    if (percentChange >= -1.5) return false;
+
+    // Volume check – only on working day
+    final now = DateTime.now();
+    final lastWorking = Utilities.getLastWorkingDay(now);
+    final isWorkingDay =
+        lastWorking.year == now.year &&
+        lastWorking.month == now.month &&
+        lastWorking.day == now.day;
+
+    if (isWorkingDay) {
+      if (volume <= 15000) return false;
+    }
+
     return true;
   }
 }

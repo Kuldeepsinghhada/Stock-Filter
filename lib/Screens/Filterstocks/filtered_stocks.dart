@@ -1,23 +1,14 @@
 import 'dart:async';
 import 'dart:developer';
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/model/notification_model.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-
-import '../SearchStocks/search_stocks_screen.dart';
-
-/// Background task entry point
-@pragma('vm:entry-point')
-Future<void> repeatTask() async {
-  final result = await DashboardService.instance.fetchQuotes();
-  await SharedPreferenceHelper.instance.saveStocks(result);
-}
 
 class FilteredStockScreen extends StatefulWidget {
   const FilteredStockScreen({super.key});
@@ -28,13 +19,14 @@ class FilteredStockScreen extends StatefulWidget {
 
 class _FilteredStockScreenState extends State<FilteredStockScreen>
     with WidgetsBindingObserver {
-  static const int alarmId = 1;
-
   bool isLoading = true;
   bool isTaskRunning = false;
+  bool _isBullish = true;
+  bool _isBearish = true;
   String searchQuery = '';
   List<FinalStockModel> quoteList = [];
-  Timer? _timer;
+
+  List<NotificationModel> notificationsList = [];
 
   @override
   void initState() {
@@ -44,10 +36,35 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   }
 
   Future<void> _initialize() async {
+    await _loadSettings();
     await NotificationService.requestPermissions();
     await _loadCachedStocks();
-    await _getAlarmStatus();
     await fetchQuotesFromService(); // always fetch fresh data once
+  }
+
+  Future<void> _loadSettings() async {
+    _isBullish = await SharedPreferenceHelper.instance.getBullish();
+    _isBearish = await SharedPreferenceHelper.instance.getBearish();
+    setState(() {});
+  }
+
+  Future<void> _setBullish(bool value) async {
+    await SharedPreferenceHelper.instance.setBullish(value);
+    setState(() {
+      _isBullish = value;
+    });
+  }
+
+  Future<void> _setBearish(bool value) async {
+    await SharedPreferenceHelper.instance.setBearish(value);
+    setState(() {
+      _isBearish = value;
+    });
+  }
+
+  Future<void> clearTokens() async {
+    await SharedPreferenceHelper.instance.setStockTokenLists([]);
+    Fluttertoast.showToast(msg: "All Token Cleared");
   }
 
   @override
@@ -67,13 +84,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     }
   }
 
-  Future<void> _getAlarmStatus() async {
-    final status = await SharedPreferenceHelper.instance.getAlarmRunning();
-    setState(() => isTaskRunning = status);
-    if (status) startApiTask(); // re-ensure scheduled
-  }
-
   Future<void> fetchQuotesFromService() async {
+    getNotifications();
     setState(() => isLoading = true);
     try {
       final result = await DashboardService.instance.fetchQuotes();
@@ -86,7 +98,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       // merge without duplicates
       savedTokenList = {...savedTokenList, ...tokenList}.toList();
       await SharedPreferenceHelper.instance.setStockTokenLists(savedTokenList);
-
+      getNotifications();
       if (isTaskRunning == true) {
         fetchQuotesFromService();
       }
@@ -95,39 +107,6 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     } finally {
       setState(() => isLoading = false);
     }
-  }
-
-  Future<void> startApiTask() async {
-    try {
-      await AndroidAlarmManager.periodic(
-        const Duration(minutes: 1),
-        alarmId,
-        repeatTask,
-        wakeup: true,
-        rescheduleOnReboot: true,
-      );
-      await SharedPreferenceHelper.instance.setAlarmRunning(true);
-      setState(() => isTaskRunning = true);
-    } catch (e) {
-      log("Failed to start AlarmManager: $e");
-    }
-  }
-
-  Future<void> stopApiTask() async {
-    await AndroidAlarmManager.cancel(alarmId);
-    await SharedPreferenceHelper.instance.setAlarmRunning(false);
-    setState(() => isTaskRunning = false);
-  }
-
-  static Future<bool> checkAndRequestExactAlarmPermission() async {
-    var status = await Permission.scheduleExactAlarm.status;
-    if (status.isGranted) return true;
-
-    status = await Permission.scheduleExactAlarm.request();
-    if (status.isGranted) return true;
-
-    log("Exact alarm permission denied");
-    return false;
   }
 
   @override
@@ -147,31 +126,56 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         .toList();
   }
 
+  Future<bool> getNotifications() async {
+    notificationsList =
+        await SharedPreferenceHelper.instance.getNotificationList();
+    notificationsList = notificationsList.reversed.toList();
+    setState(() {});
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredQuotes;
     return Scaffold(
+      // drawer: Drawer(
+      //   child: ListView(
+      //     padding: EdgeInsets.zero,
+      //     children: [
+      //       const DrawerHeader(
+      //         decoration: BoxDecoration(color: Colors.blue),
+      //         child: Text(
+      //           'Settings',
+      //           style: TextStyle(color: Colors.white, fontSize: 18),
+      //         ),
+      //       ),
+      //       SwitchListTile(
+      //         title: const Text('Bullish'),
+      //         value: _isBullish,
+      //         onChanged: (v) => _setBullish(v),
+      //         secondary: const Icon(Icons.trending_up),
+      //       ),
+      //       SwitchListTile(
+      //         title: const Text('Bearish'),
+      //         value: _isBearish,
+      //         onChanged: (v) => _setBearish(v),
+      //         secondary: const Icon(Icons.trending_down),
+      //       ),
+      //       ListTile(
+      //         title: const Text('Clear Saved Token'),
+      //         onTap: () {
+      //           clearTokens();
+      //           Navigator.pop(context);
+      //         },
+      //         leading: const Icon(Icons.clear),
+      //       ),
+      //     ],
+      //   ),
+      // ),
       appBar: AppBar(
         title: const Text('Dashboard'),
-        // leading: IconButton(
-        //   onPressed: () async {
-        //     final player = AudioPlayer();
-        //     await player.play(AssetSource('not.wav'));
-        //   },
-        //   icon: Icon(Icons.notification_add),
-        // ),
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SearchStocksScreen(),
-                ),
-              );
-            },
-            icon: Icon(Icons.search),
-          ),
+          // Search button
           if (isLoading && quoteList.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -205,46 +209,49 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: fetchQuotesFromService,
+              onRefresh: getNotifications,
               child: ListView.builder(
-                itemCount: filtered.length,
+                itemCount: notificationsList.length,
                 itemBuilder: (context, index) {
-                  final stock = filtered[index];
-                  final symbol =
-                      stock.stockSymbol?.replaceAll("NSE:", "") ?? '';
-                  final percentChange =
-                      (stock.open != null &&
-                              stock.open != 0 &&
-                              stock.lastPrice != null)
-                          ? ((stock.lastPrice! - stock.open!) / stock.open!) *
-                              100
-                          : null;
-
                   return ListTile(
-                    leading: Text(
-                      '${index + 1}',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    title: Text(symbol),
-                    subtitle: Text(
-                      'Token: ${stock.token}, Price: ${stock.lastPrice}',
-                    ),
-                    trailing:
-                        percentChange != null
-                            ? Text(
-                              '${percentChange.toStringAsFixed(2)}%',
-                              style: TextStyle(
-                                color:
-                                    percentChange >= 0
-                                        ? Colors.green
-                                        : Colors.red,
-                                fontWeight: FontWeight.bold,
+                    title: Text(notificationsList[index].stocksNameList ?? ''),
+                    subtitle: Text(notificationsList[index].time ?? ''),
+                    leading: const Icon(Icons.notifications),
+                    trailing: IconButton(
+                      onPressed: () async {
+                        bool? confirmDelete = await showDialog<bool>(
+                          context: context,
+                          builder:
+                              (context) => AlertDialog(
+                                title: const Text('Confirm Delete'),
+                                content: const Text(
+                                  'Are you sure you want to delete this stock?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.of(context).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.of(context).pop(true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
                               ),
-                            )
-                            : const SizedBox(),
-                    onTap: () {
-                      print(stock.link);
-                    },
+                        );
+                        if (confirmDelete == true) {
+                          notificationsList.remove(notificationsList[index]);
+                          await SharedPreferenceHelper.instance
+                              .saveNotificationList(notificationsList);
+                          setState(() {});
+                        }
+                      },
+                      icon: Icon(Icons.delete),
+                    ),
+
+                    onTap: () {},
                   );
                 },
               ),
