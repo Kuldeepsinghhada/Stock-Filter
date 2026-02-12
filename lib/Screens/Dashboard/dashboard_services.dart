@@ -5,6 +5,8 @@ import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
+import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
@@ -110,6 +112,35 @@ class DashboardService {
               int.tryParse(stock.token.toString()) ?? 0,
             );
             if (history != null) {
+              var notificationList =
+                  await SharedPreferenceHelper.instance.getNotificationList() ??
+                  [];
+              var symbol = stock.symbol?.replaceAll("NSE:", "");
+              bool isAlreadyNotified = notificationList.any(
+                (n) => (symbol != null && n.stocksNameList!.contains(symbol)),
+              );
+              if (isAlreadyNotified) {
+                var isRetestPass = IndicatorUtils.breakoutRetestBuyEntry(
+                  candles: history,
+                );
+                if (isRetestPass) {
+                  var list =
+                      await SharedPreferenceHelper.instance.getBuyAlertList();
+                  if (!list.contains(stock.symbol)) {
+                    var title =
+                        "$symbol Price: ${stock.lastPrice} \n${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}";
+                    await NotificationService.showNotification(
+                      title: "Buy Alert",
+                      body: title,
+                    );
+                    list.add(title);
+                    await SharedPreferenceHelper.instance.setBuyAlertLists(
+                      list,
+                    );
+                  }
+                }
+              }
+
               // Add to preFilteredList 👈
               preFilteredList.add(
                 stock.copyWith(

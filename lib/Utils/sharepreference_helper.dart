@@ -14,6 +14,7 @@ class SharedPreferenceHelper {
   String tokenList = "tokenList";
   String bullishKey = "isBullish";
   String bearishKey = "isBearish";
+  String buyAlertListKey = "buyAlertList";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -147,5 +148,15 @@ class SharedPreferenceHelper {
     SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.clear();
     return true;
+  }
+
+  Future<void> setBuyAlertLists(List<String> stockList) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(buyAlertListKey, stockList);
+  }
+
+  Future<List<String>> getBuyAlertList() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(buyAlertListKey) ?? [];
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:stock_demo/Screens/BuyAlert/buy_alert_page.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
 import 'package:stock_demo/Services/notification_service.dart';
@@ -192,6 +193,15 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                   MaterialPageRoute(builder: (context) => PreFilteredStock()),
                 ),
             icon: const Icon(Icons.filter_center_focus),
+          ),
+
+          IconButton(
+            onPressed:
+                () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => BuyAlertPage()),
+            ),
+            icon: const Icon(Icons.notifications_active),
           ),
         ],
       ),
