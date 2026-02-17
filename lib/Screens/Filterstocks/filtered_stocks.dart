@@ -186,14 +186,14 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          IconButton(
-            onPressed:
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => PreFilteredStock()),
-                ),
-            icon: const Icon(Icons.filter_center_focus),
-          ),
+          // IconButton(
+          //   onPressed:
+          //       () => Navigator.push(
+          //         context,
+          //         MaterialPageRoute(builder: (context) => PreFilteredStock()),
+          //       ),
+          //   icon: const Icon(Icons.filter_center_focus),
+          // ),
 
           IconButton(
             onPressed:
@@ -277,19 +277,19 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           //   isTaskRunning ? stopApiTask() : startApiTask();
           // } else {
 
-          DateTime now = DateTime.now();
-
-          // Today 9:30 AM
-          DateTime targetTime = DateTime(now.year, now.month, now.day, 9, 30);
-
-          if (!now.isAfter(targetTime)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Task can only be started after 9:30 AM'),
-              ),
-            );
-            return;
-          }
+          // DateTime now = DateTime.now();
+          //
+          // // Today 9:30 AM
+          // DateTime targetTime = DateTime(now.year, now.month, now.day, 9, 30);
+          //
+          // if (!now.isAfter(targetTime)) {
+          //   ScaffoldMessenger.of(context).showSnackBar(
+          //     const SnackBar(
+          //       content: Text('Task can only be started after 9:30 AM'),
+          //     ),
+          //   );
+          //   return;
+          // }
           await WakelockPlus.enable();
           if (!isTaskRunning) {
             isTaskRunning = true;

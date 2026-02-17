@@ -1,6 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/model/notification_model.dart';
 
 class BuyAlertPage extends StatefulWidget {
   const BuyAlertPage({super.key});
@@ -10,12 +10,9 @@ class BuyAlertPage extends StatefulWidget {
 }
 
 class _BuyAlertPageState extends State<BuyAlertPage> {
-
-
-  List<String> butAlertList = [];
+  List<NotificationModel> butAlertList = [];
   Future<bool> getNotifications() async {
-    butAlertList =
-    await SharedPreferenceHelper.instance.getBuyAlertList();
+    butAlertList = await SharedPreferenceHelper.instance.getBuyAlertLists();
     butAlertList = butAlertList.reversed.toList();
     setState(() {});
     return true;
@@ -27,20 +24,18 @@ class _BuyAlertPageState extends State<BuyAlertPage> {
     super.initState();
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Buy Signal"),
-      ),
+      appBar: AppBar(title: const Text("Buy Signal")),
       body: RefreshIndicator(
         onRefresh: getNotifications,
         child: ListView.builder(
           itemCount: butAlertList.length,
           itemBuilder: (context, index) {
             return ListTile(
-              title: Text(butAlertList[index] ?? ''),
+              title: Text(butAlertList[index].stocksNameList ?? ''),
+              subtitle: Text(butAlertList[index].time ?? ''),
               leading: const Icon(Icons.notifications),
               onTap: () {},
             );

@@ -2,6 +2,7 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_screen.dart';
+import 'package:stock_demo/Screens/Investments/investment_screen.dart';
 import 'package:stock_demo/Screens/login/login_screen.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Views/home_view/index_entry_view.dart';
@@ -32,7 +33,6 @@ void main() async {
   }
   runApp(const TradingPrototype());
 }
-
 
 Future<bool> checkUserLoggedIn() async {
   final token = await SharedPreferenceHelper.instance.getToken();

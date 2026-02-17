@@ -1,7 +1,6 @@
 import 'dart:developer';
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
-import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
@@ -12,32 +11,30 @@ import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 
-class DashboardService {
-  DashboardService._internal();
-  static final DashboardService instance = DashboardService._internal();
+class InvestmentService {
+  InvestmentService._internal();
+  static final InvestmentService instance = InvestmentService._internal();
 
   final List<StockModel> _finalList = [];
 
   /// Fetch live quotes, apply filters and historical data checks
-  Future<List<FinalStockModel>> fetchQuotes() async {
+  Future<List<FinalStockModel>> fetchQuotes({DateTime? dateTime}) async {
     await Utilities.loadStocksList();
     _finalList.clear();
     // Filter valid symbols
-    final symbols =
-        DataManager.instance.stocksList
-            .where((s) => s.token != '#N/A')
-            .map((s) => s.symbol)
-            .whereType<String>()
-            .toList();
 
-    final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 500);
-
-    // Filter tradable stocks
-    final quoteList = allQuotes.where(FilterUtils.isTradable).toList();
-    log("First Filter Count: ${quoteList.length}");
+    var symbols = await SharedPreferenceHelper.instance.getInvestmentList();
+    final allQuotes = await _fetchLiveDataInBatches(
+      symbols.toSet().toList(),
+      batchSize: 500,
+    );
 
     // Fetch historical data in throttled batches
-    await _fetchHistoricalDataWithFilter(quoteList, maxCallsPerSecond: 12);
+    await _fetchHistoricalDataWithFilter(
+      allQuotes,
+      maxCallsPerSecond: 12,
+      dateTime: dateTime,
+    );
 
     Utilities.addAndShowNotification(_finalList);
 
@@ -68,8 +65,9 @@ class DashboardService {
 
     for (var i = 0; i < symbols.length; i += batchSize) {
       final batch = symbols.skip(i).take(batchSize).toList();
-      final batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
+      final batchSymbols = batch.map((s) => 'i=NSE:$s').join('&');
 
+      print(APIEndPoint.getLiveStocksData + batchSymbols);
       final response = await ApiService.instance.apiCall(
         APIEndPoint.getLiveStocksData + batchSymbols,
         HttpRequestType.get,
@@ -98,6 +96,7 @@ class DashboardService {
   Future<void> _fetchHistoricalDataWithFilter(
     List<StockModel> quoteList, {
     int maxCallsPerSecond = 12,
+    DateTime? dateTime,
   }) async {
     List<StockModel> preFilteredList =
         []; // 👈 new list for only history != null
@@ -110,23 +109,9 @@ class DashboardService {
           try {
             final history = await fetchHistoricalData(
               int.tryParse(stock.token.toString()) ?? 0,
+              dateTime: dateTime,
             );
             if (history != null) {
-              var notificationList =
-                  await SharedPreferenceHelper.instance.getNotificationList() ??
-                  [];
-              var symbol = stock.symbol?.replaceAll("NSE:", "");
-              bool isAlreadyNotified = notificationList.any(
-                (n) => (symbol != null && n.stocksNameList!.contains(symbol)),
-              );
-              if (isAlreadyNotified) {
-                var isRetestPass = IndicatorUtils.breakoutRetestBuyEntry(
-                  candles: history,
-                );
-                if (isRetestPass) {
-                  Utilities.addAndShowBuyNotification(stock);
-                }
-              }
               // Add to preFilteredList 👈
               preFilteredList.add(
                 stock.copyWith(
@@ -135,7 +120,7 @@ class DashboardService {
                 ),
               );
               // Apply final filter check
-              if (await FilterUtils.isPassAllTimeFrame(history, stock)) {
+              if (FilterUtils.passedDayFilter(history,stock.token.toString())) {
                 return stock.copyWith(
                   symbol: stock.symbol?.replaceAll("NSE:", ""),
                   historyFiveMin: history,
@@ -163,14 +148,14 @@ class DashboardService {
 
   /// Fetch historical data for a given instrument token
   Future<List<HistoricalDataModel>?> fetchHistoricalData(
-    int instrumentToken,
-  ) async {
-    final interval = "5minute";
-    final today = Utilities.getLastWorkingDay(DateTime.now());
-    final from = Utilities.getBusinessDaysAgo(today, 60);
+    int instrumentToken, {
+    DateTime? dateTime,
+  }) async {
+    final interval = "day";
+    final today = Utilities.getLastWorkingDay(dateTime ?? DateTime.now());
+    final from = Utilities.getBusinessDaysAgo(today, 120);
     final to =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-
     final response = await ApiService.instance.apiCall(
       "${APIEndPoint.getHistoricalData}$instrumentToken/$interval?from=$from&to=$to",
       HttpRequestType.get,

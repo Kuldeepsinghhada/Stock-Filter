@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
-import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:stock_demo/Screens/Notification/notification_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -13,7 +11,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
-  bool _isBullish = false;
 
   late List<Widget> _screens;
 

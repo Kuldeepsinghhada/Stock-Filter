@@ -15,6 +15,7 @@ class SharedPreferenceHelper {
   String bullishKey = "isBullish";
   String bearishKey = "isBearish";
   String buyAlertListKey = "buyAlertList";
+  String investmentList = "investmentList";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -113,6 +114,20 @@ class SharedPreferenceHelper {
     List<NotificationModel> notifications,
   ) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    List<String> investmentList = await getInvestmentList();
+    List<String> newSymbol = [];
+    for (var n in notifications) {
+      for (var stock in investmentList) {
+        if (!n.stocksNameList!.contains(stock)) {
+          if(!newSymbol.contains(stock)){
+            newSymbol.add(stock);
+          }
+        }
+      }
+    }
+    investmentList.addAll(newSymbol.toSet().toList());
+    await setInvestmentList(investmentList.toSet().toList());
     await prefs.setStringList(
       kNotificationListKey,
       notifications.map((n) => jsonEncode(n.toJson())).toList(),
@@ -146,17 +161,38 @@ class SharedPreferenceHelper {
 
   Future<bool> clearData() async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
+    var investmentList = await getInvestmentList();
     await preferences.clear();
+    await setInvestmentList(investmentList);
     return true;
   }
 
-  Future<void> setBuyAlertLists(List<String> stockList) async {
+  Future<List<NotificationModel>> getBuyAlertLists() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(buyAlertListKey, stockList);
+    var awesomeList = prefs.getStringList(buyAlertListKey) ?? [];
+    List<NotificationModel> notifications =
+        awesomeList
+            .map((item) => NotificationModel.fromJson(jsonDecode(item)))
+            .toList();
+    return notifications;
   }
 
-  Future<List<String>> getBuyAlertList() async {
+  Future<void> setBuyAlertList(List<NotificationModel> notifications) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(buyAlertListKey) ?? [];
+    await prefs.setStringList(
+      buyAlertListKey,
+      notifications.map((n) => jsonEncode(n.toJson())).toList(),
+    );
+  }
+
+  Future<List<String>> getInvestmentList() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    var awesomeList = prefs.getStringList(investmentList) ?? [];
+    return awesomeList;
+  }
+
+  Future<void> setInvestmentList(List<String> symbolList) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(investmentList, symbolList);
   }
 }

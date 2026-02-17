@@ -20,6 +20,7 @@ class IndicatorUtils {
     final ema = MathUtils.emaAligned(closes, period);
     final lastEma = ema.isNotEmpty ? ema.last : null;
     if (lastEma == null) return IndicatorResult(isPassed: false, value: null);
+    //print("EMA$period: $lastEma");
     return IndicatorResult(isPassed: closes.last > lastEma, value: lastEma);
   }
 
@@ -60,6 +61,7 @@ class IndicatorUtils {
 
     final rs = (avgLoss == 0) ? double.infinity : (avgGain / avgLoss);
     final rsi = 100 - (100 / (1 + rs));
+    // print("RSI: $rsi");
     return rsi >= min && rsi <= max;
   }
 
@@ -182,7 +184,7 @@ class IndicatorUtils {
     List<HistoricalDataModel> candles, {
     int diPeriod = 10,
     int adxSmoothing = 8,
-    double minAdx = 25.0,
+    double minAdx = 20.0,
   }) {
     if (candles.length < diPeriod + adxSmoothing + 2) return false;
 
@@ -277,7 +279,7 @@ class IndicatorUtils {
   /// Returns true if last close >= supertrend (bullish)
   static IndicatorResult isCloseAboveSupertrend(
     List<HistoricalDataModel> candles, {
-    int atrPeriod = 9,
+    int atrPeriod = 10,
     double multiplier = 3.0,
   }) {
     CandleUtils.sortByTime(candles);
@@ -353,7 +355,6 @@ class IndicatorUtils {
         }
       }
     }
-
     return IndicatorResult(
       isPassed: closes.last >= supertrend.last,
       value: supertrend.last,
@@ -365,8 +366,8 @@ class IndicatorUtils {
   static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
     if (candles.length < 30) return false;
 
-    if (candles.last.timestamp.hour == 9 &&
-        candles.last.timestamp.minute == 50) {
+    if (candles.last.timestamp.hour == 01 &&
+        candles.last.timestamp.minute == 05) {
       print("Checking Volume Breakout for ${candles.last.timestamp}");
     }
 
@@ -386,7 +387,41 @@ class IndicatorUtils {
     final avg5 =
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
 
-    return last > ema20! * 1.5 && last > avg20 * 1.5 && last > avg5 * 2;
+    return last > ema20! * 1.5 && last > avg20 * 1.5 && last > avg5 * 1.5;
+  }
+
+  static bool isVolumeBreakoutStrongNew(List<HistoricalDataModel> candles) {
+    if (candles.length < 30) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final volumes = candles.map((e) => e.volume.toDouble()).toList();
+    final lastVol = volumes.last;
+
+    // EMA 20 Volume
+    final emaVol = MathUtils.emaAligned(volumes, 20);
+    final ema20 = emaVol.last!;
+
+    // AVG 20 Volume
+    final avg20 =
+        volumes.sublist(volumes.length - 20).reduce((a, b) => a + b) / 20;
+
+    // AVG 5 Volume
+    final avg5 =
+        volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
+
+    // Relative Volume
+    final rvol = lastVol / avg20;
+
+    // Price confirmation (avoid sell-volume candle)
+    final lastCandle = candles.last;
+    if (lastCandle.close < lastCandle.open) return false;
+
+    return
+      lastVol > ema20 * 1.5 &&   // Trend-based expansion
+          lastVol > avg20 * 1.5 &&   // Real participation
+          lastVol > avg5  * 1.2 &&   // Continuation allowed
+          rvol > 1.5 && rvol < 4;    // Algo spike protection
   }
 
   static bool isVolumeBreakoutStrongMore(
@@ -767,6 +802,71 @@ class IndicatorUtils {
     if (!bullishCandle) return false;
     return true;
   }
+
+  static bool isNearEMA20OrSupertrendAutoForDay(
+    List<HistoricalDataModel> candles, {
+    double tolerancePercent = 0.5,
+    int emaPeriod = 20,
+    int atrPeriod = 10,
+    double supertrendMultiplier = 3.0,
+  }) {
+    if (candles.length < 60) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final tolerance = tolerancePercent / 100;
+
+    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final emaList = MathUtils.emaAligned(closes, emaPeriod);
+    final ema20 = emaList.isNotEmpty ? emaList.last : null;
+    if (ema20 == null || ema20 == 0) return false;
+
+    final stResult = isCloseAboveSupertrend(
+      candles,
+      atrPeriod: atrPeriod,
+      multiplier: supertrendMultiplier,
+    );
+    final supertrend = stResult.value;
+    if (supertrend == null || supertrend == 0) return false;
+
+    final latest = candles.last;
+    final low = latest.low;
+    final high = latest.high;
+
+    final nearEMA20 =
+        low <= ema20 * (1 + tolerance) && high >= ema20 * (1 - tolerance);
+
+    final nearSupertrend =
+        low <= supertrend * (1 + tolerance) &&
+        high >= supertrend * (1 - tolerance);
+
+    return nearEMA20 || nearSupertrend;
+  }
+
+  static bool wasYesterdayGreenFrom5Min(List<HistoricalDataModel> candles) {
+    if (candles.isEmpty) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final now = candles.last.timestamp;
+    final yesterdayDate = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 1));
+
+    final yCandles = candles.where((c) {
+      final t = c.timestamp;
+      return t.year == yesterdayDate.year &&
+          t.month == yesterdayDate.month &&
+          t.day == yesterdayDate.day;
+    }).toList();
+
+    if (yCandles.length < 10) return false; // half-day / holiday protection
+
+    final open = yCandles.first.open;
+    final close = yCandles.last.close;
+
+    return close > open;
+  }
+
 }
 
 class RetestEntryState {

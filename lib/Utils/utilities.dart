@@ -125,6 +125,51 @@ class Utilities {
     );
   }
 
+  static Future<void> addAndShowBuyNotification(StockModel stockModel) async {
+    List<NotificationModel> notificationsList =
+        await SharedPreferenceHelper.instance.getBuyAlertLists();
+
+    List<String> newStockSymbols = [];
+    bool exists = notificationsList.any(
+      (n) =>
+          n.stocksNameList?.toUpperCase().contains(
+            stockModel.symbol!.toUpperCase(),
+          ) ??
+          false,
+    );
+    if (!exists) {
+      newStockSymbols.add(
+        "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''}",
+      );
+    }
+
+    // Add new notifications
+    if (newStockSymbols.isNotEmpty) {
+      notificationsList.add(
+        NotificationModel(
+          stocksNameList: newStockSymbols.join(','),
+          time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
+        ),
+      );
+      // Show notification
+      if (Platform.isAndroid) {
+        await NotificationService.showNotification(
+          title: "Buy Alert",
+          body:
+              "${newStockSymbols.join(', ')} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
+        );
+      } else {
+        final player = AudioPlayer();
+        await player.play(AssetSource('not.wav'));
+      }
+      log(
+        "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
+      );
+    }
+
+    await SharedPreferenceHelper.instance.setBuyAlertList(notificationsList);
+  }
+
   // -----------GET END DATE FOR HISTORICAL DATA -----------
   static DateTime getLastWorkingDay(DateTime now) {
     // --- Define market holidays for 2025 & 2026 ---
