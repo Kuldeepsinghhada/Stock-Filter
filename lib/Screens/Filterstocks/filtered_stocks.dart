@@ -186,14 +186,14 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          // IconButton(
-          //   onPressed:
-          //       () => Navigator.push(
-          //         context,
-          //         MaterialPageRoute(builder: (context) => PreFilteredStock()),
-          //       ),
-          //   icon: const Icon(Icons.filter_center_focus),
-          // ),
+          IconButton(
+            onPressed:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PreFilteredStock()),
+                ),
+            icon: const Icon(Icons.filter_center_focus),
+          ),
 
           IconButton(
             onPressed:

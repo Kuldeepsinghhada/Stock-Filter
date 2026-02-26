@@ -417,11 +417,11 @@ class IndicatorUtils {
     final lastCandle = candles.last;
     if (lastCandle.close < lastCandle.open) return false;
 
-    return
-      lastVol > ema20 * 1.5 &&   // Trend-based expansion
-          lastVol > avg20 * 1.5 &&   // Real participation
-          lastVol > avg5  * 1.2 &&   // Continuation allowed
-          rvol > 1.5 && rvol < 4;    // Algo spike protection
+    return lastVol > ema20 * 1.5 && // Trend-based expansion
+        lastVol > avg20 * 1.5 && // Real participation
+        lastVol > avg5 * 1.2 && // Continuation allowed
+        rvol > 1.5 &&
+        rvol < 4; // Algo spike protection
   }
 
   static bool isVolumeBreakoutStrongMore(
@@ -849,15 +849,19 @@ class IndicatorUtils {
     CandleUtils.sortByTime(candles);
 
     final now = candles.last.timestamp;
-    final yesterdayDate = DateTime(now.year, now.month, now.day)
-        .subtract(const Duration(days: 1));
+    final yesterdayDate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(const Duration(days: 1));
 
-    final yCandles = candles.where((c) {
-      final t = c.timestamp;
-      return t.year == yesterdayDate.year &&
-          t.month == yesterdayDate.month &&
-          t.day == yesterdayDate.day;
-    }).toList();
+    final yCandles =
+        candles.where((c) {
+          final t = c.timestamp;
+          return t.year == yesterdayDate.year &&
+              t.month == yesterdayDate.month &&
+              t.day == yesterdayDate.day;
+        }).toList();
 
     if (yCandles.length < 10) return false; // half-day / holiday protection
 
@@ -866,7 +870,6 @@ class IndicatorUtils {
 
     return close > open;
   }
-
 }
 
 class RetestEntryState {

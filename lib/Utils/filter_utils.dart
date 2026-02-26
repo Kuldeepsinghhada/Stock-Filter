@@ -191,7 +191,7 @@ class FilterUtils {
       return false;
     }
 
-    if (lastPrice <= 20 || lastPrice >= 800) return false;
+    if (lastPrice <= 20 || lastPrice >= 2500) return false;
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
     if (lastPrice <= close) return false;
     if (percentChange <= 1.5) return false;
@@ -269,11 +269,11 @@ class FilterUtils {
     bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 55, max: 95);
     if (!rsiOk) failedReasons.add("RSI not between 60–95");
 
-    // bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
-    // if (!atrOk) failedReasons.add("ATR not greater than adaptive threshold");
+    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
+    if (!atrOk) failedReasons.add("ATR not greater than adaptive threshold");
 
-    // bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
-    // if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
+    bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
+    if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
 
     bool aboveSupertrend =
         IndicatorUtils.isCloseAboveSupertrend(
@@ -283,47 +283,72 @@ class FilterUtils {
         ).isPassed;
     if (!aboveSupertrend) failedReasons.add("Close NOT above Supertrend");
 
-    // bool adxRes = IndicatorUtils.isAdxBullish(candles);
-    // if (!adxRes) failedReasons.add("ADX NOT bullish");
+    bool adxRes = IndicatorUtils.isAdxBullish(candles);
+    if (!adxRes) failedReasons.add("ADX NOT bullish");
 
-    bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-    if (!isVolumeOk) {
-      failedReasons.add("Volume NOT > 15000 (vol=$isVolumeOk)");
-    }
+    // bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
+    // if (!isVolumeOk) {
+    //   failedReasons.add("Volume NOT > 15000 (vol=$isVolumeOk)");
+    // }
 
-    bool isNearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(
-      candles,
-    );
-    if (!isNearBuyingZone) {
-      failedReasons.add("Not near EMA20 or Supertrend for Day");
-    }
-
-    // bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
-    // if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
-
-    // bool is2PcChange =
-    // IndicatorUtils.isCloseAboveYesterdayHighByPctAndYesterdayBullish(
+    // bool isNearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(
     //   candles,
     // );
+    // if (!isNearBuyingZone) {
+    //   failedReasons.add("Not near EMA20 or Supertrend for Day");
+    // }
+
+    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
+    if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
+
+    // bool is2PcChange =
+    //     IndicatorUtils.isCloseAboveYesterdayHighByPctAndYesterdayBullish(
+    //       candles,
+    //     );
     // if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
     // FINAL RESULT
-    bool result =
-        isVolumeOk &&
-        aboveEma20 &&
-        rsiOk &&
-        aboveSupertrend &&
-        // adxRes &&
-        // atrOk &&
-        isNearBuyingZone;
-    //isVolumeBreakout;
-
-    // 🔥 Print only when exactly ONE condition failed
-    if (failedReasons.isNotEmpty) {
-      log(
-        "⚠️ $token — Only 1 Less Failed: ${failedReasons} : ${candles.last.timestamp}",
-      );
-    }
+    bool result = aboveEma20 && rsiOk && aboveSupertrend && adxRes && atrOk;
+    isVolumeBreakout;
     return result;
+  }
+
+  static bool isDayTradable(StockModel stock) {
+    final lastPrice = stock.lastPrice;
+    final lowerLimit = stock.lowerCircuitLimit;
+    final upperLimit = stock.upperCircuitLimit;
+    final ohlc = stock.ohlc;
+    final close = ohlc?.close;
+    final volume = stock.volume;
+    final percentChange =
+        ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) * 100;
+
+    if (lastPrice == null ||
+        close == null ||
+        lowerLimit == null ||
+        upperLimit == null ||
+        volume == null) {
+      return false;
+    }
+
+    if (lastPrice <= 20 || lastPrice >= 200) return false;
+    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
+    if (lastPrice <= close) return false;
+    if (percentChange <= 1.5) return false;
+
+    // Only enforce the volume threshold on working days.
+    // If today is a weekend or a holiday (Utilities.getLastWorkingDay shifts back),
+    // skip the volume check.
+    final now = DateTime.now();
+    final lastWorking = Utilities.getLastWorkingDay(now);
+    final isWorkingDay =
+        lastWorking.year == now.year &&
+        lastWorking.month == now.month &&
+        lastWorking.day == now.day;
+
+    if (isWorkingDay) {
+      if (volume <= 4000000) return false;
+    }
+    return true;
   }
 }

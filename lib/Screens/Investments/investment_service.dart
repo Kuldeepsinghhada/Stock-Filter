@@ -4,7 +4,6 @@ import 'package:stock_demo/APIService/end_point.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
@@ -120,7 +119,10 @@ class InvestmentService {
                 ),
               );
               // Apply final filter check
-              if (FilterUtils.passedDayFilter(history,stock.token.toString())) {
+              if (FilterUtils.passedDayFilter(
+                history,
+                stock.token.toString(),
+              )) {
                 return stock.copyWith(
                   symbol: stock.symbol?.replaceAll("NSE:", ""),
                   historyFiveMin: history,
