@@ -42,6 +42,9 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       setState(() {
         _selectedDate = picked;
       });
+      if (_symbolsController.text.trim().isNotEmpty) {
+        _analyzeSymbols();
+      }
     }
   }
 
@@ -70,18 +73,19 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       _results.clear();
     });
 
-    final List<String> symbols = inputText
-        .split(',')
-        .map((e) => e.trim().toUpperCase())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final List<String> symbols =
+        inputText
+            .split(',')
+            .map((e) => e.trim().toUpperCase())
+            .where((e) => e.isNotEmpty)
+            .toList();
 
     if (_allStocks.isEmpty) {
       await _loadStocksData();
     }
 
     final DateTime toDate = _selectedDate;
-    final DateTime fromDate = toDate.subtract(const Duration(days: 440));
+    final DateTime fromDate = toDate.subtract(const Duration(days: 1000));
     final DateFormat formatter = DateFormat('yyyy-MM-dd');
     final String toDateString = formatter.format(toDate);
     final String fromDateString = formatter.format(fromDate);
@@ -91,32 +95,35 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     for (String symbol in symbols) {
       // Find the instrument token from main.json
       final stockMatch = _allStocks.firstWhere(
-        (stock) =>
-            stock['tradingsymbol'].toString().toUpperCase() == symbol,
+        (stock) => stock['tradingsymbol'].toString().toUpperCase() == symbol,
         orElse: () => null,
       );
 
       if (stockMatch == null) {
         // Skip or add to error format
-        fetchTasks.add(Future.value({
-          "symbol": symbol,
-          "error": "Symbol not found in local data"
-        }));
+        fetchTasks.add(
+          Future.value({
+            "symbol": symbol,
+            "error": "Symbol not found in local data",
+          }),
+        );
         continue;
       }
 
       final String instrumentToken = stockMatch['instrument_token'].toString();
 
-      fetchTasks.add(_fetchAndScore(
-        symbol,
-        instrumentToken,
-        fromDateString,
-        toDateString,
-      ));
+      try{
+        var data = _fetchAndScore(
+            symbol, instrumentToken, fromDateString, toDateString);
+        fetchTasks.add(data);
+      }catch(e){
+        print(e.toString());
+      }
     }
 
     setState(() {
-      _statusMessage = "Fetching historical data (${symbols.length} symbols)...";
+      _statusMessage =
+          "Fetching historical data (${symbols.length} symbols)...";
     });
 
     final resultsList = await Future.wait(fetchTasks);
@@ -151,10 +158,13 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       final APIResponse response = await HistoryServices.instance
           .getHistoricalData(instrumentToken, fromDate, toDate);
 
+      if(symbol == "MAHABANK"){
+        print(response);
+      }
       if (response.status && response.data != null) {
         final List<HistoricalDataModel> historyData =
             response.data as List<HistoricalDataModel>;
-        
+
         try {
           final Map<String, dynamic> scoreResult =
               AIScoreCalculator.calculateAIScore(historyData);
@@ -163,20 +173,17 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
         } catch (e) {
           return {
             "symbol": symbol,
-            "error": "Failed to calculate score: ${e.toString()}"
+            "error": "Failed to calculate score: ${e.toString()}",
           };
         }
       } else {
         return {
           "symbol": symbol,
-          "error": response.error ?? "Failed to fetch data"
+          "error": response.error ?? "Failed to fetch data",
         };
       }
     } catch (e) {
-      return {
-        "symbol": symbol,
-        "error": "Network/Parsing error"
-      };
+      return {"symbol": symbol, "error": "Network/Parsing error"};
     }
   }
 
@@ -195,9 +202,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bulk AI Analysis'),
-      ),
+      appBar: AppBar(title: const Text('Bulk AI Analysis')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -219,13 +224,16 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                     height: 48,
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _analyzeSymbols,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Analyze Symbols'),
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Text('Analyze Symbols'),
                     ),
                   ),
                 ),
@@ -239,9 +247,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                       DateFormat('dd MMM yyyy').format(_selectedDate),
                     ),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12.0,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     ),
                   ),
                 ),
@@ -263,8 +269,14 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                     return Card(
                       color: Colors.red.shade50,
                       child: ListTile(
-                        title: Text(symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(result['error'], style: const TextStyle(color: Colors.red)),
+                        title: Text(
+                          symbol,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          result['error'],
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ),
                     );
                   }
@@ -273,11 +285,14 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                   final verdict = result['verdict'];
                   final price = result['currentPrice'];
                   final verdictColor = _getVerdictColor(score);
+                  final isNearBuyZone = result['isNearBuyZone'] == true;
 
                   return Card(
                     elevation: 3,
                     margin: const EdgeInsets.symmetric(vertical: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
@@ -286,15 +301,25 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                symbol,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              Row(
+                                spacing: 10,
+                                children: [
+                                  Text(
+                                    symbol,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (isNearBuyZone)
+                                    Icon(Icons.star, color: Colors.amberAccent),
+                                ],
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: verdictColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(20),
@@ -327,7 +352,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                               _buildStat("ADX", result['adx']),
                               _buildStat("Support", result['support']),
                             ],
-                          )
+                          ),
                         ],
                       ),
                     ),
@@ -365,10 +390,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
         const SizedBox(height: 2),
         Text(
           displayValue,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
     );

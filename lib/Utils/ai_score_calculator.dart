@@ -1,4 +1,5 @@
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 
 class AIScoreCalculator {
   static Map<String, dynamic> calculateAIScore(List<HistoricalDataModel> historyData) {
@@ -95,6 +96,8 @@ class AIScoreCalculator {
     final adx = calculateADX();
     final avgVol20 = sma(volumes, 20);
 
+    final isNearBuyZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(candles);
+
     double score = 0;
 
     // Trend (25)
@@ -157,6 +160,7 @@ class AIScoreCalculator {
       "rsi": rsi,
       "adx": adx,
       "atr": atr,
+      "isNearBuyZone": isNearBuyZone,
     };
   }
 }

@@ -87,7 +87,7 @@ class _DataScreenState extends State<DataScreen> {
 
     // Calculate dates: from 440 days ago to selected date
     final DateTime toDate = selectedDate;
-    final DateTime fromDate = toDate.subtract(const Duration(days: 440));
+    final DateTime fromDate = toDate.subtract(const Duration(days: 1000));
 
     final DateFormat formatter = DateFormat('yyyy-MM-dd');
     final String toDateString = formatter.format(toDate);

@@ -816,7 +816,7 @@ class IndicatorUtils {
 
     final tolerance = tolerancePercent / 100;
 
-    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final closes = CandleUtils.toArrays(candles)['low']!.cast<double>();
     final emaList = MathUtils.emaAligned(closes, emaPeriod);
     final ema20 = emaList.isNotEmpty ? emaList.last : null;
     if (ema20 == null || ema20 == 0) return false;
