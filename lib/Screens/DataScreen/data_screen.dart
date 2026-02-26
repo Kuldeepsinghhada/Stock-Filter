@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'history_data_screen.dart';
+import 'bulk_analysis_screen.dart';
 import 'package:intl/intl.dart';
 
 class DataScreen extends StatefulWidget {
@@ -111,9 +112,16 @@ class _DataScreenState extends State<DataScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Data Screen'),
       actions: [
-        IconButton(onPressed: (){
-
-        }, icon: Icon(Icons.score_outlined))
+        IconButton(
+          tooltip: 'Bulk AI Analysis',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => BulkAnalysisScreen(selectedDate: selectedDate,)),
+            );
+          }, 
+          icon: const Icon(Icons.score_outlined)
+        )
       ],
       ),
       body:
