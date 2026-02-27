@@ -303,6 +303,17 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                               ),
                             ],
                           ),
+                          if (result['date'] != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              "Date: ${result['date']}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                           const Divider(),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

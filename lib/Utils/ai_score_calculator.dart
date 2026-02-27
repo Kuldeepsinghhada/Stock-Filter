@@ -2,11 +2,14 @@ import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 
 class AIScoreCalculator {
-  static Map<String, dynamic> calculateAIScore(List<HistoricalDataModel> historyData) {
+  static Map<String, dynamic> calculateAIScore(
+    List<HistoricalDataModel> historyData,
+  ) {
     List<HistoricalDataModel> candles = historyData;
     if (candles.length < 200) {
       throw Exception("Minimum 200 candles required, got ${candles.length}");
     }
+    final opens = candles.map((c) => c.open).toList();
     final closes = candles.map((c) => c.close).toList();
     final highs = candles.map((c) => c.high).toList();
     final lows = candles.map((c) => c.low).toList();
@@ -96,7 +99,9 @@ class AIScoreCalculator {
     final adx = calculateADX();
     final avgVol20 = sma(volumes, 20);
 
-    final isNearBuyZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(candles);
+    final isNearBuyZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(
+      candles,
+    );
 
     double score = 0;
 
@@ -113,7 +118,22 @@ class AIScoreCalculator {
     // Volume (20)
     if (last.volume > avgVol20) score += 8;
     if (last.volume > avgVol20 * 1.5) score += 7;
-    if (volumes.sublist(volumes.length - 3).every((v) => v > avgVol20 * 0.8)) {
+    // Condition should be same for last candle. Now Also check previous 4 candles but today is in buying zone.
+    
+    int? strongCandleIndex;
+    for (int i = 0; i < 5; i++) {
+      int index = volumes.length - 5 + i;
+      if (volumes[index] > avgVol20 * 1.2 && closes[index] > opens[index]) {
+        if (strongCandleIndex == null) {
+          strongCandleIndex = index;
+        } else {
+          // You could prioritize the last candle or the first one, let's just stick to the first match if any
+          strongCandleIndex = index;
+        }
+      }
+    }
+    
+    if (strongCandleIndex != null) {
       score += 5;
     }
 
@@ -147,9 +167,14 @@ class AIScoreCalculator {
       verdict = "Average";
     }
 
+    DateTime dateToReturn = strongCandleIndex != null
+        ? candles[strongCandleIndex].timestamp
+        : last.timestamp;
+
     return {
       "score": score.round(),
       "verdict": verdict,
+      "date": dateToReturn.toIso8601String().substring(0, 10),
       "currentPrice": last.close,
       "support": recentLow,
       "resistance": highs
