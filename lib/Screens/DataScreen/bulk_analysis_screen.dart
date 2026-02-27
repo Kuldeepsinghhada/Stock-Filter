@@ -6,6 +6,10 @@ import 'package:stock_demo/Screens/DataScreen/history_services.dart';
 import 'package:stock_demo/Utils/ai_score_calculator.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/api_response.dart';
+import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/model/stock_model.dart';
+
+import '../../model/final_stock_model.dart';
 
 class BulkAnalysisScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -90,48 +94,51 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     final String toDateString = formatter.format(toDate);
     final String fromDateString = formatter.format(fromDate);
 
-    List<Future<Map<String, dynamic>?>> fetchTasks = [];
-
-    for (String symbol in symbols) {
-      // Find the instrument token from main.json
-      final stockMatch = _allStocks.firstWhere(
-        (stock) => stock['tradingsymbol'].toString().toUpperCase() == symbol,
-        orElse: () => null,
-      );
-
-      if (stockMatch == null) {
-        // Skip or add to error format
-        fetchTasks.add(
-          Future.value({
-            "symbol": symbol,
-            "error": "Symbol not found in local data",
-          }),
-        );
-        continue;
-      }
-
-      final String instrumentToken = stockMatch['instrument_token'].toString();
-
-      try{
-        var data = _fetchAndScore(
-            symbol, instrumentToken, fromDateString, toDateString);
-        fetchTasks.add(data);
-      }catch(e){
-        print(e.toString());
-      }
-    }
-
     setState(() {
       _statusMessage =
           "Fetching historical data (${symbols.length} symbols)...";
     });
 
-    final resultsList = await Future.wait(fetchTasks);
+    // Call the batch fetching logic in HistoryServices
+    List<StockModel> result = await HistoryServices.instance.fetchQuotes(
+      toDate,
+      symbols,
+    );
 
     List<Map<String, dynamic>> validResults = [];
-    for (var res in resultsList) {
-      if (res != null) {
-        validResults.add(res);
+
+    // Retrieve parsed data from DataManager
+
+    result.removeWhere(
+      (item) =>
+          (item.historyFiveMin != null && item.historyFiveMin!.length < 200),
+    );
+    for (var stock in result) {
+      if (symbols.contains(stock.symbol)) {
+        if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
+          try {
+            final Map<String, dynamic> scoreResult =
+                AIScoreCalculator.calculateAIScore(stock.historyFiveMin!);
+            scoreResult['symbol'] = stock.symbol;
+            validResults.add(scoreResult);
+          } catch (e) {
+            validResults.add({
+              "symbol": stock.symbol,
+              "error": "Failed to calculate score: ${e.toString()}",
+            });
+          }
+        }
+      }
+    }
+
+    // Identify symbols that failed
+    final fetchedSymbols = validResults.map((e) => e['symbol']).toSet();
+    for (final symbol in symbols) {
+      if (!fetchedSymbols.contains(symbol)) {
+        validResults.add({
+          "symbol": symbol,
+          "error": "Failed to fetch data or symbol not found",
+        });
       }
     }
 
@@ -146,45 +153,6 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       _isLoading = false;
       _results = validResults;
     });
-  }
-
-  Future<Map<String, dynamic>?> _fetchAndScore(
-    String symbol,
-    String instrumentToken,
-    String fromDate,
-    String toDate,
-  ) async {
-    try {
-      final APIResponse response = await HistoryServices.instance
-          .getHistoricalData(instrumentToken, fromDate, toDate);
-
-      if(symbol == "MAHABANK"){
-        print(response);
-      }
-      if (response.status && response.data != null) {
-        final List<HistoricalDataModel> historyData =
-            response.data as List<HistoricalDataModel>;
-
-        try {
-          final Map<String, dynamic> scoreResult =
-              AIScoreCalculator.calculateAIScore(historyData);
-          scoreResult['symbol'] = symbol;
-          return scoreResult;
-        } catch (e) {
-          return {
-            "symbol": symbol,
-            "error": "Failed to calculate score: ${e.toString()}",
-          };
-        }
-      } else {
-        return {
-          "symbol": symbol,
-          "error": response.error ?? "Failed to fetch data",
-        };
-      }
-    } catch (e) {
-      return {"symbol": symbol, "error": "Network/Parsing error"};
-    }
   }
 
   Color _getVerdictColor(dynamic scoreVal) {

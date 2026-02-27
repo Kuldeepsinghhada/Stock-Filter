@@ -41,20 +41,30 @@ class _HistoryDataScreenState extends State<HistoryDataScreen> {
       errorMessage = "";
     });
 
-    final response = await HistoryServices.instance.getHistoricalData(
-      widget.instrumentToken,
-      widget.fromDate,
-      widget.toDate,
-    );
+    try {
+      final DateTime toDateDT = DateTime.parse(widget.toDate);
+      final int token = int.tryParse(widget.instrumentToken) ?? 0;
+      
+      final response = await HistoryServices.instance.fetchHistoricalData(
+        token,
+        toDateDT,
+        symbols: [widget.stockName],
+      );
 
-    if (response.status) {
+      if (response != null) {
+        setState(() {
+          historyData = response;
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = "Failed to fetch data";
+          isLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        historyData = response.data as List<HistoricalDataModel>;
-        isLoading = false;
-      });
-    } else {
-      setState(() {
-        errorMessage = response.error ?? "Failed to fetch data";
+        errorMessage = e.toString();
         isLoading = false;
       });
     }

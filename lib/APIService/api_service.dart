@@ -59,6 +59,8 @@ class ApiService {
         errorMsg = decoded['response']['error_message'].toString();
       } else if (decoded['error'] != null) {
         errorMsg = decoded['error'].toString();
+      }else if(decoded['message'] != null){
+        errorMsg = decoded['message'];
       }
       log("[API ERROR] $errorMsg");
       return APIResponse(false, null, errorMsg);

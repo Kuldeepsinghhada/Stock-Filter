@@ -40,7 +40,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     await _loadSettings();
     await NotificationService.requestPermissions();
     await _loadCachedStocks();
-    await fetchQuotesFromService(); // always fetch fresh data once
+    //await fetchQuotesFromService(); // always fetch fresh data once
   }
 
   Future<void> _loadSettings() async {
