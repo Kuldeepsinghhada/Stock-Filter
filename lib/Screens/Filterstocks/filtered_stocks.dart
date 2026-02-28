@@ -20,7 +20,7 @@ class FilteredStockScreen extends StatefulWidget {
 
 class _FilteredStockScreenState extends State<FilteredStockScreen>
     with WidgetsBindingObserver {
-  bool isLoading = true;
+  bool isLoading = false;
   bool isTaskRunning = false;
   bool _isBullish = true;
   bool _isBearish = true;
