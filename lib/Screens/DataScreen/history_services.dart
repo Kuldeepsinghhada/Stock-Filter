@@ -102,6 +102,7 @@ class HistoryServices {
 
     for (var i = 0; i < quoteList.length; i += maxCallsPerSecond) {
       final batch = quoteList.skip(i).take(maxCallsPerSecond).toList();
+      bool didAPICall = false;
 
       final batchResults = await Future.wait(
         batch.map((stock) async {
@@ -130,6 +131,7 @@ class HistoryServices {
                         ? lastDate
                         : lastDate.add(const Duration(days: 1));
 
+                    didAPICall = true;
                     final newHistory = await fetchHistoricalData(
                       int.tryParse(stock.token.toString()) ?? 0,
                       toDate,
@@ -162,6 +164,7 @@ class HistoryServices {
                 if (!hasInternet) {
                   lastUnavailableList.add(cleanedSymbol);
                 } else {
+                  didAPICall = true;
                   history = await fetchHistoricalData(
                     int.tryParse(stock.token.toString()) ?? 0,
                     toDate,
@@ -184,6 +187,7 @@ class HistoryServices {
                 if (!hasInternet) {
                   lastUnavailableList.add(cleanedSymbol);
                 } else {
+                  didAPICall = true;
                   history = await fetchHistoricalData(
                     int.tryParse(stock.token.toString()) ?? 0,
                     toDate,
@@ -214,7 +218,7 @@ class HistoryServices {
 
       _finalList.addAll(batchResults.whereType<StockModel>());
 
-      if (i + maxCallsPerSecond < quoteList.length) {
+      if (didAPICall && i + maxCallsPerSecond < quoteList.length) {
         await Future.delayed(const Duration(seconds: 1));
       }
     }

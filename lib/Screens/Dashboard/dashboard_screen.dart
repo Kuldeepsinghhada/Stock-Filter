@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:stock_demo/Screens/DataScreen/bulk_analysis_screen.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
 import 'package:stock_demo/Screens/DataScreen/data_screen.dart';
-
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,7 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _screens = [
       FilteredStockScreen(),
       SearchStocksScreen(key: UniqueKey()), // give unique key for refresh
-      const DataScreen(),
+      BulkAnalysisScreen(selectedDate: DateTime.now()),
     ];
   }
 
@@ -50,10 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icon(Icons.crisis_alert_sharp),
             label: "Search",
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.data_usage),
-            label: "Data",
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.data_usage), label: "Data"),
         ],
       ),
     );
