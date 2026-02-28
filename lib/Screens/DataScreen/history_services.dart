@@ -3,11 +3,7 @@ import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
-import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/Utils/indicators.dart';
-import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
-import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 
@@ -24,6 +20,7 @@ class HistoryServices {
   ) async {
     await Utilities.loadStocksList();
     _finalList.clear();
+    symbols.removeWhere((item) => (item.contains("ETF") || item.contains("SILVER") || item.contains("BEES")));
     final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 500);
     // Fetch historical data in throttled batches
     await _fetchHistoricalDataWithFilter(
@@ -50,8 +47,7 @@ class HistoryServices {
 
     for (var i = 0; i < symbols.length; i += batchSize) {
       final batch = symbols.skip(i).take(batchSize).toList();
-      final batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
-
+      final batchSymbols = batch.map((s) => 'i=NSE:$s').join('&');
       final response = await ApiService.instance.apiCall(
         APIEndPoint.getLiveStocksData + batchSymbols,
         HttpRequestType.get,
@@ -132,8 +128,9 @@ class HistoryServices {
     final interval = "day";
 
     final from = Utilities.getBusinessDaysAgo(toDate, 1000);
+    final toDateFinal = DateTime.now();
     final to =
-        "${toDate.year}-${toDate.month.toString().padLeft(2, '0')}-${toDate.day.toString().padLeft(2, '0')}";
+        "${toDateFinal.year}-${toDateFinal.month.toString().padLeft(2, '0')}-${toDateFinal.day.toString().padLeft(2, '0')}";
 
     // Log useful debugging information including optional symbols list
     log(

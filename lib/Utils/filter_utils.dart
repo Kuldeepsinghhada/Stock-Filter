@@ -334,7 +334,6 @@ class FilterUtils {
     if (lastPrice <= 20 || lastPrice >= 200) return false;
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
     if (lastPrice <= close) return false;
-    if (percentChange <= 1.5) return false;
 
     // Only enforce the volume threshold on working days.
     // If today is a weekend or a holiday (Utilities.getLastWorkingDay shifts back),

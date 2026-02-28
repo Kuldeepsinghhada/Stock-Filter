@@ -805,7 +805,7 @@ class IndicatorUtils {
 
   static bool isNearEMA20OrSupertrendAutoForDay(
     List<HistoricalDataModel> candles, {
-    double tolerancePercent = 0.5,
+    double tolerancePercent = 2.0, // 2% realistic
     int emaPeriod = 20,
     int atrPeriod = 10,
     double supertrendMultiplier = 3.0,
@@ -816,29 +816,42 @@ class IndicatorUtils {
 
     final tolerance = tolerancePercent / 100;
 
-    final closes = CandleUtils.toArrays(candles)['low']!.cast<double>();
-    final emaList = MathUtils.emaAligned(closes, emaPeriod);
-    final ema20 = emaList.isNotEmpty ? emaList.last : null;
-    if (ema20 == null || ema20 == 0) return false;
+    final closeList = CandleUtils.toArrays(candles)['close']!.cast<double>();
+
+    final emaList = MathUtils.emaAligned(closeList, emaPeriod);
+    if (emaList.isEmpty) return false;
+
+    final ema20 = emaList.last;
+    if (ema20 == 0) return false;
 
     final stResult = isCloseAboveSupertrend(
       candles,
       atrPeriod: atrPeriod,
       multiplier: supertrendMultiplier,
     );
+
     final supertrend = stResult.value;
     if (supertrend == null || supertrend == 0) return false;
 
     final latest = candles.last;
+
     final low = latest.low;
-    final high = latest.high;
+    final close = latest.close;
+
+    // ===== EMA Pullback Logic =====
+
+    var fEMA = IndicatorUtils.isCloseAboveEMA(candles, 20).value;
 
     final nearEMA20 =
-        low <= ema20 * (1 + tolerance) && high >= ema20 * (1 - tolerance);
+        low >= fEMA! * (1 - tolerance) && // within lower tolerance
+        low <= fEMA * (1 + tolerance) && // within upper tolerance
+        close > fEMA; // bullish reclaim
 
+    // ===== Supertrend Pullback Logic =====
     final nearSupertrend =
+        low >= supertrend * (1 - tolerance) &&
         low <= supertrend * (1 + tolerance) &&
-        high >= supertrend * (1 - tolerance);
+        close > supertrend;
 
     return nearEMA20 || nearSupertrend;
   }
