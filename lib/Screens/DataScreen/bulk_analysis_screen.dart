@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:stock_demo/Screens/DataScreen/history_services.dart';
 import 'package:stock_demo/Utils/ai_score_calculator.dart';
 import 'package:stock_demo/model/stock_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BulkAnalysisScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -22,12 +23,56 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
   List<Map<String, dynamic>> _results = [];
   List<dynamic> _allStocks = [];
   late DateTime _selectedDate;
+  List<String> _searchHistory = [];
 
   @override
   void initState() {
     super.initState();
     _selectedDate = widget.selectedDate;
     _loadStocksData();
+    _loadSearchHistory();
+  }
+
+  @override
+  void dispose() {
+    _symbolsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('bulk_search_history') ?? [];
+    setState(() {
+      _searchHistory = history;
+    });
+    // Set text to the very first item if exist? No, user prefers hint list.
+    // We'll just load the history so it shows in the UI.
+    if (history.isNotEmpty && _symbolsController.text.isEmpty) {
+      _symbolsController.text = history.first;
+    }
+  }
+
+  void _openSearchBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return _SearchBottomSheetScreen(
+          controller: _symbolsController,
+          allStocks: _allStocks,
+          searchHistory: _searchHistory,
+          onSearch: () {
+            if (_symbolsController.text.trim().isNotEmpty) {
+              _analyzeSymbols();
+            }
+          },
+        );
+      },
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -56,7 +101,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     }
   }
 
-  Future<void> _analyzeSymbols() async {
+  Future<void> _analyzeSymbols({bool isRefresh = false}) async {
     FocusScope.of(context).unfocus();
     final inputText = _symbolsController.text.trim();
     if (inputText.isEmpty) {
@@ -66,9 +111,19 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       return;
     }
 
+    final prefs = await SharedPreferences.getInstance();
+    if (_searchHistory.contains(inputText)) {
+      _searchHistory.remove(inputText);
+    }
+    _searchHistory.insert(0, inputText);
+    if (_searchHistory.length > 20) {
+      _searchHistory = _searchHistory.sublist(0, 20);
+    }
+    await prefs.setStringList('bulk_search_history', _searchHistory);
+
     setState(() {
       _isLoading = true;
-      _statusMessage = "Parsing symbols...";
+      _statusMessage = isRefresh ? "Refreshing data..." : "Parsing symbols...";
       _results.clear();
     });
 
@@ -87,13 +142,16 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
 
     setState(() {
       _statusMessage =
-          "Fetching historical data (${symbols.length} symbols)...";
+          isRefresh
+              ? "Refreshing historical data (${symbols.length} symbols)..."
+              : "Fetching local/historical data (${symbols.length} symbols)...";
     });
 
     // Call the batch fetching logic in HistoryServices
     List<StockModel> result = await HistoryServices.instance.fetchQuotes(
       toDate,
       symbols,
+      isRefresh: isRefresh,
     );
 
     List<Map<String, dynamic>> validResults = [];
@@ -147,6 +205,54 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       _isLoading = false;
       _results = validResults;
     });
+
+    //_showFetchSummaryDialog();
+  }
+
+  void _showFetchSummaryDialog() {
+    final int local = HistoryServices.instance.lastLocalCount;
+    final int api = HistoryServices.instance.lastApiCount;
+    final List<String> unavailable =
+        HistoryServices.instance.lastUnavailableList;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Fetch Summary'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Data loaded from local: $local'),
+              const SizedBox(height: 4),
+              Text('Data loaded from API: $api'),
+              if (unavailable.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Data not in local (No Internet):',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  unavailable.join(', '),
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Color _getVerdictColor(dynamic scoreVal) {
@@ -164,19 +270,55 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bulk AI Analysis')),
+      appBar: AppBar(
+        title: const Text('Bulk AI Analysis'),
+        actions: [
+          IconButton(
+            onPressed:
+                _isLoading ? null : () => _analyzeSymbols(isRefresh: true),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            TextField(
-              controller: _symbolsController,
-              decoration: const InputDecoration(
-                labelText: 'Enter symbols (comma-separated)',
-                hintText: 'e.g., RELIANCE, TCS, INFY',
-                border: OutlineInputBorder(),
+            InkWell(
+              onTap: _openSearchBottomSheet,
+              borderRadius: BorderRadius.circular(4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _symbolsController.text.isNotEmpty
+                            ? _symbolsController.text
+                            : 'Search symbols (e.g. RELIANCE, TCS)',
+                        style: TextStyle(
+                          color:
+                              _symbolsController.text.isNotEmpty
+                                  ? Theme.of(context).textTheme.bodyLarge?.color
+                                  : Colors.grey,
+                          fontSize: 16,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              maxLines: 1,
             ),
             const SizedBox(height: 12),
             Row(
@@ -245,7 +387,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
 
                   var rsi = result['rsi'] as double?;
                   var adx = result['adx'] as double?;
-                  if ( (rsi is double && rsi > 55) &&
+                  if ((rsi is double && rsi > 55) &&
                       (adx is double && adx < 35 && adx > 15)) {
                     return Card(
                       elevation: 3,
@@ -445,6 +587,220 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+}
+
+class _SearchBottomSheetScreen extends StatefulWidget {
+  final TextEditingController controller;
+  final List<dynamic> allStocks;
+  final List<String> searchHistory;
+  final VoidCallback onSearch;
+
+  const _SearchBottomSheetScreen({
+    Key? key,
+    required this.controller,
+    required this.allStocks,
+    required this.searchHistory,
+    required this.onSearch,
+  }) : super(key: key);
+
+  @override
+  __SearchBottomSheetScreenState createState() =>
+      __SearchBottomSheetScreenState();
+}
+
+class __SearchBottomSheetScreenState extends State<_SearchBottomSheetScreen> {
+  late FocusNode _focusNode;
+  List<dynamic> _suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    widget.controller.addListener(_onTextChanged);
+
+    // Auto-focus the text field so keyboard opens immediately
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _focusNode.requestFocus();
+    });
+
+    // Check if there's already text to show suggestions for
+    _onTextChanged();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onTextChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final text = widget.controller.text;
+    if (text.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+        });
+      }
+      return;
+    }
+
+    final parts = text.split(',');
+    final currentWord = parts.last.trim().toUpperCase();
+    if (currentWord.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+        });
+      }
+      return;
+    }
+
+    final matches =
+        widget.allStocks
+            .where((stock) {
+              final symbol =
+                  (stock['tradingsymbol'] as String?)?.toUpperCase() ?? '';
+              final name = (stock['name'] as String?)?.toUpperCase() ?? '';
+              return symbol.contains(currentWord) || name.contains(currentWord);
+            })
+            .take(8)
+            .toList();
+
+    if (mounted) {
+      setState(() {
+        _suggestions = matches;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 16,
+        right: 16,
+        top: 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) {
+                    Navigator.pop(context);
+                    widget.onSearch();
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Enter symbols (comma-separated)',
+                    hintText: 'e.g., RELIANCE, TCS, INFY',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        widget.controller.clear();
+                      },
+                    ),
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  widget.onSearch();
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+                child: const Text('Search'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_suggestions.isNotEmpty)
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _suggestions.length,
+                itemBuilder: (context, index) {
+                  final stock = _suggestions[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      stock['tradingsymbol'] ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(stock['name'] ?? ''),
+                    onTap: () {
+                      final parts = widget.controller.text.split(',');
+                      parts[parts.length - 1] =
+                          (parts.length > 1 ? ' ' : '') +
+                          (stock['tradingsymbol'] ?? '');
+                      widget.controller.text = parts.join(',') + ', ';
+                      widget.controller.selection = TextSelection.fromPosition(
+                        TextPosition(offset: widget.controller.text.length),
+                      );
+                    },
+                  );
+                },
+              ),
+            )
+          else if (widget.searchHistory.isNotEmpty)
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Recent Searches',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: -8,
+                      children:
+                          widget.searchHistory.map((history) {
+                            return ActionChip(
+                              label: Text(
+                                history,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              onPressed: () {
+                                widget.controller.text = history;
+                                widget
+                                    .controller
+                                    .selection = TextSelection.fromPosition(
+                                  TextPosition(
+                                    offset: widget.controller.text.length,
+                                  ),
+                                );
+                              },
+                            );
+                          }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

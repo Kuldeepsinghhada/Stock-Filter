@@ -46,6 +46,7 @@ dependencies:
   device_info_plus: ^12.1.0
   flutter_local_notifications: ^19.4.2
   fluttertoast: ^8.2.12
+  path_provider: ^2.1.2
   connectivity_plus: ^6.1.2
   audioplayers: ^6.5.1
   wakelock_plus: ^1.4.0
