@@ -367,13 +367,27 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                   final result = _results[index];
                   final symbol = result['symbol'] ?? 'Unknown';
 
+                  final target = result['target'];
+                  final stoploss = result['stoploss'];
+
+                  double? targetPercent;
+                  double? stoplossPercent;
+
+                  var price = result['currentPrice'];
+                  if (price != null && target != null && price > 0) {
+                    targetPercent = ((target - price) / price) * 100;
+                  }
+
+                  if (price != null && stoploss != null && price > 0) {
+                    stoplossPercent = ((price - stoploss) / price) * 100;
+                  }
+
                   if (result.containsKey('error')) {
                     return SizedBox();
                   }
 
                   final score = result['score'];
                   final verdict = result['verdict'];
-                  final price = result['currentPrice'];
                   final verdictColor = _getVerdictColor(score);
                   final isNearBuyZone = result['isNearBuyZone'] == true;
                   final support = result['support'];

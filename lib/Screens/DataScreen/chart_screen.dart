@@ -115,7 +115,7 @@ class _ChartScreenState extends State<ChartScreen> {
           c.low,
           c.close,
           c.volume.toDouble(),
-          i < ema20.length ? ema20[i] : null,
+          i < ema20.length && ema20[i] != 0.0 ? ema20[i] : null,
           i < supertrend.length && supertrend[i] != 0.0 ? supertrend[i] : null,
         ),
       );

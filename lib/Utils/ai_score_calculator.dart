@@ -29,18 +29,16 @@ class AIScoreCalculator {
     }
 
     // 2️⃣ Volume Breakout
-    double recentHigh = highs
-        .sublist(highs.length - 20)
-        .reduce((a, b) => a > b ? a : b);
+    double recentHigh =
+        highs.sublist(highs.length - 20).reduce((a, b) => a > b ? a : b);
 
     if (last.close > recentHigh && last.volume > avgVol20 * 1.5) {
       patterns.add("Volume Breakout");
     }
 
-    // 3️⃣ Higher High Higher Low
-    double recentLow = lows
-        .sublist(lows.length - 10)
-        .reduce((a, b) => a < b ? a : b);
+    // 3️⃣ HHHL Structure
+    double recentLow =
+        lows.sublist(lows.length - 10).reduce((a, b) => a < b ? a : b);
 
     double prevLow = lows
         .sublist(lows.length - 20, lows.length - 10)
@@ -69,18 +67,12 @@ class AIScoreCalculator {
     List<HistoricalDataModel> candles = [];
 
     if (targetDate != null) {
-      final targetNormalized = DateTime(
-        targetDate.year,
-        targetDate.month,
-        targetDate.day,
-      );
+      final targetNormalized =
+          DateTime(targetDate.year, targetDate.month, targetDate.day);
 
       for (var candle in historyData) {
-        final candleDate = DateTime(
-          candle.timestamp.year,
-          candle.timestamp.month,
-          candle.timestamp.day,
-        );
+        final candleDate = DateTime(candle.timestamp.year,
+            candle.timestamp.month, candle.timestamp.day);
 
         if (candleDate.isAfter(targetNormalized)) {
           futureCandles.add(candle);
@@ -94,8 +86,7 @@ class AIScoreCalculator {
 
     if (candles.length < 200) {
       throw Exception(
-        "Minimum 200 candles required before target date, got ${candles.length}",
-      );
+          "Minimum 200 candles required before target date, got ${candles.length}");
     }
 
     final opens = candles.map((c) => c.open).toList();
@@ -105,7 +96,7 @@ class AIScoreCalculator {
     final volumes = candles.map((c) => c.volume.toDouble()).toList();
     final last = candles.last;
 
-    // ================= UTIL FUNCTIONS =================
+    // ================= UTIL =================
 
     double sma(List<double> arr, int period) =>
         arr.sublist(arr.length - period).reduce((a, b) => a + b) / period;
@@ -205,9 +196,8 @@ class AIScoreCalculator {
     final adx = calculateADX();
     final avgVol20 = sma(volumes, 20);
 
-    final isNearBuyZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(
-      candles,
-    );
+    final isNearBuyZone =
+        IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(candles);
 
     final patterns = detectBullishPatterns(candles);
 
@@ -215,7 +205,6 @@ class AIScoreCalculator {
 
     double score = 0;
 
-    // Trend (30)
     if (ema20 > ema50) score += 8;
     if (ema50 > ema200) score += 8;
     if (last.close > ema20) score += 4;
@@ -223,12 +212,10 @@ class AIScoreCalculator {
     if (ema50Slope > 0.3) score += 5;
     if (ema20Slope < 0) score -= 5;
 
-    // Momentum (20)
     if (rsi > 55 && rsi < 70) score += 10;
     if (adx > 20) score += 5;
     if (last.high > highs[highs.length - 2]) score += 5;
 
-    // Volume (20)
     if (last.volume > avgVol20) score += 8;
     if (last.volume > avgVol20 * 1.5) score += 7;
 
@@ -241,10 +228,8 @@ class AIScoreCalculator {
     }
     if (strongCandleIndex != null) score += 5;
 
-    // Structure (20)
-    final recentLow = lows
-        .sublist(lows.length - 20)
-        .reduce((a, b) => a < b ? a : b);
+    final recentLow =
+        lows.sublist(lows.length - 20).reduce((a, b) => a < b ? a : b);
     final prevLow = lows
         .sublist(lows.length - 40, lows.length - 20)
         .reduce((a, b) => a < b ? a : b);
@@ -252,10 +237,8 @@ class AIScoreCalculator {
     if (recentLow > prevLow) score += 10;
     if (last.close > ema50) score += 10;
 
-    // Pattern Score Boost
     score += patterns.length * 5;
 
-    // Risk Reward (15)
     final stoploss = last.close - (1.5 * atr);
     final target = last.close + (2 * atr);
 
@@ -265,6 +248,19 @@ class AIScoreCalculator {
     if (reward / risk >= 1.5) score += 8;
     if (risk / last.close <= 0.05) score += 7;
 
+    // ================= SCORE NORMALIZATION =================
+
+    final rawScore = score;
+    score = score.clamp(0, 100);
+
+    double crossedPercent = 0;
+    if (rawScore > 80) {
+      crossedPercent = ((rawScore - 80) / 20) * 100;
+      if (crossedPercent > 100) crossedPercent = 100;
+    }
+
+    final isLastCandleGreen = last.close > last.open;
+
     // ================= VERDICT =================
 
     String verdict = "Avoid";
@@ -272,13 +268,11 @@ class AIScoreCalculator {
       verdict = "Strong Buy";
     else if (score >= 65)
       verdict = "Moderate Buy";
-    else if (score >= 50)
-      verdict = "Average";
+    else if (score >= 50) verdict = "Average";
 
-    DateTime dateToReturn =
-        strongCandleIndex != null
-            ? candles[strongCandleIndex].timestamp
-            : last.timestamp;
+    DateTime dateToReturn = strongCandleIndex != null
+        ? candles[strongCandleIndex].timestamp
+        : last.timestamp;
 
     // ================= PERFORMANCE TRACKING =================
 
@@ -288,6 +282,7 @@ class AIScoreCalculator {
     if (futureCandles.isNotEmpty && targetDate != null) {
       for (int i = 0; i < futureCandles.length; i++) {
         var fCandle = futureCandles[i];
+
         if (fCandle.high >= target) {
           performance = "Target Achieved";
           daysToHit = i + 1;
@@ -310,15 +305,17 @@ class AIScoreCalculator {
 
     return {
       "score": score.round(),
+      "rawScore": rawScore,
+      "crossedPercent": crossedPercent.round(),
+      "isLastCandleGreen": isLastCandleGreen,
       "verdict": verdict,
       "patterns": patterns,
       "patternCount": patterns.length,
       "date": dateToReturn.toIso8601String().substring(0, 10),
       "currentPrice": last.close,
       "support": recentLow,
-      "resistance": highs
-          .sublist(highs.length - 20)
-          .reduce((a, b) => a > b ? a : b),
+      "resistance":
+          highs.sublist(highs.length - 20).reduce((a, b) => a > b ? a : b),
       "stoploss": stoploss,
       "target": target,
       "rsi": rsi,
