@@ -361,6 +361,90 @@ class IndicatorUtils {
     );
   }
 
+  /// ---------- Supertrend Series for Charting ----------
+  /// Returns List of supertrend values matching candle indices
+  static List<double> supertrendSeries(
+    List<HistoricalDataModel> candles, {
+    int atrPeriod = 10,
+    double multiplier = 3.0,
+  }) {
+    if (candles.isEmpty) return [];
+    
+    CandleUtils.sortByTime(candles);
+    final arrs = CandleUtils.toArrays(candles);
+    final highs = arrs['high']!.cast<double>();
+    final lows = arrs['low']!.cast<double>();
+    final closes = arrs['close']!.cast<double>();
+
+    final n = closes.length;
+    if (n < atrPeriod + 1) return List<double>.filled(n, 0.0);
+
+    // TR
+    final tr = List<double>.filled(n, 0.0);
+    for (int i = 0; i < n; i++) {
+      if (i == 0) {
+        tr[i] = highs[i] - lows[i];
+      } else {
+        tr[i] = max(
+          highs[i] - lows[i],
+          max(
+            (highs[i] - closes[i - 1]).abs(),
+            (lows[i] - closes[i - 1]).abs(),
+          ),
+        );
+      }
+    }
+
+    // ATR (Wilder) aligned
+    final atr = List<double>.filled(n, 0.0);
+    double initialAtr = 0.0;
+    for (int i = 0; i < atrPeriod; i++) {
+      initialAtr += tr[i];
+    }
+    initialAtr /= atrPeriod;
+    atr[atrPeriod - 1] = initialAtr;
+    for (int i = atrPeriod; i < n; i++) {
+      atr[i] = ((atr[i - 1] * (atrPeriod - 1)) + tr[i]) / atrPeriod;
+    }
+
+    final upperBand = List<double>.filled(n, 0.0);
+    final lowerBand = List<double>.filled(n, 0.0);
+    final supertrend = List<double>.filled(n, 0.0);
+
+    for (int i = 0; i < n; i++) {
+      final hl2 = (highs[i] + lows[i]) / 2;
+      upperBand[i] = hl2 + (multiplier * atr[i]);
+      lowerBand[i] = hl2 - (multiplier * atr[i]);
+
+      if (i == 0) {
+        supertrend[i] = upperBand[i];
+      } else {
+        if (upperBand[i] < upperBand[i - 1] ||
+            closes[i - 1] > upperBand[i - 1]) {
+          // keep current upperBand
+        } else {
+          upperBand[i] = upperBand[i - 1];
+        }
+
+        if (lowerBand[i] > lowerBand[i - 1] ||
+            closes[i - 1] < lowerBand[i - 1]) {
+          // keep current lowerBand
+        } else {
+          lowerBand[i] = lowerBand[i - 1];
+        }
+
+        if (supertrend[i - 1] == upperBand[i - 1]) {
+          supertrend[i] =
+              (closes[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
+        } else {
+          supertrend[i] =
+              (closes[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
+        }
+      }
+    }
+    return supertrend;
+  }
+
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
   static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
