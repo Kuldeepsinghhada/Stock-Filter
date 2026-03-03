@@ -6,6 +6,8 @@ import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/math_utils.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 
+import 'package:intl/intl.dart';
+
 class ChartData {
   final DateTime x;
   final double open;
@@ -214,14 +216,21 @@ class _ChartScreenState extends State<ChartScreen> {
                         }
                       },
 
-                      /// 🔥 Trackball with OHLC
                       trackballBehavior: TrackballBehavior(
                         enable: true,
-                        activationMode: ActivationMode.longPress,
+                        activationMode: ActivationMode.singleTap,
                         tooltipDisplayMode: TrackballDisplayMode
-                            .none, // Hide default tooltip since we show it at top
-                        lineType: TrackballLineType.vertical,
-                        lineColor: Colors.white38,
+                            .none, // Hide default center tooltip
+                        lineType: TrackballLineType.none,
+                      ),
+
+                      /// 🔥 Full Crosshair lines
+                      crosshairBehavior: CrosshairBehavior(
+                        enable: true,
+                        activationMode: ActivationMode.singleTap,
+                        lineType: CrosshairLineType.both,
+                        lineDashArray: const <double>[5, 5],
+                        lineColor: Colors.white54,
                       ),
 
                       legend: const Legend(
@@ -251,6 +260,16 @@ class _ChartScreenState extends State<ChartScreen> {
                         plotOffsetEnd: 40,
                         initialZoomFactor: 0.30257161495588086,
                         initialZoomPosition: 0.6974283850441192,
+                        dateFormat: DateFormat('dd MMM yy HH:mm'),
+                        interactiveTooltip: const InteractiveTooltip(
+                          enable: true,
+                          color: Color(0xff293144),
+                          textStyle: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
 
                       primaryYAxis: const NumericAxis(
@@ -260,6 +279,16 @@ class _ChartScreenState extends State<ChartScreen> {
                         axisLine: AxisLine(color: Colors.white24),
                         labelStyle: TextStyle(color: Colors.white70),
                         enableAutoIntervalOnZooming: true,
+                        interactiveTooltip: const InteractiveTooltip(
+                          enable: true,
+                          color: Color(0xff293144),
+                          decimalPlaces: 2,
+                          textStyle: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
 
                       series: [
