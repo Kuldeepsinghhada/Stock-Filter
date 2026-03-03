@@ -12,18 +12,20 @@ class ChartData {
   final double high;
   final double low;
   final double close;
+  final double volume;
   final double? ema20;
   final double? supertrend;
 
   ChartData(
-      this.x,
-      this.open,
-      this.high,
-      this.low,
-      this.close,
-      this.ema20,
-      this.supertrend,
-      );
+    this.x,
+    this.open,
+    this.high,
+    this.low,
+    this.close,
+    this.volume,
+    this.ema20,
+    this.supertrend,
+  );
 }
 
 class ChartScreen extends StatefulWidget {
@@ -41,9 +43,18 @@ class _ChartScreenState extends State<ChartScreen> {
 
   double? _savedZoomFactor;
   double? _savedZoomPosition;
+  double _maxVolume = 0;
 
   bool _showEma = true;
   bool _showSupertrend = true;
+
+  final ValueNotifier<ChartData?> _hoveredData = ValueNotifier(null);
+
+  @override
+  void dispose() {
+    _hoveredData.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -63,7 +74,7 @@ class _ChartScreenState extends State<ChartScreen> {
     /// 🔥 Initial Zoom → Always show last 100 candles
     WidgetsBinding.instance.addPostFrameCallback((_) {
       double visiblePercent =
-      _chartData.length > 0 ? (100 / _chartData.length) : 1;
+          _chartData.length > 0 ? (100 / _chartData.length) : 1;
 
       if (visiblePercent < 1) {
         _zoomPanBehavior.zoomByFactor(
@@ -74,8 +85,7 @@ class _ChartScreenState extends State<ChartScreen> {
   }
 
   void _calculateChartData() {
-    final List<HistoricalDataModel> candles =
-        widget.stock.historyFiveMin ?? [];
+    final List<HistoricalDataModel> candles = widget.stock.historyFiveMin ?? [];
 
     if (candles.isEmpty) {
       _chartData = [];
@@ -89,9 +99,11 @@ class _ChartScreenState extends State<ChartScreen> {
     final supertrend = IndicatorUtils.supertrendSeries(candles);
 
     _chartData.clear();
+    _maxVolume = 0;
     final startIndex = candles.length > 100 ? candles.length - 100 : 0;
     for (int i = startIndex; i < candles.length; i++) {
       final c = candles[i];
+      if (c.volume > _maxVolume) _maxVolume = c.volume.toDouble();
 
       _chartData.add(
         ChartData(
@@ -100,10 +112,9 @@ class _ChartScreenState extends State<ChartScreen> {
           c.high,
           c.low,
           c.close,
+          c.volume.toDouble(),
           i < ema20.length ? ema20[i] : null,
-          i < supertrend.length && supertrend[i] != 0.0
-              ? supertrend[i]
-              : null,
+          i < supertrend.length && supertrend[i] != 0.0 ? supertrend[i] : null,
         ),
       );
     }
@@ -112,6 +123,30 @@ class _ChartScreenState extends State<ChartScreen> {
   String _formatDate(DateTime dt) {
     return "${dt.day}-${dt.month} "
         "${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
+  }
+
+  String _formatVolume(double vol) {
+    if (vol >= 10000000) return "${(vol / 10000000).toStringAsFixed(2)}Cr";
+    if (vol >= 100000) return "${(vol / 100000).toStringAsFixed(2)}L";
+    if (vol >= 1000) return "${(vol / 1000).toStringAsFixed(2)}K";
+    return vol.toStringAsFixed(0);
+  }
+
+  Widget _buildInfoItem(String label, double value, Color? valueColor) {
+    return Row(
+      children: [
+        Text("$label: ",
+            style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.bold)),
+        Text(value > 1000 ? _formatVolume(value) : value.toStringAsFixed(2),
+            style: TextStyle(
+                color: valueColor ?? Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold)),
+      ],
+    );
   }
 
   @override
@@ -129,157 +164,152 @@ class _ChartScreenState extends State<ChartScreen> {
       body: SafeArea(
         child: _chartData.isEmpty
             ? const Center(
-          child: Text(
-            "No historical data available.",
-            style: TextStyle(color: Colors.white70),
-          ),
-        )
-            : SfCartesianChart(
-          backgroundColor: Colors.black,
-          zoomPanBehavior: _zoomPanBehavior,
-
-          /// 🔥 Save Zoom Data
-          onZoomEnd: (ZoomPanArgs args) {
-            if (args.axis?.name == 'Time') {
-              _savedZoomFactor = args.currentZoomFactor;
-              _savedZoomPosition = args.currentZoomPosition;
-            }
-          },
-
-          /// 🔥 Trackball with OHLC
-          trackballBehavior: TrackballBehavior(
-            enable: true,
-            activationMode: ActivationMode.singleTap,
-            tooltipDisplayMode:
-            TrackballDisplayMode.floatAllPoints,
-            lineType: TrackballLineType.vertical,
-            lineColor: Colors.white38,
-            builder: (context, details) {
-              if (details.pointIndex == null)
-                return const SizedBox();
-
-              final data =
-              _chartData[details.pointIndex!];
-
-              return Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.9),
-                  borderRadius:
-                  BorderRadius.circular(6),
-                  border:
-                  Border.all(color: Colors.white24),
+                child: Text(
+                  "No historical data available.",
+                  style: TextStyle(color: Colors.white70),
                 ),
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _formatDate(data.x),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11),
+              )
+            : Column(
+                children: [
+                  ValueListenableBuilder<ChartData?>(
+                    valueListenable: _hoveredData,
+                    builder: (context, data, _) {
+                      if (data == null) return const SizedBox();
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildInfoItem("O", data.open, null),
+                            _buildInfoItem("H", data.high, Colors.green),
+                            _buildInfoItem("L", data.low, Colors.red),
+                            _buildInfoItem("C", data.close, null),
+                            _buildInfoItem("V", data.volume, Colors.blueAccent),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  Expanded(
+                    child: SfCartesianChart(
+                      backgroundColor: Colors.black,
+                      zoomPanBehavior: _zoomPanBehavior,
+
+                      onTrackballPositionChanging: (TrackballArgs args) {
+                        final int? index = args.chartPointInfo.dataPointIndex;
+                        if (index != null &&
+                            index >= 0 &&
+                            index < _chartData.length) {
+                          Future.microtask(
+                              () => _hoveredData.value = _chartData[index]);
+                        }
+                      },
+
+                      /// 🔥 Save Zoom Data
+                      onZoomEnd: (ZoomPanArgs args) {
+                        if (args.axis?.name == 'Time') {
+                          _savedZoomFactor = args.currentZoomFactor;
+                          _savedZoomPosition = args.currentZoomPosition;
+                        }
+                      },
+
+                      /// 🔥 Trackball with OHLC
+                      trackballBehavior: TrackballBehavior(
+                        enable: true,
+                        activationMode: ActivationMode.longPress,
+                        tooltipDisplayMode: TrackballDisplayMode
+                            .none, // Hide default tooltip since we show it at top
+                        lineType: TrackballLineType.vertical,
+                        lineColor: Colors.white38,
+                      ),
+
+                      legend: const Legend(
+                        isVisible: true,
+                        position: LegendPosition.bottom,
+                        textStyle: TextStyle(color: Colors.white70),
+                      ),
+
+                      axes: <ChartAxis>[
+                        NumericAxis(
+                          name: 'VolumeAxis',
+                          opposedPosition: false,
+                          isVisible: false, // hide labels for a clean overlay
+                          minimum: 0,
+                          maximum: _maxVolume *
+                              4, // Keeps volume bars in the bottom 25% of chart
+                        )
+                      ],
+
+                      /// 🔥 Important → Named Axis
+                      primaryXAxis: DateTimeCategoryAxis(
+                        name: 'Time',
+                        majorGridLines: const MajorGridLines(
+                            width: 0.3, color: Colors.white10),
+                        axisLine: const AxisLine(color: Colors.white24),
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        plotOffsetEnd: 40,
+                        initialZoomFactor: 0.30257161495588086,
+                        initialZoomPosition: 0.6974283850441192,
+                      ),
+
+                      primaryYAxis: const NumericAxis(
+                        opposedPosition: true,
+                        majorGridLines:
+                            MajorGridLines(width: 0.3, color: Colors.white10),
+                        axisLine: AxisLine(color: Colors.white24),
+                        labelStyle: TextStyle(color: Colors.white70),
+                        enableAutoIntervalOnZooming: true,
+                      ),
+
+                      series: [
+                        CandleSeries<ChartData, DateTime>(
+                          name: 'Price',
+                          dataSource: _chartData,
+                          xValueMapper: (data, _) => data.x,
+                          lowValueMapper: (data, _) => data.low,
+                          highValueMapper: (data, _) => data.high,
+                          openValueMapper: (data, _) => data.open,
+                          closeValueMapper: (data, _) => data.close,
+                          bullColor: const Color(0xff26a69a),
+                          bearColor: const Color(0xffef5350),
+                          enableSolidCandles: true,
+                          width: 0.8,
+                          spacing: 0.05,
+                        ),
+                        ColumnSeries<ChartData, DateTime>(
+                          name: 'Volume',
+                          dataSource: _chartData,
+                          xValueMapper: (data, _) => data.x,
+                          yValueMapper: (data, _) => data.volume,
+                          yAxisName: 'VolumeAxis',
+                          pointColorMapper: (data, _) => data.close >= data.open
+                              ? const Color(0xff26a69a).withOpacity(0.5)
+                              : const Color(0xffef5350).withOpacity(0.5),
+                        ),
+                        if (_showEma)
+                          LineSeries<ChartData, DateTime>(
+                            name: 'EMA 20',
+                            dataSource: _chartData,
+                            xValueMapper: (data, _) => data.x,
+                            yValueMapper: (data, _) => data.ema20,
+                            color: const Color(0xff42a5f5),
+                            width: 2,
+                          ),
+                        if (_showSupertrend)
+                          LineSeries<ChartData, DateTime>(
+                            name: 'Supertrend',
+                            dataSource: _chartData,
+                            xValueMapper: (data, _) => data.x,
+                            yValueMapper: (data, _) => data.supertrend,
+                            color: const Color(0xffffa726),
+                            width: 2,
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                        "O: ${data.open.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            color: Colors.white70)),
-                    Text(
-                        "H: ${data.high.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            color: Colors.green)),
-                    Text(
-                        "L: ${data.low.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            color: Colors.red)),
-                    Text(
-                        "C: ${data.close.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            color: Colors.white)),
-                  ],
-                ),
-              );
-            },
-          ),
-
-          legend: const Legend(
-            isVisible: true,
-            position: LegendPosition.bottom,
-            textStyle:
-            TextStyle(color: Colors.white70),
-          ),
-
-          /// 🔥 Important → Named Axis
-          primaryXAxis: DateTimeCategoryAxis(
-            name: 'Time',
-            majorGridLines: const MajorGridLines(
-                width: 0.3,
-                color: Colors.white10),
-            axisLine:
-            const AxisLine(color: Colors.white24),
-            labelStyle:
-            const TextStyle(color: Colors.white70),
-            plotOffsetEnd: 40,
-            initialZoomFactor: 0.30257161495588086,
-            initialZoomPosition: 0.6974283850441192,
-          ),
-
-          primaryYAxis: const NumericAxis(
-            opposedPosition: true,
-            majorGridLines: MajorGridLines(
-                width: 0.3,
-                color: Colors.white10),
-            axisLine:
-            AxisLine(color: Colors.white24),
-            labelStyle:
-            TextStyle(color: Colors.white70),
-            enableAutoIntervalOnZooming: true,
-          ),
-
-          series: [
-            CandleSeries<ChartData, DateTime>(
-              name: 'Price',
-              dataSource: _chartData,
-              xValueMapper: (data, _) => data.x,
-              lowValueMapper: (data, _) => data.low,
-              highValueMapper: (data, _) => data.high,
-              openValueMapper: (data, _) => data.open,
-              closeValueMapper: (data, _) => data.close,
-              bullColor:
-              const Color(0xff26a69a),
-              bearColor:
-              const Color(0xffef5350),
-              enableSolidCandles: true,
-              width: 0.8,
-              spacing: 0.05,
-            ),
-
-            if (_showEma)
-              LineSeries<ChartData, DateTime>(
-                name: 'EMA 20',
-                dataSource: _chartData,
-                xValueMapper: (data, _) => data.x,
-                yValueMapper: (data, _) => data.ema20,
-                color:
-                const Color(0xff42a5f5),
-                width: 2,
+                  ),
+                ],
               ),
-
-            if (_showSupertrend)
-              LineSeries<ChartData, DateTime>(
-                name: 'Supertrend',
-                dataSource: _chartData,
-                xValueMapper: (data, _) => data.x,
-                yValueMapper:
-                    (data, _) => data.supertrend,
-                color:
-                const Color(0xffffa726),
-                width: 2,
-              ),
-          ],
-        ),
       ),
     );
   }
