@@ -322,7 +322,7 @@ class _ChartScreenState extends State<ChartScreen> {
                             dataSource: _chartData,
                             xValueMapper: (data, _) => data.x,
                             yValueMapper: (data, _) => data.ema20,
-                            color: const Color(0xff42a5f5),
+                            color: const Color(0xffef5350), // Changed to red
                             width: 2,
                           ),
                         if (_showSupertrend)
@@ -331,7 +331,12 @@ class _ChartScreenState extends State<ChartScreen> {
                             dataSource: _chartData,
                             xValueMapper: (data, _) => data.x,
                             yValueMapper: (data, _) => data.supertrend,
-                            color: const Color(0xffffa726),
+                            pointColorMapper: (data, _) => data.supertrend !=
+                                        null &&
+                                    data.close < data.supertrend!
+                                ? const Color(
+                                    0xffef5350) // Red if price below supertrend
+                                : const Color(0xff26a69a), // Green otherwise
                             width: 2,
                           ),
                       ],

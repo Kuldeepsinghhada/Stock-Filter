@@ -382,7 +382,8 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                     stoplossPercent = ((price - stoploss) / price) * 100;
                   }
 
-                  if (result.containsKey('error')) {
+                  if (result.containsKey('error') ||
+                      result['isLastCandleGreen'] == true) {
                     return SizedBox();
                   }
 
