@@ -7,6 +7,8 @@ import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
+import 'package:stock_demo/Utils/filter_utils.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -16,7 +18,7 @@ class HistoryServices {
   static final HistoryServices instance = HistoryServices._internal();
 
   final List<StockModel> _finalList = [];
-  
+
   int lastLocalCount = 0;
   int lastApiCount = 0;
   List<String> lastUnavailableList = [];
@@ -33,9 +35,14 @@ class HistoryServices {
 
     await Utilities.loadStocksList();
     _finalList.clear();
-    symbols.removeWhere((item) => (item.contains("ETF") || item.contains("SILVER") || item.contains("BEES")));
+    symbols.removeWhere((item) => (item.contains("ETF") ||
+        item.contains("SILVER") ||
+        item.contains("BEES")));
     final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 500);
     // Fetch historical data in throttled batches
+
+    final quoteList = allQuotes.where(FilterUtils.isDayTradable).toList();
+
     await _fetchHistoricalDataWithFilter(
       allQuotes,
       toDate,
@@ -98,7 +105,8 @@ class HistoryServices {
 
     // Check connectivity for offline mode strategy
     final connectivityResult = await (Connectivity().checkConnectivity());
-    final bool hasInternet = !connectivityResult.contains(ConnectivityResult.none);
+    final bool hasInternet =
+        !connectivityResult.contains(ConnectivityResult.none);
 
     for (var i = 0; i < quoteList.length; i += maxCallsPerSecond) {
       final batch = quoteList.skip(i).take(maxCallsPerSecond).toList();
@@ -119,15 +127,19 @@ class HistoryServices {
               if (localData != null && localData.isNotEmpty) {
                 final lastDate = localData.last.timestamp;
                 final today = DateTime.now();
-                
-                if (lastDate.isBefore(DateTime(today.year, today.month, today.day)) || 
-                    (lastDate.year == today.year && lastDate.month == today.month && lastDate.day == today.day)) {
-                  
+
+                if (lastDate.isBefore(
+                        DateTime(today.year, today.month, today.day)) ||
+                    (lastDate.year == today.year &&
+                        lastDate.month == today.month &&
+                        lastDate.day == today.day)) {
                   if (!hasInternet) {
-                    history = localData; 
+                    history = localData;
                     lastLocalCount++;
                   } else {
-                    final fetchFromDate = (lastDate.year == today.year && lastDate.month == today.month && lastDate.day == today.day)
+                    final fetchFromDate = (lastDate.year == today.year &&
+                            lastDate.month == today.month &&
+                            lastDate.day == today.day)
                         ? lastDate
                         : lastDate.add(const Duration(days: 1));
 
@@ -143,14 +155,16 @@ class HistoryServices {
                       localData.addAll(newHistory);
                       final Map<String, HistoricalDataModel> mapDistinct = {};
                       for (var d in localData) {
-                         final dateKey = "${d.timestamp.year}-${d.timestamp.month.toString().padLeft(2,'0')}-${d.timestamp.day.toString().padLeft(2,'0')}";
-                         mapDistinct[dateKey] = d;
+                        final dateKey =
+                            "${d.timestamp.year}-${d.timestamp.month.toString().padLeft(2, '0')}-${d.timestamp.day.toString().padLeft(2, '0')}";
+                        mapDistinct[dateKey] = d;
                       }
-                      history = mapDistinct.values.toList()..sort((a,b) => a.timestamp.compareTo(b.timestamp));
+                      history = mapDistinct.values.toList()
+                        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
                       await _writeLocalHistory(cleanedSymbol, history);
                       lastApiCount++; // We updated from API
                     } else {
-                      history = localData; 
+                      history = localData;
                       lastLocalCount++;
                     }
                   }
@@ -286,7 +300,9 @@ class HistoryServices {
       if (await file.exists()) {
         final contents = await file.readAsString();
         final List<dynamic> jsonList = jsonDecode(contents);
-        return jsonList.map((e) => HistoricalDataModel.fromJson(e as Map<String, dynamic>)).toList();
+        return jsonList
+            .map((e) => HistoricalDataModel.fromJson(e as Map<String, dynamic>))
+            .toList();
       }
     } catch (e) {
       log('Error reading local history for $symbol: $e');
@@ -294,7 +310,8 @@ class HistoryServices {
     return null;
   }
 
-  Future<void> _writeLocalHistory(String symbol, List<HistoricalDataModel> data) async {
+  Future<void> _writeLocalHistory(
+      String symbol, List<HistoricalDataModel> data) async {
     try {
       final file = await _getLocalFile(symbol);
       final List<dynamic> jsonList = data.map((e) => e.toJson()).toList();
@@ -309,26 +326,27 @@ extension StockModelCopy on StockModel {
   StockModel copyWith({
     String? symbol,
     List<HistoricalDataModel>? historyFiveMin,
-  }) => StockModel(
-    symbol: symbol ?? this.symbol,
-    name: name,
-    token: token,
-    sector: sector,
-    timestamp: timestamp,
-    lastTradeTime: lastTradeTime,
-    lastPrice: lastPrice,
-    lastQuantity: lastQuantity,
-    buyQuantity: buyQuantity,
-    sellQuantity: sellQuantity,
-    volume: volume,
-    averagePrice: averagePrice,
-    oi: oi,
-    oiDayHigh: oiDayHigh,
-    oiDayLow: oiDayLow,
-    netChange: netChange,
-    lowerCircuitLimit: lowerCircuitLimit,
-    upperCircuitLimit: upperCircuitLimit,
-    ohlc: ohlc,
-    historyFiveMin: historyFiveMin ?? this.historyFiveMin,
-  );
+  }) =>
+      StockModel(
+        symbol: symbol ?? this.symbol,
+        name: name,
+        token: token,
+        sector: sector,
+        timestamp: timestamp,
+        lastTradeTime: lastTradeTime,
+        lastPrice: lastPrice,
+        lastQuantity: lastQuantity,
+        buyQuantity: buyQuantity,
+        sellQuantity: sellQuantity,
+        volume: volume,
+        averagePrice: averagePrice,
+        oi: oi,
+        oiDayHigh: oiDayHigh,
+        oiDayLow: oiDayLow,
+        netChange: netChange,
+        lowerCircuitLimit: lowerCircuitLimit,
+        upperCircuitLimit: upperCircuitLimit,
+        ohlc: ohlc,
+        historyFiveMin: historyFiveMin ?? this.historyFiveMin,
+      );
 }

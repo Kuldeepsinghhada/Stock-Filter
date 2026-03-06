@@ -206,7 +206,7 @@ class _HistoryDataScreenState extends State<HistoryDataScreen> {
           IconButton(
             onPressed: () {
               try {
-                final result = AIScoreCalculator.calculateAIScore(historyData);
+                final result = AIScoreCalculator.calculateAIScoreV2(historyData);
                 showAIResultDialog(context, result);
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(

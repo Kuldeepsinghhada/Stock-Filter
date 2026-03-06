@@ -165,14 +165,18 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       if (symbols.contains(stock.symbol)) {
         if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
           try {
-            final Map<String, dynamic> scoreResult =
-                AIScoreCalculator.calculateAIScore(
-              stock.historyFiveMin!,
-              targetDate: toDate,
-            );
-            scoreResult['symbol'] = stock.symbol;
-            scoreResult['stock'] = stock;
-            validResults.add(scoreResult);
+            var isPass =
+                AIScoreCalculator.swingScannerLoose(stock.historyFiveMin!);
+            if (isPass) {
+              final Map<String, dynamic> scoreResult =
+                  AIScoreCalculator.calculateAIScoreV2(
+                stock.historyFiveMin!,
+                targetDate: toDate,
+              );
+              scoreResult['symbol'] = stock.symbol;
+              scoreResult['stock'] = stock;
+              validResults.add(scoreResult);
+            }
           } catch (e) {
             validResults.add({
               "symbol": stock.symbol,
@@ -382,10 +386,18 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                     stoplossPercent = ((price - stoploss) / price) * 100;
                   }
 
-                  if (result.containsKey('error') ||
-                      result['isLastCandleGreen'] == true) {
+                  final supertrend = result['supertrend'] as double?;
+
+                  if (result.containsKey('error')) {
                     return SizedBox();
                   }
+                  // if (result.containsKey('error') ||
+                  //     result['isLastCandleGreen'] == false ||
+                  //     (price != null &&
+                  //         supertrend != null &&
+                  //         price < supertrend)) {
+                  //   return SizedBox();
+                  // }
 
                   final score = result['score'];
                   final verdict = result['verdict'];
@@ -399,131 +411,156 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
 
                   var rsi = result['rsi'] as double?;
                   var adx = result['adx'] as double?;
-                  if ((rsi is double && rsi > 55) &&
-                      (adx is double && adx < 35 && adx > 15)) {
-                    return Card(
-                      elevation: 3,
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          if (result['stock'] != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    ChartScreen(stock: result['stock']),
+                  // if ((rsi is double && rsi > 55) &&
+                  //     (adx is double && adx < 50 && adx > 18)) {
+                  return Card(
+                    elevation: 3,
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: InkWell(
+                      onTap: () {
+                        if (result['stock'] != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  ChartScreen(stock: result['stock']),
+                            ),
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  spacing: 10,
+                                  children: [
+                                    Text(
+                                      symbol,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    if (isNearBuyZone)
+                                      const Tooltip(
+                                        message: 'Near Buy Zone',
+                                        child: Icon(
+                                          Icons.star,
+                                          color: Colors.amberAccent,
+                                        ),
+                                      ),
+                                    if (isNearSupport)
+                                      const Tooltip(
+                                        message: 'Near Support (within 3%)',
+                                        child: Icon(
+                                          Icons.star,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: verdictColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: verdictColor),
+                                  ),
+                                  child: Text(
+                                    "$score% - $verdict",
+                                    style: TextStyle(
+                                      color: verdictColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (result['patterns'] != null &&
+                                (result['patterns'] as List).isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                "Patterns: ${(result['patterns'] as List).join(', ')}",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.indigo,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            );
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                            ],
+                            if (result['institutionalPatterns'] != null &&
+                                (result['institutionalPatterns'] as List)
+                                    .isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                "Institutional Patterns: ${(result['institutionalPatterns'] as List).join(', ')}",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.indigo,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                            if (result['date'] != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                "Date: ${result['date']}",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                            const Divider(),
+                            if (result['performance'] != null &&
+                                result['performance'] != 'N/A') ...[
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
+                                  const Text(
+                                    "Status:",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                   Row(
-                                    spacing: 10,
                                     children: [
+                                      Icon(
+                                        result['performance'] ==
+                                                'Target Achieved'
+                                            ? Icons.check_circle
+                                            : result['performance'] ==
+                                                    'Stoploss Hit'
+                                                ? Icons.cancel
+                                                : Icons.pending,
+                                        size: 16,
+                                        color: result['performance'] ==
+                                                'Target Achieved'
+                                            ? Colors.green
+                                            : result['performance'] ==
+                                                    'Stoploss Hit'
+                                                ? Colors.red
+                                                : Colors.orange,
+                                      ),
+                                      const SizedBox(width: 4),
                                       Text(
-                                        symbol,
-                                        style: const TextStyle(
-                                          fontSize: 18,
+                                        "${result['performance']} ${result['daysToHit'] > 0 ? '(${result['daysToHit']} days)' : ''}",
+                                        style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      if (isNearBuyZone)
-                                        const Tooltip(
-                                          message: 'Near Buy Zone',
-                                          child: Icon(
-                                            Icons.star,
-                                            color: Colors.amberAccent,
-                                          ),
-                                        ),
-                                      if (isNearSupport)
-                                        const Tooltip(
-                                          message: 'Near Support (within 3%)',
-                                          child: Icon(
-                                            Icons.star,
-                                            color: Colors.blue,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: verdictColor.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: verdictColor),
-                                    ),
-                                    child: Text(
-                                      "$score% - $verdict",
-                                      style: TextStyle(
-                                        color: verdictColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (result['patterns'] != null &&
-                                  (result['patterns'] as List).isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Patterns: ${(result['patterns'] as List).join(', ')}",
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.indigo,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                              if (result['date'] != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Date: ${result['date']}",
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                              const Divider(),
-                              if (result['performance'] != null &&
-                                  result['performance'] != 'N/A') ...[
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      "Status:",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          result['performance'] ==
-                                                  'Target Achieved'
-                                              ? Icons.check_circle
-                                              : result['performance'] ==
-                                                      'Stoploss Hit'
-                                                  ? Icons.cancel
-                                                  : Icons.pending,
-                                          size: 16,
                                           color: result['performance'] ==
                                                   'Target Achieved'
                                               ? Colors.green
@@ -532,51 +569,36 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                                                   ? Colors.red
                                                   : Colors.orange,
                                         ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          "${result['performance']} ${result['daysToHit'] > 0 ? '(${result['daysToHit']} days)' : ''}",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: result['performance'] ==
-                                                    'Target Achieved'
-                                                ? Colors.green
-                                                : result['performance'] ==
-                                                        'Stoploss Hit'
-                                                    ? Colors.red
-                                                    : Colors.orange,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                const Divider(),
-                              ],
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildStat("Price", price),
-                                  _buildStat("Target", result['target']),
-                                  _buildStat("Stoploss", result['stoploss']),
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildStat("RSI", result['rsi']),
-                                  _buildStat("ADX", result['adx']),
-                                  _buildStat("Support", result['support']),
-                                ],
-                              ),
+                              const Divider(),
                             ],
-                          ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildStat("Price", price),
+                                _buildStat("Target", result['target']),
+                                _buildStat("Stoploss", result['stoploss']),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildStat("RSI", result['rsi']),
+                                _buildStat("ADX", result['adx']),
+                                _buildStat("Support", result['support']),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  }
+                    ),
+                  );
+                  // }
                   return SizedBox();
                 },
               ),
@@ -739,6 +761,21 @@ class __SearchBottomSheetScreenState extends State<_SearchBottomSheetScreen> {
                   ),
                   maxLines: 1,
                 ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  final allSymbols = widget.allStocks
+                      .map((stock) => stock['tradingsymbol'])
+                      .join(',');
+                  widget.controller.text = allSymbols;
+                  Navigator.pop(context);
+                  widget.onSearch();
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+                child: const Text('All Stocks'),
               ),
               const SizedBox(width: 8),
               ElevatedButton(

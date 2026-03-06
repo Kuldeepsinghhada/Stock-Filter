@@ -331,9 +331,8 @@ class FilterUtils {
       return false;
     }
 
-    if (lastPrice <= 20 || lastPrice >= 200) return false;
+    if (lastPrice <= 50) return false;
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
-    if (lastPrice <= close) return false;
 
     // Only enforce the volume threshold on working days.
     // If today is a weekend or a holiday (Utilities.getLastWorkingDay shifts back),
@@ -346,7 +345,7 @@ class FilterUtils {
         lastWorking.day == now.day;
 
     if (isWorkingDay) {
-      if (volume <= 4000000) return false;
+      if (volume <= 100000) return false;
     }
     return true;
   }

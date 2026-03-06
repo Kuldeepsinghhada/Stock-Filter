@@ -369,7 +369,7 @@ class IndicatorUtils {
     double multiplier = 3.0,
   }) {
     if (candles.isEmpty) return [];
-    
+
     CandleUtils.sortByTime(candles);
     final arrs = CandleUtils.toArrays(candles);
     final highs = arrs['high']!.cast<double>();
@@ -529,16 +529,15 @@ class IndicatorUtils {
     ).subtract(Duration(days: 1));
 
     // Yesterday volumes
-    final yesterdayVolumes =
-        candles
-            .where((c) {
-              final ts = c.timestamp.toLocal();
-              return ts.year == yesterday.year &&
-                  ts.month == yesterday.month &&
-                  ts.day == yesterday.day;
-            })
-            .map((c) => c.volume.toDouble())
-            .toList();
+    final yesterdayVolumes = candles
+        .where((c) {
+          final ts = c.timestamp.toLocal();
+          return ts.year == yesterday.year &&
+              ts.month == yesterday.month &&
+              ts.day == yesterday.day;
+        })
+        .map((c) => c.volume.toDouble())
+        .toList();
 
     if (yesterdayVolumes.isEmpty) return false;
 
@@ -722,16 +721,15 @@ class IndicatorUtils {
     final now = DateTime.now();
     final yesterday = Utilities.getLastWorkingDay(now);
 
-    final yesterdayVolumes =
-        candles
-            .where((c) {
-              final ts = c.timestamp.toLocal();
-              return ts.year == yesterday.year &&
-                  ts.month == yesterday.month &&
-                  ts.day == yesterday.day;
-            })
-            .map((c) => c.volume.toDouble())
-            .toList();
+    final yesterdayVolumes = candles
+        .where((c) {
+          final ts = c.timestamp.toLocal();
+          return ts.year == yesterday.year &&
+              ts.month == yesterday.month &&
+              ts.day == yesterday.day;
+        })
+        .map((c) => c.volume.toDouble())
+        .toList();
 
     if (yesterdayVolumes.isEmpty) return false;
     final yesterdayAvg =
@@ -777,8 +775,7 @@ class IndicatorUtils {
     final nearEMA20 =
         price >= ema20 * (1 - tolerance) && price <= ema20 * (1 + tolerance);
 
-    final nearSupertrend =
-        price >= supertrend * (1 - tolerance) &&
+    final nearSupertrend = price >= supertrend * (1 - tolerance) &&
         price <= supertrend * (1 + tolerance);
 
     return nearEMA20 || nearSupertrend;
@@ -797,8 +794,7 @@ class IndicatorUtils {
 
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay =
-        lastWorking.year == now.year &&
+    final isWorkingDay = lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
@@ -889,7 +885,7 @@ class IndicatorUtils {
 
   static bool isNearEMA20OrSupertrendAutoForDay(
     List<HistoricalDataModel> candles, {
-    double tolerancePercent = 2.0, // 2% realistic
+    double tolerancePercent = 2.0,
     int emaPeriod = 20,
     int atrPeriod = 10,
     double supertrendMultiplier = 3.0,
@@ -921,21 +917,22 @@ class IndicatorUtils {
 
     final low = latest.low;
     final close = latest.close;
+    final open = latest.open;
 
-    // ===== EMA Pullback Logic =====
+    // ===== Green Candle =====
+    final isGreen = close > open;
 
-    var fEMA = IndicatorUtils.isCloseAboveEMA(candles, 20).value;
+    // ===== EMA Pullback =====
+    final nearEMA20 = low >= ema20! * (1 - tolerance) &&
+        low <= ema20 * (1 + tolerance) &&
+        close > ema20 &&
+        isGreen;
 
-    final nearEMA20 =
-        low >= fEMA! * (1 - tolerance) && // within lower tolerance
-        low <= fEMA * (1 + tolerance) && // within upper tolerance
-        close > fEMA; // bullish reclaim
-
-    // ===== Supertrend Pullback Logic =====
-    final nearSupertrend =
-        low >= supertrend * (1 - tolerance) &&
+    // ===== Supertrend Pullback =====
+    final nearSupertrend = low >= supertrend * (1 - tolerance) &&
         low <= supertrend * (1 + tolerance) &&
-        close > supertrend;
+        close > supertrend &&
+        isGreen;
 
     return nearEMA20 || nearSupertrend;
   }
@@ -952,13 +949,12 @@ class IndicatorUtils {
       now.day,
     ).subtract(const Duration(days: 1));
 
-    final yCandles =
-        candles.where((c) {
-          final t = c.timestamp;
-          return t.year == yesterdayDate.year &&
-              t.month == yesterdayDate.month &&
-              t.day == yesterdayDate.day;
-        }).toList();
+    final yCandles = candles.where((c) {
+      final t = c.timestamp;
+      return t.year == yesterdayDate.year &&
+          t.month == yesterdayDate.month &&
+          t.day == yesterdayDate.day;
+    }).toList();
 
     if (yCandles.length < 10) return false; // half-day / holiday protection
 
