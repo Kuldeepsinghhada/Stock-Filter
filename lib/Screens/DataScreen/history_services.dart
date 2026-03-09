@@ -42,9 +42,8 @@ class HistoryServices {
     // Fetch historical data in throttled batches
 
     final quoteList = allQuotes.where(FilterUtils.isDayTradable).toList();
-
     await _fetchHistoricalDataWithFilter(
-      allQuotes,
+      quoteList,
       toDate,
       isRefresh: isRefresh,
       maxCallsPerSecond: 12,

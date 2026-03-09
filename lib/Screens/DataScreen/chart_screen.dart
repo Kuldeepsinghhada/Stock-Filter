@@ -43,8 +43,6 @@ class _ChartScreenState extends State<ChartScreen> {
   List<ChartData> _chartData = [];
   late ZoomPanBehavior _zoomPanBehavior;
 
-  double? _savedZoomFactor;
-  double? _savedZoomPosition;
   double _maxVolume = 0;
 
   bool _showEma = true;
@@ -120,11 +118,6 @@ class _ChartScreenState extends State<ChartScreen> {
         ),
       );
     }
-  }
-
-  String _formatDate(DateTime dt) {
-    return "${dt.day}-${dt.month} "
-        "${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
   }
 
   String _formatVolume(double vol) {
@@ -205,14 +198,6 @@ class _ChartScreenState extends State<ChartScreen> {
                             index < _chartData.length) {
                           Future.microtask(
                               () => _hoveredData.value = _chartData[index]);
-                        }
-                      },
-
-                      /// 🔥 Save Zoom Data
-                      onZoomEnd: (ZoomPanArgs args) {
-                        if (args.axis?.name == 'Time') {
-                          _savedZoomFactor = args.currentZoomFactor;
-                          _savedZoomPosition = args.currentZoomPosition;
                         }
                       },
 
@@ -303,8 +288,11 @@ class _ChartScreenState extends State<ChartScreen> {
                           bullColor: const Color(0xff26a69a),
                           bearColor: const Color(0xffef5350),
                           enableSolidCandles: true,
-                          width: 0.8,
-                          spacing: 0.05,
+                          // Width must be between 0 and 1 (relative width). Use 0.9
+                          // for a visually thicker candle while staying within the
+                          // valid range.
+                          width: 0.9,
+                          spacing: 0.02,
                         ),
                         ColumnSeries<ChartData, DateTime>(
                           name: 'Volume',
@@ -313,8 +301,8 @@ class _ChartScreenState extends State<ChartScreen> {
                           yValueMapper: (data, _) => data.volume,
                           yAxisName: 'VolumeAxis',
                           pointColorMapper: (data, _) => data.close >= data.open
-                              ? const Color(0xff26a69a).withOpacity(0.5)
-                              : const Color(0xffef5350).withOpacity(0.5),
+                              ? const Color(0xff26a69a).withAlpha((0.5 * 255).round())
+                              : const Color(0xffef5350).withAlpha((0.5 * 255).round()),
                         ),
                         if (_showEma)
                           LineSeries<ChartData, DateTime>(

@@ -24,12 +24,11 @@ class FilterUtils {
     bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
     if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
 
-    bool aboveSupertrend =
-        IndicatorUtils.isCloseAboveSupertrend(
-          candles,
-          atrPeriod: 10,
-          multiplier: 3,
-        ).isPassed;
+    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+      candles,
+      atrPeriod: 10,
+      multiplier: 3,
+    ).isPassed;
     if (!aboveSupertrend) failedReasons.add("Close NOT above Supertrend");
 
     bool adxRes = IndicatorUtils.isAdxBullish(candles);
@@ -52,13 +51,12 @@ class FilterUtils {
 
     bool is2PcChange =
         IndicatorUtils.isCloseAboveYesterdayHighByPctAndYesterdayBullish(
-          candles,
-        );
+      candles,
+    );
     if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
     // FINAL RESULT
-    bool result =
-        isVolumeOk &&
+    bool result = isVolumeOk &&
         aboveEma20 &&
         rsiOk &&
         aboveVwap &&
@@ -154,11 +152,10 @@ class FilterUtils {
       case 1:
         bool isEMA20 =
             IndicatorUtils.isCloseAboveEMA(historyCandles, 20).isPassed;
-        bool aboveSupertrend =
-            IndicatorUtils.isCloseAboveSupertrend(
-              historyCandles,
-              atrPeriod: 10,
-            ).isPassed;
+        bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+          historyCandles,
+          atrPeriod: 10,
+        ).isPassed;
         bool rsiOk = IndicatorUtils.isRsiBetween(
           historyCandles,
           14,
@@ -201,8 +198,7 @@ class FilterUtils {
     // skip the volume check.
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay =
-        lastWorking.year == now.year &&
+    final isWorkingDay = lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
@@ -248,8 +244,7 @@ class FilterUtils {
     // Volume check – only on working day
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay =
-        lastWorking.year == now.year &&
+    final isWorkingDay = lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
@@ -275,12 +270,11 @@ class FilterUtils {
     bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
     if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
 
-    bool aboveSupertrend =
-        IndicatorUtils.isCloseAboveSupertrend(
-          candles,
-          atrPeriod: 10,
-          multiplier: 3,
-        ).isPassed;
+    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+      candles,
+      atrPeriod: 10,
+      multiplier: 3,
+    ).isPassed;
     if (!aboveSupertrend) failedReasons.add("Close NOT above Supertrend");
 
     bool adxRes = IndicatorUtils.isAdxBullish(candles);
@@ -314,6 +308,15 @@ class FilterUtils {
   }
 
   static bool isDayTradable(StockModel stock) {
+    final symbol = stock.symbol!.toLowerCase();
+    // remove ETF / BEES / gold / silver
+    if (symbol.contains("etf") ||
+        symbol.contains("bees") ||
+        symbol.contains("gold") ||
+        symbol.contains("silver")) {
+      return false;
+    }
+    return true;
     final lastPrice = stock.lastPrice;
     final lowerLimit = stock.lowerCircuitLimit;
     final upperLimit = stock.upperCircuitLimit;
@@ -339,8 +342,7 @@ class FilterUtils {
     // skip the volume check.
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay =
-        lastWorking.year == now.year &&
+    final isWorkingDay = lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 

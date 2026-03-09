@@ -53,8 +53,11 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     }
   }
 
-  void _openSearchBottomSheet() {
-    showModalBottomSheet(
+  Future<void> _openSearchBottomSheet() async {
+    // Present the bottom sheet full-screen. Keep isScrollControlled true so
+    // the sheet can grow to the full height; wrap the sheet content in a
+    // SizedBox sized to the device height so it visually appears full-screen.
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -62,18 +65,27 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
-        return _SearchBottomSheetScreen(
-          controller: _symbolsController,
-          allStocks: _allStocks,
-          searchHistory: _searchHistory,
-          onSearch: () {
-            if (_symbolsController.text.trim().isNotEmpty) {
-              _analyzeSymbols();
-            }
-          },
+        final height = MediaQuery.of(context).size.height;
+        return SizedBox(
+          height: height *
+              0.85, // leave a small top gap so status bar remains visible
+          child: _SearchBottomSheetScreen(
+            controller: _symbolsController,
+            allStocks: _allStocks,
+            searchHistory: _searchHistory,
+            onSearch: () {
+              if (_symbolsController.text.trim().isNotEmpty) {
+                _analyzeSymbols();
+              }
+            },
+          ),
         );
       },
     );
+
+    // Refresh parent search history after the bottom sheet closes so the
+    // main screen reflects deletions made inside the sheet immediately.
+    await _loadSearchHistory();
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -213,52 +225,6 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     //_showFetchSummaryDialog();
   }
 
-  void _showFetchSummaryDialog() {
-    final int local = HistoryServices.instance.lastLocalCount;
-    final int api = HistoryServices.instance.lastApiCount;
-    final List<String> unavailable =
-        HistoryServices.instance.lastUnavailableList;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Fetch Summary'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Data loaded from local: $local'),
-              const SizedBox(height: 4),
-              Text('Data loaded from API: $api'),
-              if (unavailable.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Data not in local (No Internet):',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  unavailable.join(', '),
-                  style: const TextStyle(fontSize: 13, color: Colors.black87),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Color _getVerdictColor(dynamic scoreVal) {
     if (scoreVal == null) return Colors.grey;
     final int score = int.tryParse(scoreVal.toString()) ?? 0;
@@ -374,19 +340,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                   final target = result['target'];
                   final stoploss = result['stoploss'];
 
-                  double? targetPercent;
-                  double? stoplossPercent;
-
                   var price = result['currentPrice'];
-                  if (price != null && target != null && price > 0) {
-                    targetPercent = ((target - price) / price) * 100;
-                  }
-
-                  if (price != null && stoploss != null && price > 0) {
-                    stoplossPercent = ((price - stoploss) / price) * 100;
-                  }
-
-                  final supertrend = result['supertrend'] as double?;
 
                   if (result.containsKey('error')) {
                     return SizedBox();
@@ -409,10 +363,6 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                       support > 0 &&
                       ((price - support) / support) <= 0.03;
 
-                  var rsi = result['rsi'] as double?;
-                  var adx = result['adx'] as double?;
-                  // if ((rsi is double && rsi > 55) &&
-                  //     (adx is double && adx < 50 && adx > 18)) {
                   return Card(
                     elevation: 3,
                     margin: const EdgeInsets.symmetric(vertical: 6),
@@ -474,7 +424,8 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: verdictColor.withOpacity(0.1),
+                                    color: verdictColor
+                                        .withAlpha((0.1 * 255).round()),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(color: verdictColor),
                                   ),
@@ -598,8 +549,6 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                       ),
                     ),
                   );
-                  // }
-                  return SizedBox();
                 },
               ),
             ),
@@ -662,6 +611,9 @@ class _SearchBottomSheetScreen extends StatefulWidget {
 class __SearchBottomSheetScreenState extends State<_SearchBottomSheetScreen> {
   late FocusNode _focusNode;
   List<dynamic> _suggestions = [];
+  // Local mutable copy of the recent searches so we can remove items locally.
+  // Initialize to empty to avoid LateInitializationError while async load runs.
+  List<String> _localHistory = [];
 
   @override
   void initState() {
@@ -676,6 +628,28 @@ class __SearchBottomSheetScreenState extends State<_SearchBottomSheetScreen> {
 
     // Check if there's already text to show suggestions for
     _onTextChanged();
+
+    // Load local history from shared preferences so the bottom sheet
+    // always reflects the current stored history (and not a possibly stale
+    // parent copy).
+    _loadLocalHistory();
+  }
+
+  Future<void> _loadLocalHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final history = prefs.getStringList('bulk_search_history') ?? [];
+      if (mounted) {
+        setState(() {
+          _localHistory = List<String>.from(history);
+        });
+      } else {
+        _localHistory = List<String>.from(history);
+      }
+    } catch (e) {
+      debugPrint('Failed to load local history: $e');
+      _localHistory = List<String>.from(widget.searchHistory);
+    }
   }
 
   @override
@@ -683,6 +657,28 @@ class __SearchBottomSheetScreenState extends State<_SearchBottomSheetScreen> {
     widget.controller.removeListener(_onTextChanged);
     _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _removeHistoryItem(String item) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existing = prefs.getStringList('bulk_search_history') ?? [];
+      if (existing.contains(item)) {
+        existing.remove(item);
+        await prefs.setStringList('bulk_search_history', existing);
+      }
+      if (mounted) {
+        setState(() {
+          _localHistory.remove(item);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed "$item" from recent searches')),
+        );
+      }
+    } catch (e) {
+      // ignore errors silently; don't crash the bottom sheet
+      debugPrint('Failed to remove history item: $e');
+    }
   }
 
   void _onTextChanged() {
@@ -726,140 +722,158 @@ class __SearchBottomSheetScreenState extends State<_SearchBottomSheetScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: _focusNode,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) {
+    // The parent shows this widget inside a SizedBox sized to the screen
+    // height. Make this widget expand to that height (mainAxisSize.max)
+    // and let the list/scroll area take the remaining space using Expanded.
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 12,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focusNode,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) {
+                      Navigator.pop(context);
+                      widget.onSearch();
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Enter symbols (comma-separated)',
+                      hintText: 'e.g., RELIANCE, TCS, INFY',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          widget.controller.clear();
+                        },
+                      ),
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    final allSymbols = widget.allStocks
+                        .map((stock) => stock['tradingsymbol'])
+                        .join(',');
+                    widget.controller.text = allSymbols;
                     Navigator.pop(context);
                     widget.onSearch();
                   },
-                  decoration: InputDecoration(
-                    labelText: 'Enter symbols (comma-separated)',
-                    hintText: 'e.g., RELIANCE, TCS, INFY',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        widget.controller.clear();
-                      },
-                    ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
                   ),
-                  maxLines: 1,
+                  child: const Text('All Stocks'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  final allSymbols = widget.allStocks
-                      .map((stock) => stock['tradingsymbol'])
-                      .join(',');
-                  widget.controller.text = allSymbols;
-                  Navigator.pop(context);
-                  widget.onSearch();
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onSearch();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                  ),
+                  child: const Text('Search'),
                 ),
-                child: const Text('All Stocks'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  widget.onSearch();
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                ),
-                child: const Text('Search'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_suggestions.isNotEmpty)
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _suggestions.length,
-                itemBuilder: (context, index) {
-                  final stock = _suggestions[index];
-                  return ListTile(
-                    dense: true,
-                    title: Text(
-                      stock['tradingsymbol'] ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(stock['name'] ?? ''),
-                    onTap: () {
-                      final parts = widget.controller.text.split(',');
-                      parts[parts.length - 1] = (parts.length > 1 ? ' ' : '') +
-                          (stock['tradingsymbol'] ?? '');
-                      widget.controller.text = parts.join(',') + ', ';
-                      widget.controller.selection = TextSelection.fromPosition(
-                        TextPosition(offset: widget.controller.text.length),
-                      );
-                    },
-                  );
-                },
-              ),
-            )
-          else if (widget.searchHistory.isNotEmpty)
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Recent Searches',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: -8,
-                      children: widget.searchHistory.map((history) {
-                        return ActionChip(
-                          label: Text(
-                            history,
-                            style: const TextStyle(fontSize: 12),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _suggestions.isNotEmpty
+                  ? ListView.builder(
+                      itemCount: _suggestions.length,
+                      itemBuilder: (context, index) {
+                        final stock = _suggestions[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            stock['tradingsymbol'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          onPressed: () {
-                            widget.controller.text = history;
+                          subtitle: Text(stock['name'] ?? ''),
+                          onTap: () {
+                            final parts = widget.controller.text.split(',');
+                            parts[parts.length - 1] =
+                                (parts.length > 1 ? ' ' : '') +
+                                    (stock['tradingsymbol'] ?? '');
+                            widget.controller.text = parts.join(',') + ', ';
                             widget.controller.selection =
                                 TextSelection.fromPosition(
                               TextPosition(
-                                offset: widget.controller.text.length,
-                              ),
+                                  offset: widget.controller.text.length),
                             );
                           },
                         );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+                      },
+                    )
+                  : (_localHistory.isNotEmpty
+                      ? SingleChildScrollView(
+                          child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Recent Searches',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: -8,
+                              children: _localHistory.map((history) {
+                                return InputChip(
+                                  label: Text(
+                                    history,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  onPressed: () {
+                                    widget.controller.text = history;
+                                    widget.controller.selection =
+                                        TextSelection.fromPosition(
+                                      TextPosition(
+                                        offset: widget.controller.text.length,
+                                      ),
+                                    );
+                                  },
+                                  onDeleted: () async {
+                                    // Remove from shared prefs and local list
+                                    await _removeHistoryItem(history);
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ))
+                      : Center(
+                          child: Text(
+                            'No suggestions',
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color),
+                          ),
+                        )),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
