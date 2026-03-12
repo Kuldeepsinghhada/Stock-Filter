@@ -7,6 +7,8 @@ import 'package:stock_demo/Screens/DataScreen/chart_screen.dart'; // Added impor
 import 'package:stock_demo/Utils/ai_score_calculator.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:stock_demo/Screens/Settings/settings_screen.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
 
 class BulkAnalysisScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -158,6 +160,9 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
           : "Fetching local/historical data (${symbols.length} symbols)...";
     });
 
+    final enableSwingScannerLoose =
+        await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
+
     // Call the batch fetching logic in HistoryServices
     List<StockModel> result = await HistoryServices.instance.fetchQuotes(
       toDate,
@@ -177,8 +182,11 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       if (symbols.contains(stock.symbol)) {
         if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
           try {
-            var isPass =
-                AIScoreCalculator.swingScannerLoose(stock.historyFiveMin!);
+            var isPass = true;
+            if (enableSwingScannerLoose) { 
+              isPass =
+                  AIScoreCalculator.swingScannerLoose(stock.historyFiveMin!);
+            }
             if (isPass) {
               final Map<String, dynamic> scoreResult =
                   AIScoreCalculator.calculateAIScoreV2(
@@ -247,6 +255,15 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
             onPressed:
                 _isLoading ? null : () => _analyzeSymbols(isRefresh: true),
             icon: const Icon(Icons.refresh, color: Colors.white),
+          ),
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+            icon: const Icon(Icons.settings, color: Colors.white),
           ),
         ],
       ),

@@ -24,6 +24,19 @@ class SharedPreferenceHelper {
   static final SharedPreferenceHelper instance =
       SharedPreferenceHelper._internal();
 
+  String enableSwingScannerLooseKey = "enableSwingScannerLoose";
+
+  Future<void> setEnableSwingScannerLoose(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(enableSwingScannerLooseKey, value);
+  }
+
+  Future<bool> getEnableSwingScannerLoose() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    // Default to true
+    return prefs.getBool(enableSwingScannerLooseKey) ?? true;
+  }
+
   Future<void> setBullish(bool value) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool(bullishKey, value);
