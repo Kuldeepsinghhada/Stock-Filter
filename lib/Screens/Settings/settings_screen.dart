@@ -9,8 +9,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _enableSwingScannerLoose = true;
   bool _isLoading = true;
+  bool _enableSwingScannerLoose = true;
+  bool _closedInGreen = false;
 
   @override
   void initState() {
@@ -19,11 +20,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    bool val = await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
+    // Load both settings: swing scanner and closed-in-green
+    final swingEnabled =
+        await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
+    final closedGreenEnabled =
+        await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
     setState(() {
-      _enableSwingScannerLoose = val;
+      _enableSwingScannerLoose = swingEnabled;
+      _closedInGreen = closedGreenEnabled;
       _isLoading = false;
     });
+  }
+
+  Future<void> _toggleClosedInGreen(bool value) async {
+    setState(() {
+      _closedInGreen = value;
+    });
+    await SharedPreferenceHelper.instance.setClosedInGreenEnabled(value);
   }
 
   Future<void> _toggleSwingScannerLoose(bool value) async {
@@ -50,7 +63,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: _enableSwingScannerLoose,
                   onChanged: _toggleSwingScannerLoose,
                 ),
-                // Add more settings here in the future
+                SwitchListTile(
+                  title: const Text('Closed in green only'),
+                  subtitle: const Text(
+                      'When enabled, bulk analysis will show only symbols whose last candle closed green.'),
+                  value: _closedInGreen,
+                  onChanged: _toggleClosedInGreen,
+                ),
               ],
             ),
     );

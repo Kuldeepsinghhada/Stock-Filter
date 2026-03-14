@@ -24,6 +24,10 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
   bool _isLoading = false;
   String _statusMessage = "";
   List<Map<String, dynamic>> _results = [];
+  // Raw results contain per-symbol calculated data (including swingPass)
+  List<Map<String, dynamic>> _rawResults = [];
+  // Last analyzed symbols for re-assembling errors when filtering locally
+  List<String> _lastAnalyzedSymbols = [];
   List<dynamic> _allStocks = [];
   late DateTime _selectedDate;
   List<String> _searchHistory = [];
@@ -140,6 +144,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       _isLoading = true;
       _statusMessage = isRefresh ? "Refreshing data..." : "Parsing symbols...";
       _results.clear();
+      _rawResults.clear();
     });
 
     final List<String> symbols = inputText
@@ -147,6 +152,9 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
         .map((e) => e.trim().toUpperCase())
         .where((e) => e.isNotEmpty)
         .toList();
+
+    // Save last analyzed symbols so local filters can re-create errors for missing ones
+    _lastAnalyzedSymbols = List<String>.from(symbols);
 
     if (_allStocks.isEmpty) {
       await _loadStocksData();
@@ -163,74 +171,140 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     final enableSwingScannerLoose =
         await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
 
-    // Call the batch fetching logic in HistoryServices
-    List<StockModel> result = await HistoryServices.instance.fetchQuotes(
+    // Read boolean preference: if true, show only symbols whose last candle closed green
+    final closedInGreenEnabled =
+        await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
+
+    // Call the batch fetching logic in HistoryServices to get StockModel objects
+    List<StockModel> fetched = await HistoryServices.instance.fetchQuotes(
       toDate,
       symbols,
       isRefresh: isRefresh,
     );
 
-    List<Map<String, dynamic>> validResults = [];
+    // Build raw results by calculating score for each available stock locally.
+    List<Map<String, dynamic>> raw = [];
 
-    // Retrieve parsed data from DataManager
-
-    result.removeWhere(
+    fetched.removeWhere(
       (item) =>
           (item.historyFiveMin != null && item.historyFiveMin!.length < 200),
     );
-    for (var stock in result) {
+
+    for (var stock in fetched) {
       if (symbols.contains(stock.symbol)) {
         if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
           try {
-            var isPass = true;
-            if (enableSwingScannerLoose) { 
-              isPass =
+            // Always compute scoreResult so we can re-filter locally later
+            final Map<String, dynamic> scoreResult =
+                AIScoreCalculator.calculateAIScoreV2(
+              stock.historyFiveMin!,
+              targetDate: toDate,
+            );
+            // Mark symbol and stock reference
+            scoreResult['symbol'] = stock.symbol;
+            scoreResult['stock'] = stock;
+            // Compute swingPass locally (safe to call even if candles < 200)
+            bool swingPass = false;
+            try {
+              swingPass =
                   AIScoreCalculator.swingScannerLoose(stock.historyFiveMin!);
+            } catch (_) {
+              swingPass = false;
             }
-            if (isPass) {
-              final Map<String, dynamic> scoreResult =
-                  AIScoreCalculator.calculateAIScoreV2(
-                stock.historyFiveMin!,
-                targetDate: toDate,
-              );
-              scoreResult['symbol'] = stock.symbol;
-              scoreResult['stock'] = stock;
-              validResults.add(scoreResult);
-            }
+            scoreResult['swingPass'] = swingPass;
+
+            raw.add(scoreResult);
           } catch (e) {
-            validResults.add({
+            raw.add({
               "symbol": stock.symbol,
               "error": "Failed to calculate score: ${e.toString()}",
             });
           }
+        } else {
+          raw.add({
+            "symbol": stock.symbol,
+            "error": "Insufficient historical data",
+          });
         }
       }
     }
 
-    // Identify symbols that failed
-    final fetchedSymbols = validResults.map((e) => e['symbol']).toSet();
+    // Also add missing symbols that were not present in fetched list as errors
+    final fetchedSymbolsSet = raw.map((r) => r['symbol']).toSet();
     for (final symbol in symbols) {
-      if (!fetchedSymbols.contains(symbol)) {
-        validResults.add({
+      if (!fetchedSymbolsSet.contains(symbol)) {
+        raw.add({
           "symbol": symbol,
           "error": "Failed to fetch data or symbol not found",
         });
       }
     }
 
-    // Sort valid results by score descending
-    validResults.sort((a, b) {
+    // Store raw results and apply active settings filters locally (no network/db needed)
+    _rawResults = raw;
+
+    // Apply filters and update displayed _results
+    await _applyFiltersFromSettings(isRefresh: isRefresh);
+  }
+
+  // Apply current settings to _rawResults and update _results without network calls
+  Future<void> _applyFiltersFromSettings({bool isRefresh = false}) async {
+    final enableSwingScannerLoose =
+        await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
+    final closedInGreenEnabled =
+        await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
+
+    // Split raw into successes and errors
+    final errors = _rawResults.where((r) => r.containsKey('error')).toList();
+    final successes =
+        _rawResults.where((r) => !r.containsKey('error')).toList();
+
+    // Apply swing scanner filter if enabled (use precomputed swingPass field)
+    var filtered = enableSwingScannerLoose
+        ? successes.where((r) => r['swingPass'] == true).toList()
+        : List<Map<String, dynamic>>.from(successes);
+
+    // Apply closed-in-green filter if enabled
+    if (closedInGreenEnabled) {
+      filtered = filtered.where((r) => r['isLastCandleGreen'] == true).toList();
+    }
+
+    // Sort successes by score
+    filtered.sort((a, b) {
       final int scoreA = a['score'] ?? -1;
       final int scoreB = b['score'] ?? -1;
-      return scoreB.compareTo(scoreA); // Descending
+      return scoreB.compareTo(scoreA);
     });
+
+    // Reassemble final list: successes followed by errors (and ensure missing symbol errors exist)
+    final resultList = <Map<String, dynamic>>[];
+    resultList.addAll(filtered);
+
+    // Determine which symbols are already represented
+    final represented = resultList.map((r) => r['symbol']).toSet();
+    for (final symbol in _lastAnalyzedSymbols) {
+      if (!represented.contains(symbol)) {
+        // If there is an error entry for this symbol in errors, append it; otherwise add a not-found error
+        final err =
+            errors.firstWhere((e) => e['symbol'] == symbol, orElse: () => {});
+        if (err.isNotEmpty) {
+          resultList.add(err);
+        } else {
+          resultList.add({
+            'symbol': symbol,
+            'error': 'Failed to fetch data or symbol not found',
+          });
+        }
+      }
+    }
 
     setState(() {
       _isLoading = false;
-      _results = validResults;
+      _results = resultList;
+      _statusMessage = isRefresh
+          ? "Refreshed ${filtered.length} results${closedInGreenEnabled ? ' (closed in green only)' : ''}"
+          : "Found ${filtered.length} results${closedInGreenEnabled ? ' (closed in green only)' : ''}";
     });
-
-    //_showFetchSummaryDialog();
   }
 
   Color _getVerdictColor(dynamic scoreVal) {
@@ -257,11 +331,14 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
             icon: const Icon(Icons.refresh, color: Colors.white),
           ),
           IconButton(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              // Open settings and reapply local filters on return without network
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
+              // Reapply filters using stored _rawResults
+              await _applyFiltersFromSettings();
             },
             icon: const Icon(Icons.settings, color: Colors.white),
           ),
@@ -354,8 +431,8 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                   final result = _results[index];
                   final symbol = result['symbol'] ?? 'Unknown';
 
-                  final target = result['target'];
-                  final stoploss = result['stoploss'];
+                  // target and stoploss are accessed via result['target']/result['stoploss']
+                  // when building the UI below, so we don't need separate local vars.
 
                   var price = result['currentPrice'];
 

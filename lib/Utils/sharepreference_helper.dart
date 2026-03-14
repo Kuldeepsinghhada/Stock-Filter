@@ -16,6 +16,8 @@ class SharedPreferenceHelper {
   String bearishKey = "isBearish";
   String buyAlertListKey = "buyAlertList";
   String investmentList = "investmentList";
+  // new boolean preference: when true, only show symbols whose last candle closed green
+  String closedInGreenKey = "closedInGreen";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -116,10 +118,9 @@ class SharedPreferenceHelper {
   Future<List<NotificationModel>> getNotificationList() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var awesomeList = prefs.getStringList(kNotificationListKey) ?? [];
-    List<NotificationModel> notifications =
-        awesomeList
-            .map((item) => NotificationModel.fromJson(jsonDecode(item)))
-            .toList();
+    List<NotificationModel> notifications = awesomeList
+        .map((item) => NotificationModel.fromJson(jsonDecode(item)))
+        .toList();
     return notifications;
   }
 
@@ -133,7 +134,7 @@ class SharedPreferenceHelper {
     for (var n in notifications) {
       for (var stock in investmentList) {
         if (!n.stocksNameList!.contains(stock)) {
-          if(!newSymbol.contains(stock)){
+          if (!newSymbol.contains(stock)) {
             newSymbol.add(stock);
           }
         }
@@ -183,10 +184,9 @@ class SharedPreferenceHelper {
   Future<List<NotificationModel>> getBuyAlertLists() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var awesomeList = prefs.getStringList(buyAlertListKey) ?? [];
-    List<NotificationModel> notifications =
-        awesomeList
-            .map((item) => NotificationModel.fromJson(jsonDecode(item)))
-            .toList();
+    List<NotificationModel> notifications = awesomeList
+        .map((item) => NotificationModel.fromJson(jsonDecode(item)))
+        .toList();
     return notifications;
   }
 
@@ -207,5 +207,16 @@ class SharedPreferenceHelper {
   Future<void> setInvestmentList(List<String> symbolList) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(investmentList, symbolList);
+  }
+
+  // Store whether to show only green-closed candles. Default: false (show both)
+  Future<void> setClosedInGreenEnabled(bool enabled) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(closedInGreenKey, enabled);
+  }
+
+  Future<bool> getClosedInGreenEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(closedInGreenKey) ?? false;
   }
 }
