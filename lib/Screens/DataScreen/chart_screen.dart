@@ -1,34 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/model/chart_data.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/math_utils.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 
 import 'package:intl/intl.dart';
-
-class ChartData {
-  final DateTime x;
-  final double open;
-  final double high;
-  final double low;
-  final double close;
-  final double volume;
-  final double? ema20;
-  final double? supertrend;
-
-  ChartData(
-    this.x,
-    this.open,
-    this.high,
-    this.low,
-    this.close,
-    this.volume,
-    this.ema20,
-    this.supertrend,
-  );
-}
+import '../../Widgets/custom_trading_chart.dart';
 
 class ChartScreen extends StatefulWidget {
   final StockModel stock;
@@ -41,7 +20,6 @@ class ChartScreen extends StatefulWidget {
 
 class _ChartScreenState extends State<ChartScreen> {
   List<ChartData> _chartData = [];
-  late ZoomPanBehavior _zoomPanBehavior;
 
   double _maxVolume = 0;
 
@@ -59,29 +37,7 @@ class _ChartScreenState extends State<ChartScreen> {
   @override
   void initState() {
     super.initState();
-
-    _zoomPanBehavior = ZoomPanBehavior(
-      enablePinching: true,
-      enablePanning: true,
-      zoomMode: ZoomMode.x,
-      enableDirectionalZooming: true,
-      enableDoubleTapZooming: true,
-      enableMouseWheelZooming: true,
-    );
-
     _calculateChartData();
-
-    /// 🔥 Initial Zoom → Always show last 100 candles
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      double visiblePercent =
-          _chartData.length > 0 ? (100 / _chartData.length) : 1;
-
-      if (visiblePercent < 1) {
-        _zoomPanBehavior.zoomByFactor(
-          1 - visiblePercent, // 👈 Always END
-        );
-      }
-    });
   }
 
   void _calculateChartData() {
@@ -100,7 +56,7 @@ class _ChartScreenState extends State<ChartScreen> {
 
     _chartData.clear();
     _maxVolume = 0;
-    final startIndex = candles.length > 100 ? candles.length - 100 : 0;
+    final startIndex = candles.length > 200 ? candles.length - 200 : 0;
     for (int i = startIndex; i < candles.length; i++) {
       final c = candles[i];
       if (c.volume > _maxVolume) _maxVolume = c.volume.toDouble();
@@ -128,6 +84,7 @@ class _ChartScreenState extends State<ChartScreen> {
   }
 
   Widget _buildInfoItem(String label, double value, Color? valueColor) {
+    final bool isVolume = label == "V";
     return Row(
       children: [
         Text("$label: ",
@@ -135,7 +92,7 @@ class _ChartScreenState extends State<ChartScreen> {
                 color: Colors.white70,
                 fontSize: 13,
                 fontWeight: FontWeight.bold)),
-        Text(value > 1000 ? _formatVolume(value) : value.toStringAsFixed(2),
+        Text(isVolume ? _formatVolume(value) : "₹${value.toStringAsFixed(2)}",
             style: TextStyle(
                 color: valueColor ?? Colors.white,
                 fontSize: 13,
@@ -151,6 +108,20 @@ class _ChartScreenState extends State<ChartScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(_showEma ? Icons.trending_up : Icons.trending_flat,
+                color: Colors.blue),
+            onPressed: () => setState(() => _showEma = !_showEma),
+            tooltip: "Toggle EMA",
+          ),
+          IconButton(
+            icon: Icon(_showSupertrend ? Icons.bolt : Icons.flash_off,
+                color: Colors.orange),
+            onPressed: () => setState(() => _showSupertrend = !_showSupertrend),
+            tooltip: "Toggle Supertrend",
+          ),
+        ],
         title: Text(
           widget.stock.symbol ?? '',
           style: const TextStyle(color: Colors.white),
@@ -168,166 +139,81 @@ class _ChartScreenState extends State<ChartScreen> {
                 children: [
                   ValueListenableBuilder<ChartData?>(
                     valueListenable: _hoveredData,
-                    builder: (context, data, _) {
-                      if (data == null) return const SizedBox();
+                    builder: (context, hoveredData, _) {
+                      final data = hoveredData ?? _chartData.last;
+
+                      // Calculate change percent relative to previous candle close
+                      double change = 0;
+                      double changePercent = 0;
+                      if (_chartData.length > 1) {
+                        final lastIndex = hoveredData != null
+                            ? _chartData.indexOf(hoveredData)
+                            : _chartData.length - 1;
+
+                        if (lastIndex > 0) {
+                          final prevClose = _chartData[lastIndex - 1].close;
+                          change = data.close - prevClose;
+                          changePercent = (change / prevClose) * 100;
+                        }
+                      }
+
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16.0, vertical: 8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildInfoItem("O", data.open, null),
-                            _buildInfoItem("H", data.high, Colors.green),
-                            _buildInfoItem("L", data.low, Colors.red),
-                            _buildInfoItem("C", data.close, null),
-                            _buildInfoItem("V", data.volume, Colors.blueAccent),
+                            Row(
+                              children: [
+                                Text(
+                                  "₹${data.close.toStringAsFixed(2)}",
+                                  style: TextStyle(
+                                    color: change >= 0
+                                        ? const Color(0xff26a69a)
+                                        : const Color(0xffef5350),
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "${change >= 0 ? '+' : ''}₹${change.abs().toStringAsFixed(2)} (${changePercent.toStringAsFixed(2)}%)",
+                                  style: TextStyle(
+                                    color: change >= 0
+                                        ? const Color(0xff26a69a)
+                                        : const Color(0xffef5350),
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildInfoItem("O", data.open, null),
+                                _buildInfoItem(
+                                    "H", data.high, const Color(0xff26a69a)),
+                                _buildInfoItem(
+                                    "L", data.low, const Color(0xffef5350)),
+                                _buildInfoItem("C", data.close, null),
+                                _buildInfoItem(
+                                    "V", data.volume, Colors.blueAccent),
+                              ],
+                            ),
                           ],
                         ),
                       );
                     },
                   ),
                   Expanded(
-                    child: SfCartesianChart(
-                      backgroundColor: Colors.black,
-                      zoomPanBehavior: _zoomPanBehavior,
-
-                      onTrackballPositionChanging: (TrackballArgs args) {
-                        final int? index = args.chartPointInfo.dataPointIndex;
-                        if (index != null &&
-                            index >= 0 &&
-                            index < _chartData.length) {
-                          Future.microtask(
-                              () => _hoveredData.value = _chartData[index]);
-                        }
+                    child: CustomTradingChart(
+                      data: _chartData,
+                      showEma: _showEma,
+                      showSupertrend: _showSupertrend,
+                      onHover: (data) {
+                        _hoveredData.value = data;
                       },
-
-                      trackballBehavior: TrackballBehavior(
-                        enable: true,
-                        activationMode: ActivationMode.singleTap,
-                        tooltipDisplayMode: TrackballDisplayMode
-                            .none, // Hide default center tooltip
-                        lineType: TrackballLineType.none,
-                      ),
-
-                      /// 🔥 Full Crosshair lines
-                      crosshairBehavior: CrosshairBehavior(
-                        enable: true,
-                        activationMode: ActivationMode.singleTap,
-                        lineType: CrosshairLineType.both,
-                        lineDashArray: const <double>[5, 5],
-                        lineColor: Colors.white54,
-                      ),
-
-                      legend: const Legend(
-                        isVisible: true,
-                        position: LegendPosition.bottom,
-                        textStyle: TextStyle(color: Colors.white70),
-                      ),
-
-                      axes: <ChartAxis>[
-                        NumericAxis(
-                          name: 'VolumeAxis',
-                          opposedPosition: false,
-                          isVisible: false, // hide labels for a clean overlay
-                          minimum: 0,
-                          maximum: _maxVolume *
-                              4, // Keeps volume bars in the bottom 25% of chart
-                        )
-                      ],
-
-                      /// 🔥 Important → Named Axis
-                      primaryXAxis: DateTimeCategoryAxis(
-                        name: 'Time',
-                        majorGridLines: const MajorGridLines(
-                            width: 0.3, color: Colors.white10),
-                        axisLine: const AxisLine(color: Colors.white24),
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        plotOffsetEnd: 40,
-                        initialZoomFactor: 0.30257161495588086,
-                        initialZoomPosition: 0.6974283850441192,
-                        dateFormat: DateFormat('dd MMM yy HH:mm'),
-                        interactiveTooltip: const InteractiveTooltip(
-                          enable: true,
-                          color: Color(0xff293144),
-                          textStyle: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      primaryYAxis: const NumericAxis(
-                        opposedPosition: true,
-                        majorGridLines:
-                            MajorGridLines(width: 0.3, color: Colors.white10),
-                        axisLine: AxisLine(color: Colors.white24),
-                        labelStyle: TextStyle(color: Colors.white70),
-                        enableAutoIntervalOnZooming: true,
-                        interactiveTooltip: const InteractiveTooltip(
-                          enable: true,
-                          color: Color(0xff293144),
-                          decimalPlaces: 2,
-                          textStyle: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      series: [
-                        CandleSeries<ChartData, DateTime>(
-                          name: 'Price',
-                          dataSource: _chartData,
-                          xValueMapper: (data, _) => data.x,
-                          lowValueMapper: (data, _) => data.low,
-                          highValueMapper: (data, _) => data.high,
-                          openValueMapper: (data, _) => data.open,
-                          closeValueMapper: (data, _) => data.close,
-                          bullColor: const Color(0xff26a69a),
-                          bearColor: const Color(0xffef5350),
-                          enableSolidCandles: true,
-                          // Width must be between 0 and 1 (relative width). Use 0.9
-                          // for a visually thicker candle while staying within the
-                          // valid range.
-                          width: 0.9,
-                          spacing: 0.02,
-                        ),
-                        ColumnSeries<ChartData, DateTime>(
-                          name: 'Volume',
-                          dataSource: _chartData,
-                          xValueMapper: (data, _) => data.x,
-                          yValueMapper: (data, _) => data.volume,
-                          yAxisName: 'VolumeAxis',
-                          pointColorMapper: (data, _) => data.close >= data.open
-                              ? const Color(0xff26a69a).withAlpha((0.5 * 255).round())
-                              : const Color(0xffef5350).withAlpha((0.5 * 255).round()),
-                        ),
-                        if (_showEma)
-                          LineSeries<ChartData, DateTime>(
-                            name: 'EMA 20',
-                            dataSource: _chartData,
-                            xValueMapper: (data, _) => data.x,
-                            yValueMapper: (data, _) => data.ema20,
-                            color: const Color(0xffef5350), // Changed to red
-                            width: 2,
-                          ),
-                        if (_showSupertrend)
-                          LineSeries<ChartData, DateTime>(
-                            name: 'Supertrend',
-                            dataSource: _chartData,
-                            xValueMapper: (data, _) => data.x,
-                            yValueMapper: (data, _) => data.supertrend,
-                            pointColorMapper: (data, _) => data.supertrend !=
-                                        null &&
-                                    data.close < data.supertrend!
-                                ? const Color(
-                                    0xffef5350) // Red if price below supertrend
-                                : const Color(0xff26a69a), // Green otherwise
-                            width: 2,
-                          ),
-                      ],
                     ),
                   ),
                 ],

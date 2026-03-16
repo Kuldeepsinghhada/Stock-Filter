@@ -52,7 +52,6 @@ dependencies:
   connectivity_plus: ^6.1.2
   audioplayers: ^6.5.1
   wakelock_plus: ^1.4.0
-  syncfusion_flutter_charts: ^31.1.19
 
 dev_dependencies:
   flutter_test:
