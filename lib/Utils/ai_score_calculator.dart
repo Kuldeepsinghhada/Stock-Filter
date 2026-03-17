@@ -331,6 +331,7 @@ class AIScoreCalculator {
       "isNearBuyZone": isNearBuyZone,
       "performance": performance,
       "daysToHit": daysToHit,
+      "swingPass": swingScannerLoose(candles),
     };
   }
 
@@ -631,6 +632,7 @@ class AIScoreCalculator {
       "performance": performance,
       "daysToHit": daysToHit,
       "institutionalPatterns": institutionalPatterns,
+      "swingPass": swingScannerLoose(candles),
     };
   }
 

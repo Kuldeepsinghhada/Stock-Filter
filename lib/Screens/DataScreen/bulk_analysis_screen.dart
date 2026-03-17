@@ -203,15 +203,6 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
             // Mark symbol and stock reference
             scoreResult['symbol'] = stock.symbol;
             scoreResult['stock'] = stock;
-            // Compute swingPass locally (safe to call even if candles < 200)
-            bool swingPass = false;
-            try {
-              swingPass =
-                  AIScoreCalculator.swingScannerLoose(stock.historyFiveMin!);
-            } catch (_) {
-              swingPass = false;
-            }
-            scoreResult['swingPass'] = swingPass;
 
             raw.add(scoreResult);
           } catch (e) {
