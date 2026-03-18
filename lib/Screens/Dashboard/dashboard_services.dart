@@ -1,7 +1,6 @@
 import 'dart:developer';
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
-import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
@@ -113,8 +112,7 @@ class DashboardService {
             );
             if (history != null) {
               var notificationList =
-                  await SharedPreferenceHelper.instance.getNotificationList() ??
-                  [];
+                  await SharedPreferenceHelper.instance.getNotificationList();
               var symbol = stock.symbol?.replaceAll("NSE:", "");
               bool isAlreadyNotified = notificationList.any(
                 (n) => (symbol != null && n.stocksNameList!.contains(symbol)),

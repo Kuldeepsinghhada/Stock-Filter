@@ -7,7 +7,6 @@ import 'package:stock_demo/Screens/DataScreen/chart_screen.dart'; // Added impor
 import 'package:stock_demo/Utils/ai_score_calculator.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:stock_demo/Screens/Settings/settings_screen.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'indicator_settings_screen.dart';
 

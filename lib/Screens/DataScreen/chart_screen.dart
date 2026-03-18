@@ -5,8 +5,6 @@ import 'package:stock_demo/model/chart_data.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/math_utils.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
-
-import 'package:intl/intl.dart';
 import '../../Widgets/custom_trading_chart.dart';
 import 'history_services.dart';
 import 'indicator_settings_screen.dart';

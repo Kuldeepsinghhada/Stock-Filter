@@ -1,10 +1,7 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'stock_candle_check_screen.dart';
@@ -74,9 +71,9 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
       } else {
         _filteredList =
             DataManager.instance.preFilteredStocksList.where((item) {
-              final symbol = (item.symbol ?? '').toLowerCase();
-              return symbol.contains(q);
-            }).toList();
+          final symbol = (item.symbol ?? '').toLowerCase();
+          return symbol.contains(q);
+        }).toList();
       }
       // apply current sort after filtering
       _applySort();
@@ -124,16 +121,15 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 hintText: 'Search by symbol',
-                suffixIcon:
-                    _searchController.text.isNotEmpty
-                        ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            _filterStocks('');
-                          },
-                        )
-                        : null,
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _filterStocks('');
+                        },
+                      )
+                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -142,160 +138,103 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
             ),
           ),
           Expanded(
-            child:
-                _filteredList.isEmpty
-                    ? const Center(
-                      child: Text(
-                        'No matching symbols',
-                        style: TextStyle(fontSize: 16, color: Colors.black54),
-                      ),
-                    )
-                    : ListView.separated(
-                      itemCount: _filteredList.length,
-                      itemBuilder: (context, position) {
-                        var obj = _filteredList[position];
-                        // compute percent change vs today's open (if available)
-                        final ohlc = obj.ohlc;
-                        final last = obj.lastPrice;
-                        String pctText = '';
-                        Color pctColor = Colors.black54;
-                        if (last != null &&
-                            ohlc?.open != null &&
-                            ohlc!.open! != 0) {
-                          final pct = ((last - ohlc.open!) / ohlc.open!) * 100;
-                          pctText =
-                              '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
-                          pctColor = pct >= 0 ? Colors.green : Colors.red;
-                        }
-                        var nIndex = notificationList.indexWhere(
-                          (item) =>
-                              item.stocksNameList?.toUpperCase().contains(
-                                obj.symbol!.toUpperCase(),
-                              ) ??
-                              false,
-                        );
+            child: _filteredList.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No matching symbols',
+                      style: TextStyle(fontSize: 16, color: Colors.black54),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: _filteredList.length,
+                    itemBuilder: (context, position) {
+                      var obj = _filteredList[position];
+                      // compute percent change vs today's open (if available)
+                      final ohlc = obj.ohlc;
+                      final last = obj.lastPrice;
+                      String pctText = '';
+                      Color pctColor = Colors.black54;
+                      if (last != null &&
+                          ohlc?.open != null &&
+                          ohlc!.open! != 0) {
+                        final pct = ((last - ohlc.open!) / ohlc.open!) * 100;
+                        pctText =
+                            '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
+                        pctColor = pct >= 0 ? Colors.green : Colors.red;
+                      }
+                      var nIndex = notificationList.indexWhere(
+                        (item) =>
+                            item.stocksNameList?.toUpperCase().contains(
+                                  obj.symbol!.toUpperCase(),
+                                ) ??
+                            false,
+                      );
 
-                        return ListTile(
-                          leading: Text(
-                            pctText,
-                            style: TextStyle(color: pctColor),
-                          ),
-                          title: Text(
-                            obj.symbol ?? '',
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                          dense: true,
-                          trailing: IconButton(
-                            onPressed: () {
-                              if (nIndex != -1) {
-                                notificationList.removeAt(nIndex);
-                              } else {
-                                notificationList.add(
-                                  NotificationModel(
-                                    stocksNameList: obj.symbol,
-                                    time: DateTime.now().toIso8601String(),
-                                  ),
-                                );
-                              }
-                              SharedPreferenceHelper.instance
-                                  .saveNotificationList(notificationList);
-                              setState(() {});
-                            },
-                            icon:
-                                nIndex != -1
-                                    ? Icon(
-                                      Icons.remove_circle_outline,
-                                      color: Colors.red,
-                                    )
-                                    : Icon(
-                                      Icons.add_circle_outline,
-                                      color: Colors.green,
-                                    ),
-                          ),
-                          onTap: () async {
-                            var savedTokenList =
-                                await SharedPreferenceHelper.instance
-                                    .getStockTokenList();
-                            if (savedTokenList.contains(obj.token.toString())) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Already Saved for Candle Check',
-                                  ),
+                      return ListTile(
+                        leading: Text(
+                          pctText,
+                          style: TextStyle(color: pctColor),
+                        ),
+                        title: Text(
+                          obj.symbol ?? '',
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        dense: true,
+                        trailing: IconButton(
+                          onPressed: () {
+                            if (nIndex != -1) {
+                              notificationList.removeAt(nIndex);
+                            } else {
+                              notificationList.add(
+                                NotificationModel(
+                                  stocksNameList: obj.symbol,
+                                  time: DateTime.now().toIso8601String(),
                                 ),
                               );
-                            } else {
-                              savedTokenList.add(obj.token.toString());
-                              await SharedPreferenceHelper.instance
-                                  .setStockTokenLists(savedTokenList);
                             }
-
-                            // var ema = IndicatorUtils.isCloseAboveEMA(
-                            //   obj.historyFiveMin ?? [],
-                            //   20,
-                            // );
-                            // print(
-                            //   'EMA20 Check for ${obj.symbol}: ${ema.value}',
-                            // );
-                            //
-                            // var supertrend =
-                            //     IndicatorUtils.isCloseAboveSupertrend(
-                            //       obj.historyFiveMin ?? [],
-                            //     );
-                            // print(
-                            //   'SUPERTREND Check for ${obj.symbol}: ${supertrend.value}',
-                            // );
-
-                            // Navigate to the candle check screen for this stock
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => StockCandleCheckScreen(stock: obj),
-                              ),
-                            );
+                            SharedPreferenceHelper.instance
+                                .saveNotificationList(notificationList);
+                            setState(() {});
                           },
-                        );
-                      },
-                      separatorBuilder: (context, positoin) {
-                        return const Divider();
-                      },
-                    ),
+                          icon: nIndex != -1
+                              ? Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.red,
+                                )
+                              : Icon(
+                                  Icons.add_circle_outline,
+                                  color: Colors.green,
+                                ),
+                        ),
+                        onTap: () async {
+                          var savedTokenList = await SharedPreferenceHelper
+                              .instance
+                              .getStockTokenList();
+                          if (savedTokenList.contains(obj.token.toString())) {
+                            Fluttertoast.showToast(
+                                msg: "Already Saved for Candle Check");
+                          } else {
+                            savedTokenList.add(obj.token.toString());
+                            await SharedPreferenceHelper.instance
+                                .setStockTokenLists(savedTokenList);
+                          }
+                          // Navigate to the candle check screen for this stock
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  StockCandleCheckScreen(stock: obj),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    separatorBuilder: (context, positoin) {
+                      return const Divider();
+                    },
+                  ),
           ),
         ],
       ),
-    );
-  }
-
-  static Future<void> addAndShowNotification(StockModel stockModel) async {
-    List<NotificationModel> notificationsList =
-        await SharedPreferenceHelper.instance.getNotificationList();
-
-    var title = "";
-    bool exists = notificationsList.any(
-      (n) =>
-          n.stocksNameList?.toUpperCase().contains(
-            stockModel.symbol!.toUpperCase(),
-          ) ??
-          false,
-    );
-    if (!exists) {
-      title = "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''} - M";
-    }
-
-    // Add new notifications
-    if (title.isNotEmpty) {
-      notificationsList.add(
-        NotificationModel(
-          stocksNameList: title,
-          time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
-        ),
-      );
-      log(
-        "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
-      );
-    }
-    await SharedPreferenceHelper.instance.saveNotificationList(
-      notificationsList,
     );
   }
 }

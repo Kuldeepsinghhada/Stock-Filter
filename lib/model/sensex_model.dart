@@ -12,10 +12,10 @@ class SensexModel {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['ltp'] = this.ltp;
-    data['chg'] = this.chg;
-    data['perchg'] = this.perchg;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['ltp'] = ltp;
+    data['chg'] = chg;
+    data['perchg'] = perchg;
     return data;
   }
 }

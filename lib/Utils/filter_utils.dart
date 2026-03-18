@@ -69,7 +69,7 @@ class FilterUtils {
     // 🔥 Print only when exactly ONE condition failed
     if (failedReasons.length == 1) {
       log(
-        "⚠️ $token — Only 1 Less Failed: ${failedReasons} : ${candles.last.timestamp}",
+        "⚠️ $token — Only 1 Less Failed: $failedReasons : ${candles.last.timestamp}",
       );
     }
     return result;

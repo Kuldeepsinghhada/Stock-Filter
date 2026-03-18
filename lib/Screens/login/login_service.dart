@@ -26,21 +26,6 @@ class LoginService {
               ),
             )
             .toString();
-    final checksuj =
-        sha256
-            .convert(
-              utf8.encode(
-                "${DataManager.instance.apiKey}$requestToken${DataManager.instance.apiSecret}",
-              ),
-            )
-            .toString();
-
-    // Prepare request body
-    Map<String, dynamic> body = {
-      "api_key": DataManager.instance.apiKey,
-      "request_token": requestToken,
-      "checksum": checksum,
-    };
 
     // Make API call
     APIResponse response = await ApiService.instance

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
@@ -21,27 +20,25 @@ class Utilities {
     return isInteger
         ? formatter.format(value)
         : NumberFormat.currency(
-          locale: 'en_IN',
-          symbol: '',
-          decimalDigits: 2,
-        ).format(value).trim();
+            locale: 'en_IN',
+            symbol: '',
+            decimalDigits: 2,
+          ).format(value).trim();
   }
 
   // --------Load stocks list from local JSON file--------
   static Future<void> loadStocksList() async {
     final String jsonString = await rootBundle.loadString('assets/main.json');
     final List<dynamic> jsonData = json.decode(jsonString);
-    DataManager.instance.stocksList =
-        jsonData.map((item) {
-          return StockModel(
-            symbol: item['tradingsymbol']?.toString(),
-            name: item['name']?.toString(),
-            token: item['instrument_token']?.toString(),
-            sector:
-                item['sector']
-                    ?.toString(), // If sector is missing, will be null
-          );
-        }).toList();
+    DataManager.instance.stocksList = jsonData.map((item) {
+      return StockModel(
+        symbol: item['tradingsymbol']?.toString(),
+        name: item['name']?.toString(),
+        token: item['instrument_token']?.toString(),
+        sector:
+            item['sector']?.toString(), // If sector is missing, will be null
+      );
+    }).toList();
   }
 
   // -----------Convert Live Data to StockModel-------------
@@ -87,8 +84,8 @@ class Utilities {
       bool exists = notificationsList.any(
         (n) =>
             n.stocksNameList?.toUpperCase().contains(
-              stock.symbol!.toUpperCase(),
-            ) ??
+                  stock.symbol!.toUpperCase(),
+                ) ??
             false,
       );
       if (!exists) {
@@ -111,9 +108,6 @@ class Utilities {
           body:
               "${newStockSymbols.join(', ')} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
         );
-      } else {
-        final player = AudioPlayer();
-        await player.play(AssetSource('not.wav'));
       }
       log(
         "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
@@ -133,8 +127,8 @@ class Utilities {
     bool exists = notificationsList.any(
       (n) =>
           n.stocksNameList?.toUpperCase().contains(
-            stockModel.symbol!.toUpperCase(),
-          ) ??
+                stockModel.symbol!.toUpperCase(),
+              ) ??
           false,
     );
     if (!exists) {
@@ -158,9 +152,6 @@ class Utilities {
           body:
               "${newStockSymbols.join(', ')} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
         );
-      } else {
-        final player = AudioPlayer();
-        await player.play(AssetSource('not.wav'));
       }
       log(
         "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
@@ -386,15 +377,14 @@ class Utilities {
     final tradingDates = groupedByDate.keys.toList()..sort();
 
     // 3️⃣ Get last 20 trading days (including today)
-    final last20Dates =
-        tradingDates
-            .where((d) => !d.isAfter(todayDate))
-            .toList()
-            .reversed
-            .take(20)
-            .toList()
-            .reversed
-            .toList();
+    final last20Dates = tradingDates
+        .where((d) => !d.isAfter(todayDate))
+        .toList()
+        .reversed
+        .take(20)
+        .toList()
+        .reversed
+        .toList();
 
     // 4️⃣ Collect base history (full candles of last 20 days except today)
     final baseHistory = <HistoricalDataModel>[];

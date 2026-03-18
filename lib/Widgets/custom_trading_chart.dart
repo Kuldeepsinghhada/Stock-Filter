@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' show TextDirection;
 import 'package:intl/intl.dart' as intl;
 import 'dart:math' as math;
 import '../model/chart_data.dart';
@@ -95,7 +94,6 @@ class _CustomTradingChartState extends State<CustomTradingChart> {
         final double width = constraints.maxWidth;
         final double height = constraints.maxHeight;
         final double chartWidth = width - 60; // 60 for price axis
-        final double chartHeight = height - 30; // 30 for time axis
 
         return Stack(
           children: [
@@ -287,17 +285,6 @@ class ChartPainter extends CustomPainter {
         ? chartHeight / (maxPrice - minPrice)
         : (chartHeight / (maxPrice - minPrice)) * priceScale;
 
-    final double offsetY = autoScale
-        ? -minPrice * scaleY + chartHeight
-        : -minPrice * scaleY + chartHeight + priceOffset;
-
-    double worldToScreenY(double price) {
-      return chartHeight -
-          ((price - minPrice) * scaleY) -
-          (autoScale ? 0 : priceOffset);
-      // Wait, let's simplify Y mapping
-    }
-
     // Better Y mapping
     double getY(double price) {
       if (autoScale) {
@@ -317,18 +304,6 @@ class ChartPainter extends CustomPainter {
     final Paint gridPaint = Paint()
       ..color = Colors.white10
       ..strokeWidth = 0.5;
-
-    final Paint bullPaint = Paint()
-      ..color = const Color(0xff26a69a)
-      ..style = PaintingStyle.fill;
-
-    final Paint bearPaint = Paint()
-      ..color = const Color(0xffef5350)
-      ..style = PaintingStyle.fill;
-
-    final Paint linePaint = Paint()
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
 
     // 3. Draw Grid Lines
     // Vertical grid
@@ -447,8 +422,9 @@ class ChartPainter extends CustomPainter {
     if (showSupertrend) {
       // Drawing supertrend with color changes
       for (int i = startIndex + 1; i <= endIndex; i++) {
-        if (data[i].supertrend == null || data[i - 1].supertrend == null)
+        if (data[i].supertrend == null || data[i - 1].supertrend == null) {
           continue;
+        }
 
         double x1 = ((i - 1) * candleWidth) - scrollOffset + candleWidth / 2;
         double y1 = getY(data[i - 1].supertrend!);

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/indicator_result.dart';
@@ -452,7 +453,7 @@ class IndicatorUtils {
 
     if (candles.last.timestamp.hour == 01 &&
         candles.last.timestamp.minute == 05) {
-      print("Checking Volume Breakout for ${candles.last.timestamp}");
+      debugPrint("Checking Volume Breakout for ${candles.last.timestamp}");
     }
 
     CandleUtils.sortByTime(candles);
@@ -578,8 +579,9 @@ class IndicatorUtils {
     final prevDates = <DateTime>[];
     for (int i = dates.length - 2; i >= 0 && prevDates.length < lastDays; i--) {
       final d = dates[i];
-      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday)
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
         continue;
+      }
       prevDates.add(d);
     }
     if (prevDates.length < lastDays) return false;

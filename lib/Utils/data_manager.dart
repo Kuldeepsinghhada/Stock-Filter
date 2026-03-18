@@ -1,5 +1,3 @@
-import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
 class DataManager {

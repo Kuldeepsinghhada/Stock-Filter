@@ -1,4 +1,3 @@
-
 /// Math helpers: SMA, EMA (aligned), rolling sums, etc.
 class MathUtils {
   /// Simple moving average for last `period` values. Returns null if not enough values.
@@ -24,7 +23,9 @@ class MathUtils {
 
     // initial SMA for first EMA value (at index period-1)
     double initialSma = 0.0;
-    for (int i = 0; i < period; i++) initialSma += values[i];
+    for (int i = 0; i < period; i++) {
+      initialSma += values[i];
+    }
     initialSma /= period;
     out[period - 1] = initialSma;
 

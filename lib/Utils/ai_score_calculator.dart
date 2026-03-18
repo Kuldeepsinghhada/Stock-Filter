@@ -135,10 +135,11 @@ class AIScoreCalculator {
       double gains = 0, losses = 0;
       for (int i = closes.length - period - 1; i < closes.length - 1; i++) {
         final diff = closes[i + 1] - closes[i];
-        if (diff > 0)
+        if (diff > 0) {
           gains += diff;
-        else
+        } else {
           losses -= diff;
+        }
       }
       final avgGain = gains / period;
       final avgLoss = losses == 0 ? 1 : losses / period;
@@ -268,11 +269,13 @@ class AIScoreCalculator {
     // ================= VERDICT =================
 
     String verdict = "Avoid";
-    if (score >= 80)
+    if (score >= 80) {
       verdict = "Strong Buy";
-    else if (score >= 65)
+    } else if (score >= 65) {
       verdict = "Moderate Buy";
-    else if (score >= 50) verdict = "Average";
+    } else if (score >= 50) {
+      verdict = "Average";
+    }
 
     DateTime dateToReturn = strongCandleIndex != null
         ? candles[strongCandleIndex].timestamp
@@ -392,10 +395,11 @@ class AIScoreCalculator {
       for (int i = closes.length - period - 1; i < closes.length - 1; i++) {
         final diff = closes[i + 1] - closes[i];
 
-        if (diff > 0)
+        if (diff > 0) {
           gains += diff;
-        else
+        } else {
           losses -= diff;
+        }
       }
 
       final avgGain = gains / period;
@@ -559,11 +563,13 @@ class AIScoreCalculator {
 
     String verdict = "Avoid";
 
-    if (score >= 80)
+    if (score >= 80) {
       verdict = "Strong Buy";
-    else if (score >= 65)
+    } else if (score >= 65) {
       verdict = "Moderate Buy";
-    else if (score >= 50) verdict = "Average";
+    } else if (score >= 50) {
+      verdict = "Average";
+    }
 
     // ================= PERFORMANCE =================
 

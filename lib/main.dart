@@ -1,8 +1,7 @@
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_screen.dart';
-import 'package:stock_demo/Screens/Investments/investment_screen.dart';
 import 'package:stock_demo/Screens/login/login_screen.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Views/home_view/index_entry_view.dart';
@@ -12,18 +11,13 @@ import 'package:stock_demo/portfolio_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/utilities.dart';
-import 'Screens/Notification/notification_screen.dart';
 import 'Services/notification_service.dart';
-import 'dart:io';
 
 Widget initialRoute = ZerodhaLoginPage();
 
 @pragma('vm:entry-point')
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isAndroid) {
-    await AndroidAlarmManager.initialize();
-  }
   await NotificationService.initialize();
   await Utilities.loadStocksList();
 
@@ -54,9 +48,7 @@ class TradingPrototype extends StatelessWidget {
       theme: ThemeData.dark(useMaterial3: true),
       home: initialRoute,
       routes: {
-        '/dashboard': (context) => const DashboardScreen(),
-        '/notifications': (context) => NotificationScreen(),
-      },
+        '/dashboard': (context) => const DashboardScreen()},
     );
   }
 }
@@ -90,8 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void fetchPrices() async {
     var nifty = await fetchNiftyPrice();
     var sensex = await fetchSensexPrice();
-    print("Sensex: $sensex");
-    print("Nifty: $nifty");
+    log("Sensex: $sensex");
+    log("Nifty: $nifty");
     //print("Sensex: $sensex");
 
     if (nifty != null) {
@@ -140,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return nifty;
       }
     } catch (e) {
-      print("Nifty fetch error: $e");
+      log("Nifty fetch error: $e");
     }
 
     return null;
@@ -170,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return sensex;
       }
     } catch (e) {
-      print("Sensex fetch error: $e");
+      log("Sensex fetch error: $e");
     }
 
     return null;
@@ -313,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             } else {
               dataModel = DataModel(
-                niftyPrice: niftyPriceController.text ?? "25212.40",
+                niftyPrice: niftyPriceController.text,
                 niftyChange: niftyChangeController.text,
                 niftyPercent: niftyPercentController.text,
                 sensexPrice: sensexPriceController.text,

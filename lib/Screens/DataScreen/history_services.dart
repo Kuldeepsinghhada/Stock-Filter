@@ -112,7 +112,7 @@ class HistoryServices {
             // Fetch from database
             final localData = await DatabaseHelper.instance.getCandles(cleanedSymbol);
             
-            if (localData != null && localData.isNotEmpty) {
+            if (localData.isNotEmpty) {
               final lastDate = localData.last.timestamp;
               final today = DateTime.now();
               final isTodayFetched = lastDate.year == today.year &&

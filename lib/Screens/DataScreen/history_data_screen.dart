@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:stock_demo/APIService/end_point.dart';
 import 'package:stock_demo/Screens/DataScreen/history_services.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/Utils/ai_score_calculator.dart';
