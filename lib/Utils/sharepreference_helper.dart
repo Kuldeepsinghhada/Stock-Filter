@@ -18,6 +18,8 @@ class SharedPreferenceHelper {
   String investmentList = "investmentList";
   // new boolean preference: when true, only show symbols whose last candle closed green
   String closedInGreenKey = "closedInGreen";
+  String emaVisibleKey = "emaVisible";
+  String supertrendVisibleKey = "supertrendVisible";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -218,5 +220,25 @@ class SharedPreferenceHelper {
   Future<bool> getClosedInGreenEnabled() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool(closedInGreenKey) ?? false;
+  }
+
+  Future<void> setEmaVisible(bool enabled) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(emaVisibleKey, enabled);
+  }
+
+  Future<bool> getEmaVisible() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(emaVisibleKey) ?? true;
+  }
+
+  Future<void> setSupertrendVisible(bool enabled) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(supertrendVisibleKey, enabled);
+  }
+
+  Future<bool> getSupertrendVisible() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(supertrendVisibleKey) ?? true;
   }
 }

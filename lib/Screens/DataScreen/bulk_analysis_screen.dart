@@ -9,6 +9,7 @@ import 'package:stock_demo/model/stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_demo/Screens/Settings/settings_screen.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'indicator_settings_screen.dart';
 
 class BulkAnalysisScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -326,7 +327,8 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
               // Open settings and reapply local filters on return without network
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                MaterialPageRoute(
+                    builder: (context) => const IndicatorSettingsScreen()),
               );
               // Reapply filters using stored _rawResults
               await _applyFiltersFromSettings();

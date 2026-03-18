@@ -20,9 +20,19 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE candles ADD COLUMN interval TEXT DEFAULT "day"');
+      // Update existing index to include interval
+      await db.execute('DROP INDEX IF EXISTS idx_symbol_timestamp');
+      await db.execute('CREATE INDEX idx_symbol_timestamp_interval ON candles (symbol, timestamp, interval)');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -36,16 +46,17 @@ class DatabaseHelper {
         low REAL NOT NULL,
         close REAL NOT NULL,
         volume REAL NOT NULL,
-        UNIQUE(symbol, timestamp)
+        interval TEXT DEFAULT "day",
+        UNIQUE(symbol, timestamp, interval)
       )
     ''');
     
     await db.execute('''
-      CREATE INDEX idx_symbol_timestamp ON candles (symbol, timestamp)
+      CREATE INDEX idx_symbol_timestamp_interval ON candles (symbol, timestamp, interval)
     ''');
   }
 
-  Future<void> insertCandles(String symbol, List<HistoricalDataModel> candles) async {
+  Future<void> insertCandles(String symbol, List<HistoricalDataModel> candles, {String interval = "day"}) async {
     final db = await instance.database;
     final batch = db.batch();
 
@@ -60,46 +71,48 @@ class DatabaseHelper {
           'low': candle.low,
           'close': candle.close,
           'volume': candle.volume.toDouble(),
+          'interval': interval,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
 
     await batch.commit(noResult: true);
-    await _pruneCandles(symbol);
+    await _pruneCandles(symbol, interval);
   }
 
-  Future<void> _pruneCandles(String symbol) async {
+  Future<void> _pruneCandles(String symbol, String interval) async {
     final db = await instance.database;
     
-    // Check if more than 1000 candles exist for this symbol
+    // Check count for this specific symbol and interval
     final List<Map<String, dynamic>> result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM candles WHERE symbol = ?',
-      [symbol],
+      'SELECT COUNT(*) as count FROM candles WHERE symbol = ? AND interval = ?',
+      [symbol, interval],
     );
     
     int count = result.first['count'] as int;
+    int limit = (interval == "day") ? 1000 : 5000; // Intraday might need more candles for 10 days
     
-    if (count > 1000) {
-      int toDelete = count - 1000;
+    if (count > limit) {
+      int toDelete = count - limit;
       await db.rawDelete('''
         DELETE FROM candles 
         WHERE id IN (
           SELECT id FROM candles 
-          WHERE symbol = ? 
+          WHERE symbol = ? AND interval = ? 
           ORDER BY timestamp ASC 
           LIMIT ?
         )
-      ''', [symbol, toDelete]);
+      ''', [symbol, interval, toDelete]);
     }
   }
 
-  Future<List<HistoricalDataModel>> getCandles(String symbol) async {
+  Future<List<HistoricalDataModel>> getCandles(String symbol, {String interval = "day"}) async {
     final db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'candles',
-      where: 'symbol = ?',
-      whereArgs: [symbol],
+      where: 'symbol = ? AND interval = ?',
+      whereArgs: [symbol, interval],
       orderBy: 'timestamp ASC',
     );
 

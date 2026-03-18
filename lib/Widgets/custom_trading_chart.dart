@@ -49,6 +49,21 @@ class _CustomTradingChartState extends State<CustomTradingChart> {
     });
   }
 
+  @override
+  void didUpdateWidget(CustomTradingChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data.length != widget.data.length ||
+        (oldWidget.data.isEmpty && widget.data.isNotEmpty)) {
+      setState(() {
+        _candleWidth = 10.0;
+        _priceScale = 1.0;
+        _priceOffset = 0.0;
+        _autoScale = true;
+        _scrollToEnd();
+      });
+    }
+  }
+
   void _scrollToEnd() {
     if (widget.data.isEmpty) return;
     setState(() {

@@ -8,6 +8,9 @@ import 'package:stock_demo/Utils/candle_utils.dart';
 
 import 'package:intl/intl.dart';
 import '../../Widgets/custom_trading_chart.dart';
+import 'history_services.dart';
+import 'indicator_settings_screen.dart';
+import '../../Utils/sharepreference_helper.dart';
 
 class ChartScreen extends StatefulWidget {
   final StockModel stock;
@@ -20,11 +23,12 @@ class ChartScreen extends StatefulWidget {
 
 class _ChartScreenState extends State<ChartScreen> {
   List<ChartData> _chartData = [];
-
   double _maxVolume = 0;
-
   bool _showEma = true;
   bool _showSupertrend = true;
+
+  String _currentTimeframe = "D";
+  bool _isLoading = false;
 
   final ValueNotifier<ChartData?> _hoveredData = ValueNotifier(null);
 
@@ -37,14 +41,54 @@ class _ChartScreenState extends State<ChartScreen> {
   @override
   void initState() {
     super.initState();
-    _calculateChartData();
+    _loadIndicatorSettings();
+    if (widget.stock.historyFiveMin != null &&
+        widget.stock.historyFiveMin!.isNotEmpty) {
+      _calculateChartData(widget.stock.historyFiveMin!);
+    } else {
+      _loadTimeframeData("D");
+    }
   }
 
-  void _calculateChartData() {
-    final List<HistoricalDataModel> candles = widget.stock.historyFiveMin ?? [];
+  Future<void> _loadIndicatorSettings() async {
+    final prefs = SharedPreferenceHelper.instance;
+    final emaVisible = await prefs.getEmaVisible();
+    final supertrendVisible = await prefs.getSupertrendVisible();
+    if (mounted) {
+      setState(() {
+        _showEma = emaVisible;
+        _showSupertrend = supertrendVisible;
+      });
+    }
+  }
 
+  Future<void> _loadTimeframeData(String timeframe) async {
+    setState(() {
+      _isLoading = true;
+      _currentTimeframe = timeframe;
+    });
+
+    try {
+      final HistoryServices historyServices = HistoryServices.instance;
+      final candles =
+          await historyServices.fetchIntervalData(widget.stock, timeframe);
+      _calculateChartData(candles);
+    } catch (e) {
+      debugPrint("Error loading timeframe data: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _calculateChartData(List<HistoricalDataModel> candles) {
     if (candles.isEmpty) {
-      _chartData = [];
+      setState(() {
+        _chartData = [];
+      });
       return;
     }
 
@@ -54,26 +98,30 @@ class _ChartScreenState extends State<ChartScreen> {
     final ema20 = MathUtils.emaAligned(closes, 20);
     final supertrend = IndicatorUtils.supertrendSeries(candles);
 
-    _chartData.clear();
-    _maxVolume = 0;
-    final startIndex = candles.length > 200 ? candles.length - 200 : 0;
-    for (int i = startIndex; i < candles.length; i++) {
-      final c = candles[i];
-      if (c.volume > _maxVolume) _maxVolume = c.volume.toDouble();
+    setState(() {
+      _chartData.clear();
+      _maxVolume = 0;
+      final startIndex = candles.length > 500 ? candles.length - 500 : 0;
+      for (int i = startIndex; i < candles.length; i++) {
+        final c = candles[i];
+        if (c.volume > _maxVolume) _maxVolume = c.volume.toDouble();
 
-      _chartData.add(
-        ChartData(
-          c.timestamp,
-          c.open,
-          c.high,
-          c.low,
-          c.close,
-          c.volume.toDouble(),
-          i < ema20.length && ema20[i] != 0.0 ? ema20[i] : null,
-          i < supertrend.length && supertrend[i] != 0.0 ? supertrend[i] : null,
-        ),
-      );
-    }
+        _chartData.add(
+          ChartData(
+            c.timestamp,
+            c.open,
+            c.high,
+            c.low,
+            c.close,
+            c.volume.toDouble(),
+            i < ema20.length && ema20[i] != 0.0 ? ema20[i] : null,
+            i < supertrend.length && supertrend[i] != 0.0
+                ? supertrend[i]
+                : null,
+          ),
+        );
+      }
+    });
   }
 
   String _formatVolume(double vol) {
@@ -108,34 +156,106 @@ class _ChartScreenState extends State<ChartScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(_showEma ? Icons.trending_up : Icons.trending_flat,
-                color: Colors.blue),
-            onPressed: () => setState(() => _showEma = !_showEma),
-            tooltip: "Toggle EMA",
-          ),
-          IconButton(
-            icon: Icon(_showSupertrend ? Icons.bolt : Icons.flash_off,
-                color: Colors.orange),
-            onPressed: () => setState(() => _showSupertrend = !_showSupertrend),
-            tooltip: "Toggle Supertrend",
-          ),
-        ],
         title: Text(
           widget.stock.symbol ?? '',
           style: const TextStyle(color: Colors.white),
         ),
+        actions: [
+          PopupMenuButton<String>(
+            initialValue: _currentTimeframe,
+            tooltip: "Select Timeframe",
+            onSelected: (tf) {
+              if (tf != _currentTimeframe) {
+                _loadTimeframeData(tf);
+              }
+            },
+            itemBuilder: (context) => ["5m", "15m", "1h", "D"].map((tf) {
+              return PopupMenuItem<String>(
+                value: tf,
+                child: Row(
+                  children: [
+                    Icon(
+                      tf == "D" ? Icons.calendar_today : Icons.access_time,
+                      size: 18,
+                      color: _currentTimeframe == tf
+                          ? Colors.blue
+                          : Colors.white70,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      tf == "5m"
+                          ? "5 Minutes"
+                          : tf == "15m"
+                              ? "15 Minutes"
+                              : tf == "1h"
+                                  ? "1 Hour"
+                                  : "Daily",
+                      style: TextStyle(
+                        color: _currentTimeframe == tf
+                            ? Colors.blue
+                            : Colors.white,
+                        fontWeight: _currentTimeframe == tf
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.query_stats,
+                      size: 16, color: Colors.blueAccent),
+                  const SizedBox(width: 6),
+                  Text(
+                    _currentTimeframe,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white70),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const IndicatorSettingsScreen(),
+                ),
+              );
+              _loadIndicatorSettings();
+            },
+            tooltip: "Indicator Settings",
+          ),
+        ],
       ),
       body: SafeArea(
-        child: _chartData.isEmpty
-            ? const Center(
+        child: Stack(
+          children: [
+            if (_chartData.isEmpty && !_isLoading)
+              const Center(
                 child: Text(
                   "No historical data available.",
                   style: TextStyle(color: Colors.white70),
                 ),
               )
-            : Column(
+            else
+              Column(
                 children: [
                   ValueListenableBuilder<ChartData?>(
                     valueListenable: _hoveredData,
@@ -208,6 +328,7 @@ class _ChartScreenState extends State<ChartScreen> {
                   ),
                   Expanded(
                     child: CustomTradingChart(
+                      key: ValueKey(_currentTimeframe),
                       data: _chartData,
                       showEma: _showEma,
                       showSupertrend: _showSupertrend,
@@ -218,6 +339,13 @@ class _ChartScreenState extends State<ChartScreen> {
                   ),
                 ],
               ),
+            if (_isLoading)
+              Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          ],
+        ),
       ),
     );
   }

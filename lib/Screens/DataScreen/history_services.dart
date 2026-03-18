@@ -188,15 +188,75 @@ class HistoryServices {
     DataManager.instance.preFilteredStocksList = preFilteredList;
   }
 
+  /// Fetches data for a specific stock and interval, with local DB fallback and pruning.
+  Future<List<HistoricalDataModel>> fetchIntervalData(
+    StockModel stock,
+    String interval, {
+    bool forceRefresh = false,
+  }) async {
+    final cleanedSymbol = stock.symbol?.replaceAll("NSE:", "");
+    if (cleanedSymbol == null) return [];
+
+    // 1. Try local data first
+    List<HistoricalDataModel> localData =
+        await DatabaseHelper.instance.getCandles(cleanedSymbol, interval: interval);
+
+    // Standard Zerodha/Kite intervals: 5minute, 15minute, 60minute, day
+    String apiInterval = interval;
+    if (interval == "5m") apiInterval = "5minute";
+    if (interval == "15m") apiInterval = "15minute";
+    if (interval == "1h") apiInterval = "60minute";
+    if (interval == "D") apiInterval = "day";
+
+    final now = DateTime.now();
+    bool needsFetch = localData.isEmpty || forceRefresh;
+
+    // For intraday, if last candle is from a previous day, we should refresh to get recent data
+    if (localData.isNotEmpty && interval != "D") {
+      final lastTimestamp = localData.last.timestamp;
+      if (lastTimestamp.isBefore(now.subtract(const Duration(hours: 1)))) {
+        needsFetch = true;
+      }
+    }
+
+    if (needsFetch) {
+      final connectivityResult = await (Connectivity().checkConnectivity());
+      if (connectivityResult.contains(ConnectivityResult.none)) return localData;
+
+      // Calculate 'from' date based on requirement (10 days for intraday, 1000 for day)
+      DateTime fromDate;
+      if (interval == "D") {
+        fromDate = now.subtract(const Duration(days: 1000));
+      } else {
+        fromDate = now.subtract(const Duration(days: 10));
+      }
+
+      final newHistory = await fetchHistoricalData(
+        int.tryParse(stock.token.toString()) ?? 0,
+        now,
+        fromDate: fromDate,
+        interval: apiInterval,
+      );
+
+      if (newHistory != null && newHistory.isNotEmpty) {
+        await DatabaseHelper.instance.insertCandles(cleanedSymbol, newHistory,
+            interval: interval);
+        localData = await DatabaseHelper.instance.getCandles(cleanedSymbol,
+            interval: interval);
+      }
+    }
+
+    return localData;
+  }
+
   /// Fetch historical data for a given instrument token
   Future<List<HistoricalDataModel>?> fetchHistoricalData(
     int instrumentToken,
     DateTime toDate, {
     DateTime? fromDate,
     List<String>? symbols,
+    String interval = "day",
   }) async {
-    final interval = "day";
-
     final from = fromDate != null
         ? "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}"
         : Utilities.getBusinessDaysAgo(toDate, 1000);
@@ -205,7 +265,7 @@ class HistoryServices {
         "${toDateFinal.year}-${toDateFinal.month.toString().padLeft(2, '0')}-${toDateFinal.day.toString().padLeft(2, '0')}";
 
     log(
-      'Fetching history for token: $instrumentToken,from: $from to: $to, symbols: ${symbols?.join(',') ?? 'N/A'}',
+      'Fetching history for token: $instrumentToken, interval: $interval, from: $from to: $to',
     );
 
     final response = await ApiService.instance.apiCall(
