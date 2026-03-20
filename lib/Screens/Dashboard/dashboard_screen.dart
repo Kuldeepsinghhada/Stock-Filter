@@ -18,8 +18,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _screens = [
-      FilteredStockScreen(),
       BulkAnalysisScreen(selectedDate: DateTime.now()),
+      FilteredStockScreen(),
     ];
   }
 
@@ -36,10 +36,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         items: const [
           BottomNavigationBarItem(
+              icon: Icon(Icons.data_usage), label: "INVESTMENT"),
+          BottomNavigationBarItem(
             icon: Icon(Icons.filter_center_focus),
-            label: "FILTERED",
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.data_usage), label: "Data"),
+            label: "TRADE",
+          )
         ],
       ),
     );

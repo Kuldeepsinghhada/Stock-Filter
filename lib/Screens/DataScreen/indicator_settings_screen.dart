@@ -5,7 +5,8 @@ class IndicatorSettingsScreen extends StatefulWidget {
   const IndicatorSettingsScreen({super.key});
 
   @override
-  State<IndicatorSettingsScreen> createState() => _IndicatorSettingsScreenState();
+  State<IndicatorSettingsScreen> createState() =>
+      _IndicatorSettingsScreenState();
 }
 
 class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
@@ -40,7 +41,8 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xff131722),
       appBar: AppBar(
-        title: const Text("Indicator Settings", style: TextStyle(color: Colors.white)),
+        title: const Text("Indicator Settings",
+            style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xff131722),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -48,6 +50,34 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _buildSectionHeader("Scanner Settings"),
+          _buildSwitchTile(
+            title: "Swing Scanner (Loose)",
+            subtitle:
+                "Enable/Disable the loose swing trading strategy in bulk analysis.",
+            value: _swingScannerEnabled,
+            onChanged: (val) async {
+              await SharedPreferenceHelper.instance
+                  .setEnableSwingScannerLoose(val);
+              setState(() => _swingScannerEnabled = val);
+            },
+            icon: Icons.radar,
+            iconColor: Colors.purpleAccent,
+          ),
+          _buildSwitchTile(
+            title: "Only Green Candles",
+            subtitle:
+                "Filter results to only show stocks that closed in green today.",
+            value: _onlyGreenEnabled,
+            onChanged: (val) async {
+              await SharedPreferenceHelper.instance
+                  .setClosedInGreenEnabled(val);
+              setState(() => _onlyGreenEnabled = val);
+            },
+            icon: Icons.filter_list,
+            iconColor: Colors.green,
+          ),
+          const Divider(color: Colors.white10, height: 32),
           _buildSectionHeader("Chart Indicators"),
           _buildSwitchTile(
             title: "Exponential Moving Average (EMA 20)",
@@ -62,7 +92,8 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
           ),
           _buildSwitchTile(
             title: "Supertrend",
-            subtitle: "Assists in identifying buy/sell signals based on volatility.",
+            subtitle:
+                "Assists in identifying buy/sell signals based on volatility.",
             value: _supertrendEnabled,
             onChanged: (val) async {
               await SharedPreferenceHelper.instance.setSupertrendVisible(val);
@@ -70,30 +101,6 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
             },
             icon: Icons.bolt,
             iconColor: Colors.orange,
-          ),
-          const Divider(color: Colors.white10, height: 32),
-          _buildSectionHeader("Scanner Settings"),
-          _buildSwitchTile(
-            title: "Swing Scanner (Loose)",
-            subtitle: "Enable/Disable the loose swing trading strategy in bulk analysis.",
-            value: _swingScannerEnabled,
-            onChanged: (val) async {
-              await SharedPreferenceHelper.instance.setEnableSwingScannerLoose(val);
-              setState(() => _swingScannerEnabled = val);
-            },
-            icon: Icons.radar,
-            iconColor: Colors.purpleAccent,
-          ),
-          _buildSwitchTile(
-            title: "Only Green Candles",
-            subtitle: "Filter results to only show stocks that closed in green today.",
-            value: _onlyGreenEnabled,
-            onChanged: (val) async {
-              await SharedPreferenceHelper.instance.setClosedInGreenEnabled(val);
-              setState(() => _onlyGreenEnabled = val);
-            },
-            icon: Icons.filter_list,
-            iconColor: Colors.green,
           ),
         ],
       ),
@@ -138,8 +145,11 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
           ),
           child: Icon(icon, color: iconColor, size: 24),
         ),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        title: Text(title,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle,
+            style: const TextStyle(color: Colors.white54, fontSize: 12)),
         trailing: Switch(
           value: value,
           onChanged: onChanged,

@@ -314,7 +314,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bulk AI Analysis'),
+        title: Text('ANALYSIS'.toUpperCase()),
         actions: [
           IconButton(
             onPressed:
