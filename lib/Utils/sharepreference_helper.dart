@@ -241,4 +241,14 @@ class SharedPreferenceHelper {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool(supertrendVisibleKey) ?? true;
   }
+
+  Future<void> setStringList(String key, List<String> value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(key, value);
+  }
+
+  Future<List<String>?> getStringList(String key) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(key);
+  }
 }

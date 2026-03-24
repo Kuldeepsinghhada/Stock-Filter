@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Screens/DataScreen/bulk_analysis_screen.dart';
+import 'package:stock_demo/Screens/DataScreen/intraday_screen.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _screens = [
       BulkAnalysisScreen(selectedDate: DateTime.now()),
+      const IntradayScreen(),
       FilteredStockScreen(),
     ];
   }
@@ -29,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
+        type: BottomNavigationBarType.fixed,
         onTap: (index) {
           setState(() {
             _currentIndex = index;
@@ -37,6 +40,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         items: const [
           BottomNavigationBarItem(
               icon: Icon(Icons.data_usage), label: "INVESTMENT"),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.trending_up), label: "INTRADAY"),
           BottomNavigationBarItem(
             icon: Icon(Icons.filter_center_focus),
             label: "TRADE",

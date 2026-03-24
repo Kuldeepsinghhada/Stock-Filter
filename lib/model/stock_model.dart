@@ -20,30 +20,30 @@ class Ohlc {
 }
 
 class StockModel {
-  final String? symbol;
-  final String? name;
-  final dynamic token;
-  final String? sector;
-  final String? link;
-  final String? timestamp;
-  final String? lastTradeTime;
-  final double? lastPrice;
-  final int? lastQuantity;
-  final int? buyQuantity;
-  final int? sellQuantity;
-  final int? volume;
-  final double? averagePrice;
-  final int? oi;
-  final int? oiDayHigh;
-  final int? oiDayLow;
-  final double? netChange;
-  final double? lowerCircuitLimit;
-  final double? upperCircuitLimit;
-  final Ohlc? ohlc;
-  final List<HistoricalDataModel>? historyFiveMin;
-  final List<HistoricalDataModel>? historyFifteenMin;
-  final List<HistoricalDataModel>? history30Min;
-  final List<HistoricalDataModel>? historyOneHour;
+  String? symbol;
+  String? name;
+  dynamic token;
+  String? sector;
+  String? link;
+  String? timestamp;
+  String? lastTradeTime;
+  double? lastPrice;
+  int? lastQuantity;
+  int? buyQuantity;
+  int? sellQuantity;
+  int? volume;
+  double? averagePrice;
+  int? oi;
+  int? oiDayHigh;
+  int? oiDayLow;
+  double? netChange;
+  double? lowerCircuitLimit;
+  double? upperCircuitLimit;
+  Ohlc? ohlc;
+  List<HistoricalDataModel>? historyFiveMin;
+  List<HistoricalDataModel>? historyFifteenMin;
+  List<HistoricalDataModel>? history30Min;
+  List<HistoricalDataModel>? historyOneHour;
 
   StockModel({
     this.symbol,
