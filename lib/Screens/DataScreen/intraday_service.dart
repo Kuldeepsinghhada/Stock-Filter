@@ -50,16 +50,41 @@ class IntradayService {
           return {'error': 'Insufficient historical days for comparison'};
         }
 
-        // The very last date is "Today" (even if in history mode)
-        final todayDate = sortedDates.last;
-        // The one before that is the "Previous Working Day"
-        final lastWorkDayDate = sortedDates[sortedDates.length - 2];
+        // Identify 'Today' as the date of effectiveDateTime (regardless of whether it's the absolute last in API)
+        final DateTime targetTodayDate = DateTime(effectiveDateTime.year,
+            effectiveDateTime.month, effectiveDateTime.day);
+
+        // Find the index of targetTodayDate in sorted dates
+        int todayIndex =
+            sortedDates.indexWhere((d) => d.isAtSameMomentAs(targetTodayDate));
+
+        // If the exact selected date isn't in the data, find the closest one that is NOT after it
+        if (todayIndex == -1) {
+          todayIndex =
+              sortedDates.lastIndexWhere((d) => d.isBefore(targetTodayDate));
+        }
+
+        if (todayIndex < 1) {
+          return {
+            'error': 'Insufficient history found before the selected date'
+          };
+        }
+
+        final todayDate = sortedDates[todayIndex];
+        final lastWorkDayDate = sortedDates[todayIndex - 1];
 
         final yesterdayCandles = grouped[lastWorkDayDate] ?? [];
 
-        // Today's candles filtered by the target time (including the selected minute)
+        // Today's candles filtered by the target time within that SPECIFIC todayDate
         final todayCandles = (grouped[todayDate] ?? []).where((c) {
-          // Buffer of 1s to include the exact selected minute candle
+          // 1. Must be on the correct date (avoids picking later days if API returned more)
+          final isSameDay = c.timestamp.year == todayDate.year &&
+              c.timestamp.month == todayDate.month &&
+              c.timestamp.day == todayDate.day;
+
+          if (!isSameDay) return false;
+
+          // 2. Must not be after the selected time (buffer of 1s to include the exact minute)
           return !c.timestamp
               .isAfter(effectiveDateTime.add(const Duration(seconds: 1)));
         }).toList();

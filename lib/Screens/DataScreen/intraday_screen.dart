@@ -28,7 +28,8 @@ class IntradayStockData {
   Color get signalColor {
     if (signal == "SUPER HOT") return Colors.greenAccent;
     if (signal == "VERY HOT") return Colors.orangeAccent;
-    if (signal == "HOT") return Colors.redAccent;
+    if (signal == "HOT") return Colors.greenAccent;
+    if (signal == "NORMAL") return Colors.redAccent;
     return Colors.white70;
   }
 }
@@ -147,7 +148,7 @@ class _IntradayScreenState extends State<IntradayScreen> {
 
   Future<void> _fetchLoop() async {
     if (!isTaskRunning) return;
-    
+
     for (var data in intradayList) {
       if (!isTaskRunning) break;
       await _fetchDataForStock(data);
@@ -202,7 +203,7 @@ class _IntradayScreenState extends State<IntradayScreen> {
           data.signal = "SUPER HOT";
         } else if (data.volumePercent > 180) {
           data.signal = "VERY HOT";
-        } else if (data.volumePercent > 150) {
+        } else if (data.volumePercent > 100) {
           data.signal = "HOT";
         } else {
           data.signal = "NORMAL";
@@ -231,11 +232,12 @@ class _IntradayScreenState extends State<IntradayScreen> {
     return Scaffold(
       backgroundColor: const Color(0xff131722),
       appBar: AppBar(
-          title: Text(isHistoryMode ? "History" : "Live Scanner"),
-          backgroundColor: const Color(0xff131722),
-          actions: [
+        title: Text(isHistoryMode ? "History" : "Live Scanner"),
+        backgroundColor: const Color(0xff131722),
+        actions: [
           IconButton(
-            icon: Icon(Icons.settings, color: isHistoryMode ? Colors.orangeAccent : Colors.white),
+            icon: Icon(Icons.settings,
+                color: isHistoryMode ? Colors.orangeAccent : Colors.white),
             onPressed: () async {
               final result = await Navigator.push(
                 context,
@@ -270,17 +272,34 @@ class _IntradayScreenState extends State<IntradayScreen> {
         children: [
           _buildSummaryHeader(),
           Expanded(
-            child: intradayList.isEmpty
-                ? const Center(
-                    child: Text("Add stocks to start scanning",
-                        style: TextStyle(color: Colors.white54)))
-                : ListView.builder(
-                    itemCount: intradayList.length,
-                    itemBuilder: (context, index) {
-                      final item = intradayList[index];
-                      return _buildStockCard(item, index);
-                    },
-                  ),
+            child: RefreshIndicator(
+              onRefresh: () async {
+                // 1. Reload list from local storage
+                await _loadSavedStocks();
+              },
+              color: Colors.greenAccent,
+              child: intradayList.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(
+                          height: 300,
+                          child: Center(
+                            child: Text("Add stocks to start scanning",
+                                style: TextStyle(color: Colors.white54)),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: intradayList.length,
+                      itemBuilder: (context, index) {
+                        final item = intradayList[index];
+                        return _buildStockCard(item, index);
+                      },
+                    ),
+            ),
           ),
         ],
       ),
@@ -574,7 +593,9 @@ class _IntradaySettingsScreenState extends State<IntradaySettingsScreen> {
                 'selectedTime': _selectedTime,
               });
             },
-            child: const Text("DONE", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            child: const Text("DONE",
+                style: TextStyle(
+                    color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -604,7 +625,12 @@ class _IntradaySettingsScreenState extends State<IntradaySettingsScreen> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 12, bottom: 12),
-      child: Text(title, style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+      child: Text(title,
+          style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2)),
     );
   }
 
@@ -612,9 +638,13 @@ class _IntradaySettingsScreenState extends State<IntradaySettingsScreen> {
     return Card(
       color: const Color(0xff1e222d),
       child: ListTile(
-        title: Text(isHistoryMode ? "History Analysis" : "Live Streaming", style: const TextStyle(color: Colors.white)),
-        subtitle: Text(isHistoryMode ? "Check volume data for a specific past date/time" : "Monitor latest market volume continuously", 
-          style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        title: Text(isHistoryMode ? "History Analysis" : "Live Streaming",
+            style: const TextStyle(color: Colors.white)),
+        subtitle: Text(
+            isHistoryMode
+                ? "Check volume data for a specific past date/time"
+                : "Monitor latest market volume continuously",
+            style: const TextStyle(color: Colors.white54, fontSize: 12)),
         trailing: Switch(
           value: isHistoryMode,
           activeColor: Colors.orangeAccent,
@@ -630,9 +660,12 @@ class _IntradaySettingsScreenState extends State<IntradaySettingsScreen> {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.calendar_today, color: Colors.orangeAccent),
-            title: const Text("Select Date", style: TextStyle(color: Colors.white)),
-            trailing: Text(DateFormat('dd MMM yyyy').format(_selectedDate), style: const TextStyle(color: Colors.white70)),
+            leading:
+                const Icon(Icons.calendar_today, color: Colors.orangeAccent),
+            title: const Text("Select Date",
+                style: TextStyle(color: Colors.white)),
+            trailing: Text(DateFormat('dd MMM yyyy').format(_selectedDate),
+                style: const TextStyle(color: Colors.white70)),
             onTap: () async {
               final picked = await showDatePicker(
                 context: context,
@@ -646,8 +679,10 @@ class _IntradaySettingsScreenState extends State<IntradaySettingsScreen> {
           const Divider(color: Colors.white10),
           ListTile(
             leading: const Icon(Icons.access_time, color: Colors.orangeAccent),
-            title: const Text("Select Time", style: TextStyle(color: Colors.white)),
-            trailing: Text(_selectedTime.format(context), style: const TextStyle(color: Colors.white70)),
+            title: const Text("Select Time",
+                style: TextStyle(color: Colors.white)),
+            trailing: Text(_selectedTime.format(context),
+                style: const TextStyle(color: Colors.white70)),
             onTap: () async {
               final picked = await showTimePicker(
                 context: context,

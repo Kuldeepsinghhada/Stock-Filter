@@ -31,6 +31,7 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
   List<dynamic> _allStocks = [];
   late DateTime _selectedDate;
   List<String> _searchHistory = [];
+  List<String> _intradaySymbols = [];
 
   @override
   void initState() {
@@ -38,6 +39,16 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     _selectedDate = widget.selectedDate;
     _loadStocksData();
     _loadSearchHistory();
+    _loadIntradaySymbols();
+  }
+
+  Future<void> _loadIntradaySymbols() async {
+    final List<String> current = (await SharedPreferenceHelper.instance
+            .getStringList('intraday_symbols')) ??
+        [];
+    setState(() {
+      _intradaySymbols = current;
+    });
   }
 
   @override
@@ -310,6 +321,40 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     }
   }
 
+  Future<void> _toggleIntraday(String symbol) async {
+    final List<String> current = (await SharedPreferenceHelper.instance
+            .getStringList('intraday_symbols')) ??
+        [];
+
+    if (current.contains(symbol)) {
+      current.remove(symbol);
+      await SharedPreferenceHelper.instance
+          .setStringList('intraday_symbols', current);
+      setState(() {
+        _intradaySymbols = current;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed $symbol from Intraday list')),
+        );
+      }
+      return;
+    }
+
+    current.add(symbol);
+    await SharedPreferenceHelper.instance
+        .setStringList('intraday_symbols', current);
+    setState(() {
+      _intradaySymbols = current;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added $symbol to Intraday list')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -504,24 +549,46 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
                                       ),
                                   ],
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: verdictColor
-                                        .withAlpha((0.1 * 255).round()),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: verdictColor),
-                                  ),
-                                  child: Text(
-                                    "$score% - $verdict",
-                                    style: TextStyle(
-                                      color: verdictColor,
-                                      fontWeight: FontWeight.bold,
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: verdictColor
+                                            .withAlpha((0.1 * 255).round()),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: verdictColor),
+                                      ),
+                                      child: Text(
+                                        "$score% - $verdict",
+                                        style: TextStyle(
+                                          color: verdictColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: Icon(
+                                          _intradaySymbols.contains(symbol)
+                                              ? Icons.check_circle
+                                              : Icons.add_circle_outline,
+                                          size: 20,
+                                          color: _intradaySymbols
+                                                  .contains(symbol)
+                                              ? Colors.greenAccent
+                                              : Colors.blueAccent),
+                                      onPressed: () => _toggleIntraday(symbol),
+                                      tooltip: _intradaySymbols.contains(symbol)
+                                          ? "Remove from Intraday"
+                                          : "Add to Intraday",
+                                      constraints: const BoxConstraints(),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
