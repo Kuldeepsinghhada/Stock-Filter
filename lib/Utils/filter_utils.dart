@@ -46,7 +46,7 @@ class FilterUtils {
     //   failedReasons.add("Yesterday Volume Not Enough");
     // }
 
-    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
+    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrongV2(candles);
     if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
 
     bool is2PcChange =
@@ -175,35 +175,56 @@ class FilterUtils {
     final lowerLimit = stock.lowerCircuitLimit;
     final upperLimit = stock.upperCircuitLimit;
     final ohlc = stock.ohlc;
+
     final close = ohlc?.close;
+    final open = ohlc?.open;
+    final high = ohlc?.high;
+    final low = ohlc?.low;
+
     final volume = stock.volume;
-    final percentChange =
-        ((stock.lastPrice! - stock.ohlc!.open!) / stock.ohlc!.open!) * 100;
 
     if (lastPrice == null ||
         close == null ||
+        open == null ||
+        high == null ||
+        low == null ||
         lowerLimit == null ||
         upperLimit == null ||
         volume == null) {
       return false;
     }
 
-    if (lastPrice <= 20 || lastPrice >= 2500) return false;
-    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
-    if (lastPrice <= close) return false;
-    if (percentChange <= 1.5) return false;
+    final percentChange = ((lastPrice - open) / open) * 100;
+    final rangePercent = ((high - low) / open) * 100;
 
-    // Only enforce the volume threshold on working days.
-    // If today is a weekend or a holiday (Utilities.getLastWorkingDay shifts back),
-    // skip the volume check.
+    // ✅ Price range filter
+    if (lastPrice < 30 || lastPrice > 1500) return false;
+
+    // ✅ Avoid circuit stocks
+    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
+
+    // ✅ Must be green today
+    if (lastPrice <= open) return false;
+
+    // ✅ Momentum required
+    if (percentChange < 1.2) return false;
+
+    // ✅ Must have movement
+    if (rangePercent < 1) return false;
+
+    // ✅ Liquidity filter
+    if (volume < 10000) return false;
+
+    // ✅ Working day volume check
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
+
     final isWorkingDay = lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
     if (isWorkingDay) {
-      if (volume <= 15000) return false;
+      if (volume < 10000) return false;
     }
     return true;
   }

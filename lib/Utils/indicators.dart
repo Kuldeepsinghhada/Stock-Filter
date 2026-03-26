@@ -448,6 +448,66 @@ class IndicatorUtils {
 
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
+
+  static bool isVolumeBreakoutStrongV2(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.length < 100) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final Map<String, List<HistoricalDataModel>> dayMap = {};
+
+    for (final c in candles) {
+      final d = c.timestamp;
+
+      final key = "${d.year}-${d.month}-${d.day}";
+
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+
+    if (dayMap.length < 4) return false;
+
+    final keys = dayMap.keys.toList()..sort();
+
+    final todayKey = keys.last;
+
+    final todayCandles = dayMap[todayKey]!;
+
+    if (todayCandles.length < 3) return false;
+
+    /// ignore first 2 candles
+    // final todayFiltered =
+    //     todayCandles.length > 3 ? todayCandles.skip(2).toList() : todayCandles;
+
+    final todayFiltered =
+        todayCandles.length > 3 ? todayCandles.toList() : todayCandles;
+
+    final todayAvg =
+        todayFiltered.map((e) => e.volume).reduce((a, b) => a + b) /
+            todayFiltered.length;
+
+    /// last 3 days avg
+    double prevTotal = 0;
+    int prevCount = 0;
+
+    for (int i = keys.length - 2; i >= 0 && prevCount < 3; i--) {
+      final dayCandles = dayMap[keys[i]]!;
+
+      final avg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+          dayCandles.length;
+
+      prevTotal += avg;
+      prevCount++;
+    }
+
+    if (prevCount < 3) return false;
+
+    final prevAvg = prevTotal / prevCount;
+
+    return todayAvg > prevAvg * 1.25;
+  }
+
   static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
     if (candles.length < 30) return false;
 
@@ -473,125 +533,6 @@ class IndicatorUtils {
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
 
     return last > ema20! * 1.5 && last > avg20 * 1.5 && last > avg5 * 1.5;
-  }
-
-  static bool isVolumeBreakoutStrongNew(List<HistoricalDataModel> candles) {
-    if (candles.length < 30) return false;
-
-    CandleUtils.sortByTime(candles);
-
-    final volumes = candles.map((e) => e.volume.toDouble()).toList();
-    final lastVol = volumes.last;
-
-    // EMA 20 Volume
-    final emaVol = MathUtils.emaAligned(volumes, 20);
-    final ema20 = emaVol.last!;
-
-    // AVG 20 Volume
-    final avg20 =
-        volumes.sublist(volumes.length - 20).reduce((a, b) => a + b) / 20;
-
-    // AVG 5 Volume
-    final avg5 =
-        volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
-
-    // Relative Volume
-    final rvol = lastVol / avg20;
-
-    // Price confirmation (avoid sell-volume candle)
-    final lastCandle = candles.last;
-    if (lastCandle.close < lastCandle.open) return false;
-
-    return lastVol > ema20 * 1.5 && // Trend-based expansion
-        lastVol > avg20 * 1.5 && // Real participation
-        lastVol > avg5 * 1.2 && // Continuation allowed
-        rvol > 1.5 &&
-        rvol < 4; // Algo spike protection
-  }
-
-  static bool isVolumeBreakoutStrongMore(
-    List<HistoricalDataModel> candles, {
-    double emaMultiplier = 1.4,
-    double avgYesMultiplier = 1.4,
-    double avgAllMultiplier = 1.2,
-    double avg5Multiplier = 1.5,
-    double prevMultiplier = 1.1, // previous candle check
-  }) {
-    if (candles.length < 30) return false;
-
-    CandleUtils.sortByTime(candles);
-    final volumes = candles.map((e) => e.volume.toDouble()).toList();
-    final last = volumes.last;
-    final prevVol = volumes[volumes.length - 2]; // previous candle
-
-    final now = DateTime.now();
-    final yesterday = Utilities.getLastWorkingDay(
-      now,
-    ).subtract(Duration(days: 1));
-
-    // Yesterday volumes
-    final yesterdayVolumes = candles
-        .where((c) {
-          final ts = c.timestamp.toLocal();
-          return ts.year == yesterday.year &&
-              ts.month == yesterday.month &&
-              ts.day == yesterday.day;
-        })
-        .map((c) => c.volume.toDouble())
-        .toList();
-
-    if (yesterdayVolumes.isEmpty) return false;
-
-    // EMA20 of all candles (could switch to yesterdayVolumes if preferred)
-    final emaVol = MathUtils.emaAligned(volumes, 20);
-    final ema20 = emaVol.last;
-
-    // Averages
-    final avgYes20 =
-        yesterdayVolumes.reduce((a, b) => a + b) / yesterdayVolumes.length;
-    final avg20 = volumes.reduce((a, b) => a + b) / volumes.length;
-    final avg5 =
-        volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
-
-    // --- Conditions ---
-    return last > ema20! * emaMultiplier &&
-        last > avgYes20 * avgYesMultiplier &&
-        last > avg20 * avgAllMultiplier &&
-        last > avg5 * avg5Multiplier &&
-        last > prevVol * prevMultiplier; // ✅ Previous candle check
-  }
-
-  /// ---------- Day-specific checks ----------
-  /// true if today's close > highest high of previous N trading days (skips weekends)
-  static bool isCloseAboveLastNDaysHigh(
-    List<HistoricalDataModel> candles, {
-    int lastDays = 5,
-  }) {
-    CandleUtils.sortByTime(candles);
-    final grouped = CandleUtils.groupByDate(candles);
-    final dates = grouped.keys.toList()..sort();
-    if (dates.length < lastDays + 1) return false; // need today + lastDays
-
-    final lastDate = dates.last;
-    final todayCandles = grouped[lastDate]!;
-    final todayClose = todayCandles.last.close;
-
-    final prevDates = <DateTime>[];
-    for (int i = dates.length - 2; i >= 0 && prevDates.length < lastDays; i--) {
-      final d = dates[i];
-      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
-        continue;
-      }
-      prevDates.add(d);
-    }
-    if (prevDates.length < lastDays) return false;
-
-    double highest = double.negativeInfinity;
-    for (var d in prevDates) {
-      final hh = grouped[d]!.map((c) => c.high).reduce(max);
-      if (hh > highest) highest = hh;
-    }
-    return todayClose > highest;
   }
 
   /// today close >= yesterday high * (1 + pct)
@@ -814,7 +755,7 @@ class IndicatorUtils {
         volumeToCheck = lastWorkDayCandle.volume;
       }
     }
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 15000) : false;
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 10000) : false;
     return isVolumeOk;
   }
 

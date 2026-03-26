@@ -110,19 +110,20 @@ class HistoryServices {
             List<HistoricalDataModel>? history;
 
             // Fetch from database
-            final localData = await DatabaseHelper.instance.getCandles(cleanedSymbol);
-            
+            final localData =
+                await DatabaseHelper.instance.getCandles(cleanedSymbol);
+
             if (localData.isNotEmpty) {
               final lastDate = localData.last.timestamp;
               final today = DateTime.now();
               final isTodayFetched = lastDate.year == today.year &&
-                                     lastDate.month == today.month &&
-                                     lastDate.day == today.day;
+                  lastDate.month == today.month &&
+                  lastDate.day == today.day;
 
               if (isRefresh && hasInternet && !isTodayFetched) {
                 // Fetch missing days
                 final fetchFromDate = lastDate.add(const Duration(days: 1));
-                
+
                 didAPICall = true;
                 final newHistory = await fetchHistoricalData(
                   int.tryParse(stock.token.toString()) ?? 0,
@@ -133,8 +134,10 @@ class HistoryServices {
 
                 if (newHistory != null && newHistory.isNotEmpty) {
                   // Merge and Save to DB (DatabaseHelper handles merging via ConflictAlgorithm.replace)
-                  await DatabaseHelper.instance.insertCandles(cleanedSymbol, newHistory);
-                  history = await DatabaseHelper.instance.getCandles(cleanedSymbol);
+                  await DatabaseHelper.instance
+                      .insertCandles(cleanedSymbol, newHistory);
+                  history =
+                      await DatabaseHelper.instance.getCandles(cleanedSymbol);
                   lastApiCount++;
                 } else {
                   history = localData;
@@ -157,7 +160,8 @@ class HistoryServices {
                   symbols: [cleanedSymbol],
                 );
                 if (history != null && history.isNotEmpty) {
-                  await DatabaseHelper.instance.insertCandles(cleanedSymbol, history);
+                  await DatabaseHelper.instance
+                      .insertCandles(cleanedSymbol, history);
                   lastApiCount++;
                 } else {
                   lastUnavailableList.add(cleanedSymbol);
@@ -198,8 +202,8 @@ class HistoryServices {
     if (cleanedSymbol == null) return [];
 
     // 1. Try local data first
-    List<HistoricalDataModel> localData =
-        await DatabaseHelper.instance.getCandles(cleanedSymbol, interval: interval);
+    List<HistoricalDataModel> localData = await DatabaseHelper.instance
+        .getCandles(cleanedSymbol, interval: interval);
 
     // Standard Zerodha/Kite intervals: 5minute, 15minute, 60minute, day
     String apiInterval = interval;
@@ -221,7 +225,8 @@ class HistoryServices {
 
     if (needsFetch) {
       final connectivityResult = await (Connectivity().checkConnectivity());
-      if (connectivityResult.contains(ConnectivityResult.none)) return localData;
+      if (connectivityResult.contains(ConnectivityResult.none))
+        return localData;
 
       // Calculate 'from' date based on requirement (10 days for intraday, 1000 for day)
       DateTime fromDate;
@@ -239,10 +244,10 @@ class HistoryServices {
       );
 
       if (newHistory != null && newHistory.isNotEmpty) {
-        await DatabaseHelper.instance.insertCandles(cleanedSymbol, newHistory,
-            interval: interval);
-        localData = await DatabaseHelper.instance.getCandles(cleanedSymbol,
-            interval: interval);
+        await DatabaseHelper.instance
+            .insertCandles(cleanedSymbol, newHistory, interval: interval);
+        localData = await DatabaseHelper.instance
+            .getCandles(cleanedSymbol, interval: interval);
       }
     }
 
