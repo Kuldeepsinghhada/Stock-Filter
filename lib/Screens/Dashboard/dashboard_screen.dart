@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:stock_demo/Screens/DataScreen/bulk_analysis_screen.dart';
-import 'package:stock_demo/Screens/DataScreen/intraday_screen.dart';
+import 'package:stock_demo/Screens/Swing/bulk_analysis_screen.dart';
+import 'package:stock_demo/Screens/Intraday/intraday_screen.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 
 class DashboardScreen extends StatefulWidget {

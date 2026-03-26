@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Screens/DataScreen/history_services.dart';
-import 'package:stock_demo/Screens/DataScreen/chart_screen.dart'; // Added import
+import 'package:stock_demo/Screens/Chart/chart_screen.dart'; // Added import
 import 'package:stock_demo/Utils/ai_score_calculator.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'indicator_settings_screen.dart';
+import '../Chart/indicator_settings_screen.dart';
 
 class BulkAnalysisScreen extends StatefulWidget {
   final DateTime selectedDate;

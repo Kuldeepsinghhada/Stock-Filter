@@ -6,7 +6,7 @@ import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/math_utils.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 import '../../Widgets/custom_trading_chart.dart';
-import 'history_services.dart';
+import '../DataScreen/history_services.dart';
 import 'indicator_settings_screen.dart';
 import '../../Utils/sharepreference_helper.dart';
 

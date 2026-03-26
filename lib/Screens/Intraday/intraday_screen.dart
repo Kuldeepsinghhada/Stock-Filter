@@ -1,18 +1,13 @@
 import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:stock_demo/APIService/api_service.dart';
-import 'package:stock_demo/APIService/end_point.dart';
-import 'package:stock_demo/Utils/candle_utils.dart';
-import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:intl/intl.dart';
-import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:stock_demo/Screens/DataScreen/intraday_service.dart';
+import 'package:stock_demo/Screens/Intraday/intraday_service.dart';
 
 class IntradayStockData {
   final StockModel stock;
@@ -46,7 +41,6 @@ class _IntradayScreenState extends State<IntradayScreen> {
   List<IntradayStockData> intradayList = [];
   Timer? _timer;
   final TextEditingController _searchController = TextEditingController();
-  List<dynamic> _allStocksMaster = [];
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool isHistoryMode = false;
