@@ -456,13 +456,17 @@ class IndicatorUtils {
 
     CandleUtils.sortByTime(candles);
 
-    final Map<String, List<HistoricalDataModel>> dayMap = {};
+    if (candles.last.timestamp.hour == 10 &&
+        candles.last.timestamp.minute == 25) {
+      print("Debug");
+    }
+
+    final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
 
     for (final c in candles) {
       final d = c.timestamp;
 
-      final key = "${d.year}-${d.month}-${d.day}";
-
+      final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
     }
 
