@@ -297,11 +297,11 @@ class _IntradayScreenState extends State<IntradayScreen> {
           ),
         ],
       ),
-      // floatingActionButton: FloatingActionButton.extended(
-      //   onPressed: isTaskRunning ? stopTask : startTask,
-      //   label: Text(isTaskRunning ? "STOP" : "START"),
-      //   icon: Icon(isTaskRunning ? Icons.stop : Icons.play_arrow),
-      // ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: isTaskRunning ? stopTask : startTask,
+        label: Text(isTaskRunning ? "STOP" : "START"),
+        icon: Icon(isTaskRunning ? Icons.stop : Icons.play_arrow),
+      ),
     );
   }
 

@@ -46,7 +46,9 @@ class FilterUtils {
     //   failedReasons.add("Yesterday Volume Not Enough");
     // }
 
-    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrongV2(candles);
+    bool isVolume1M = IndicatorUtils.isYesterdayVolumeAbove1M(candles);
+
+    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
     if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
 
     bool is2PcChange =
@@ -64,6 +66,7 @@ class FilterUtils {
         adxRes &&
         atrOk &&
         is2PcChange &&
+        isVolume1M &&
         isVolumeBreakout;
 
     // 🔥 Print only when exactly ONE condition failed
@@ -213,7 +216,7 @@ class FilterUtils {
     if (rangePercent < 1) return false;
 
     // ✅ Liquidity filter
-    if (volume < 10000) return false;
+    if (volume < 15000) return false;
 
     // ✅ Working day volume check
     final now = DateTime.now();
@@ -224,7 +227,7 @@ class FilterUtils {
         lastWorking.day == now.day;
 
     if (isWorkingDay) {
-      if (volume < 10000) return false;
+      if (volume < 15000) return false;
     }
     return true;
   }

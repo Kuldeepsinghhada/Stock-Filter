@@ -456,11 +456,6 @@ class IndicatorUtils {
 
     CandleUtils.sortByTime(candles);
 
-    if (candles.last.timestamp.hour == 10 &&
-        candles.last.timestamp.minute == 25) {
-      print("Debug");
-    }
-
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
 
     for (final c in candles) {
@@ -763,6 +758,28 @@ class IndicatorUtils {
     return isVolumeOk;
   }
 
+  /// 🔹 Checks if the total volume of the previous day is > 1M
+  static bool isYesterdayTotalVolumeAbove1M(List<HistoricalDataModel> candles) {
+    if (candles.isEmpty) return false;
+
+    // 1. apply filter date wise
+    final grouped = CandleUtils.groupByDate(candles);
+    final dates = grouped.keys.toList()..sort();
+
+    if (dates.length < 2) return false;
+
+    // 2. check second last date
+    final secondLastDate = dates[dates.length - 2];
+    final secondLastDayCandles = grouped[secondLastDate]!;
+
+    // 3. add all candles volume
+    final totalVolume =
+        secondLastDayCandles.fold<int>(0, (sum, c) => sum + c.volume);
+
+    // 4. should be greater then 1M
+    return totalVolume > 1000000;
+  }
+
   static bool breakoutRetestBuyEntry({
     required List<HistoricalDataModel> candles,
     // Indicator params
@@ -909,6 +926,44 @@ class IndicatorUtils {
     final close = yCandles.last.close;
 
     return close > open;
+  }
+
+  static bool isYesterdayVolumeAbove1M(List<HistoricalDataModel> candles) {
+    if (candles.isEmpty) return false;
+
+    // Step 1: sort by time
+    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // Step 2: group by date
+    Map<String, List<HistoricalDataModel>> dayMap = {};
+
+    for (var c in candles) {
+      final d = c.timestamp;
+      final key = "${d.year}-${d.month}-${d.day}";
+
+      if (!dayMap.containsKey(key)) {
+        dayMap[key] = [];
+      }
+      dayMap[key]!.add(c);
+    }
+
+    // Step 3: get sorted dates
+    final dates = dayMap.keys.toList()..sort();
+
+    if (dates.length < 2) return false;
+
+    // Step 4: second last date (yesterday)
+    final yesterdayKey = dates[dates.length - 2];
+    final yesterdayCandles = dayMap[yesterdayKey]!;
+
+    // Step 5: sum volume
+    double totalVolume = 0;
+    for (var c in yesterdayCandles) {
+      totalVolume += c.volume.toDouble();
+    }
+
+    // Step 6: check > 1M
+    return totalVolume > 1000000;
   }
 }
 

@@ -22,14 +22,16 @@ class DashboardService {
     await Utilities.loadStocksList();
     _finalList.clear();
     // Filter valid symbols
-    final symbols =
-        DataManager.instance.stocksList
-            .where((s) => s.token != '#N/A')
-            .map((s) => s.symbol)
-            .whereType<String>()
-            .toList();
+    final symbols = DataManager.instance.stocksList
+        .where((s) => s.token != '#N/A')
+        .map((s) => s.symbol)
+        .whereType<String>()
+        .toList();
 
-    final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 500);
+    var excludeLargeCap =
+        symbols.where((s) => !Utilities.blockedSymbols.contains(s)).toList();
+
+    final allQuotes = await _fetchLiveDataInBatches(excludeLargeCap, batchSize: 500);
 
     // Filter tradable stocks
     final quoteList = allQuotes.where(FilterUtils.isTradable).toList();
@@ -164,7 +166,7 @@ class DashboardService {
     int instrumentToken,
   ) async {
     final interval = "5minute";
-    final today = Utilities.getLastWorkingDay(DateTime.now());
+    final today = DateTime.now();
     final from = Utilities.getBusinessDaysAgo(today, 60);
     final to =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
@@ -222,26 +224,27 @@ extension StockModelCopy on StockModel {
   StockModel copyWith({
     String? symbol,
     List<HistoricalDataModel>? historyFiveMin,
-  }) => StockModel(
-    symbol: symbol ?? this.symbol,
-    name: name,
-    token: token,
-    sector: sector,
-    timestamp: timestamp,
-    lastTradeTime: lastTradeTime,
-    lastPrice: lastPrice,
-    lastQuantity: lastQuantity,
-    buyQuantity: buyQuantity,
-    sellQuantity: sellQuantity,
-    volume: volume,
-    averagePrice: averagePrice,
-    oi: oi,
-    oiDayHigh: oiDayHigh,
-    oiDayLow: oiDayLow,
-    netChange: netChange,
-    lowerCircuitLimit: lowerCircuitLimit,
-    upperCircuitLimit: upperCircuitLimit,
-    ohlc: ohlc,
-    historyFiveMin: historyFiveMin ?? this.historyFiveMin,
-  );
+  }) =>
+      StockModel(
+        symbol: symbol ?? this.symbol,
+        name: name,
+        token: token,
+        sector: sector,
+        timestamp: timestamp,
+        lastTradeTime: lastTradeTime,
+        lastPrice: lastPrice,
+        lastQuantity: lastQuantity,
+        buyQuantity: buyQuantity,
+        sellQuantity: sellQuantity,
+        volume: volume,
+        averagePrice: averagePrice,
+        oi: oi,
+        oiDayHigh: oiDayHigh,
+        oiDayLow: oiDayLow,
+        netChange: netChange,
+        lowerCircuitLimit: lowerCircuitLimit,
+        upperCircuitLimit: upperCircuitLimit,
+        ohlc: ohlc,
+        historyFiveMin: historyFiveMin ?? this.historyFiveMin,
+      );
 }
