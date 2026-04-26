@@ -14,6 +14,8 @@ class StockCandleCheckScreen extends StatefulWidget {
 
 class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
   List<HistoryModel> historyList = [];
+  bool isDayBreakOut = false;
+  bool isLoading = false;
 
   @override
   void initState() {
@@ -22,20 +24,20 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
   }
 
   Future<void> _initialize() async {
-    Future.delayed(const Duration(milliseconds: 200), () async {
-      setState(() {
-        // isLoading = true;
-      });
-      var result = await Utilities.buildTodayHistory(
-        widget.stock.historyFiveMin ?? [],
-        widget.stock,
-      );
-      if (result.isNotEmpty) {
-        historyList = result;
-      }
-      setState(() {
-        //isLoading = false;
-      });
+    setState(() {
+      isLoading = true;
+      historyList.clear();
+    });
+    var result = await Utilities.buildTodayHistory(
+      widget.stock.historyFiveMin ?? [],
+      widget.stock,
+      isDayBreakOut: isDayBreakOut,
+    );
+    if (result.isNotEmpty) {
+      historyList = result;
+    }
+    setState(() {
+      isLoading = false;
     });
   }
 
@@ -44,10 +46,27 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.stock.symbol ?? ''}'),
+        actions: [
+          Row(
+            children: [
+              const Text('DayBreakOut', style: TextStyle(fontSize: 12)),
+              Switch(
+                value: isDayBreakOut,
+                onChanged: (val) {
+                  setState(() {
+                    isDayBreakOut = val;
+                  });
+                  _initialize();
+                },
+              ),
+            ],
+          )
+        ],
       ),
-      body:
-          historyList.isEmpty
-              ? const Center(child: Text('No 5-min candle data for today'))
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : historyList.isEmpty
+              ? const Center(child: Text('No candle data matches filters'))
               : ListView.separated(
                 itemCount: historyList.length,
                 separatorBuilder: (_, __) => const Divider(height: 1),

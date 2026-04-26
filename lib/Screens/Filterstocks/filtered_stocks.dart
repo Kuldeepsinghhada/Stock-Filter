@@ -22,8 +22,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     with WidgetsBindingObserver {
   bool isLoading = false;
   bool isTaskRunning = false;
-  String searchQuery = '';
   List<FinalStockModel> quoteList = [];
+  final TextEditingController _symbolsController = TextEditingController();
 
   List<NotificationModel> notificationsList = [];
 
@@ -66,7 +66,15 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     getNotifications();
     setState(() => isLoading = true);
     try {
-      final result = await DashboardService.instance.fetchQuotes();
+      final input = _symbolsController.text.trim();
+      List<String>? symbols;
+      if (input.isNotEmpty) {
+        symbols =
+            input.split(',').map((e) => e.trim().toUpperCase()).toList();
+      }
+
+      final result =
+          await DashboardService.instance.fetchQuotes(symbolsToFilter: symbols);
       await SharedPreferenceHelper.instance.saveStocks(result);
       setState(() => quoteList = result);
       var savedTokenList =
@@ -89,6 +97,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
   @override
   void dispose() {
+    _symbolsController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -139,11 +148,12 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
+              controller: _symbolsController,
               decoration: const InputDecoration(
-                labelText: 'Search by symbol',
+                labelText: 'Enter symbols (comma separated)',
+                hintText: 'e.g. RELIANCE,TCS,INFY',
                 border: OutlineInputBorder(),
               ),
-              onChanged: (value) => setState(() => searchQuery = value.trim()),
             ),
           ),
           Expanded(
@@ -199,6 +209,16 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       floatingActionButton: FloatingActionButton(
         child: Text(isTaskRunning ? "STOP" : "START"),
         onPressed: () async {
+          // Only allow starting the task after 9:28 AM local time.
+          final now = DateTime.now();
+          final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 28);
+
+          // If currently not running (we're trying to START) and time is before allowed time, block it.
+          if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+            Fluttertoast.showToast(msg: "Start allowed after 9:28 AM");
+            return;
+          }
+
           await WakelockPlus.enable();
           if (!isTaskRunning) {
             isTaskRunning = true;

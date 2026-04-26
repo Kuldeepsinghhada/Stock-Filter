@@ -451,6 +451,7 @@ class IndicatorUtils {
 
   static bool isVolumeBreakoutStrongV2(
     List<HistoricalDataModel> candles,
+    int failureCount,
   ) {
     if (candles.length < 100) return false;
 
@@ -460,25 +461,21 @@ class IndicatorUtils {
 
     for (final c in candles) {
       final d = c.timestamp;
-
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
     }
 
-    if (dayMap.length < 4) return false;
+    /// Need at least today + previous 5 days
+    if (dayMap.length < 6) return false;
 
     final keys = dayMap.keys.toList()..sort();
 
     final todayKey = keys.last;
-
     final todayCandles = dayMap[todayKey]!;
 
     if (todayCandles.length < 3) return false;
 
-    /// ignore first 2 candles
-    // final todayFiltered =
-    //     todayCandles.length > 3 ? todayCandles.skip(2).toList() : todayCandles;
-
+    /// today candles
     final todayFiltered =
         todayCandles.length > 3 ? todayCandles.toList() : todayCandles;
 
@@ -486,11 +483,11 @@ class IndicatorUtils {
         todayFiltered.map((e) => e.volume).reduce((a, b) => a + b) /
             todayFiltered.length;
 
-    /// last 3 days avg
+    /// previous day avg volume
     double prevTotal = 0;
     int prevCount = 0;
 
-    for (int i = keys.length - 2; i >= 0 && prevCount < 3; i--) {
+    for (int i = keys.length - 2; i >= 0 && prevCount < 1; i--) {
       final dayCandles = dayMap[keys[i]]!;
 
       final avg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
@@ -500,18 +497,58 @@ class IndicatorUtils {
       prevCount++;
     }
 
-    if (prevCount < 3) return false;
-
     final prevAvg = prevTotal / prevCount;
 
-    return todayAvg > prevAvg * 1.25;
+    /// ratio
+    final ratio = todayAvg / prevAvg;
+
+    int multiplier = 7;
+
+    if (failureCount == 1) {
+      multiplier = 7;
+    } else if (failureCount == 2) {
+      multiplier = 10;
+    } else if (failureCount == 3) {
+      multiplier = 15;
+    }
+
+    /// ===============================
+    /// 🔥 NEW CONDITION : Above 5 Days High
+    /// ===============================
+    double fiveDayHigh = 0;
+
+    for (int i = keys.length - 2; i >= 0 && i >= keys.length - 6; i--) {
+      final dayCandles = dayMap[keys[i]]!;
+
+      final dayHigh =
+          dayCandles.map((e) => e.high).reduce((a, b) => a > b ? a : b);
+
+      if (dayHigh > fiveDayHigh) {
+        fiveDayHigh = dayHigh;
+      }
+    }
+
+    final currentPrice = candles.last.close;
+    final isAbove5DayHigh = currentPrice > fiveDayHigh;
+
+    /// Debug
+    debugPrint("-------- Volume Debug --------");
+    debugPrint("Today Avg Volume : $todayAvg");
+    debugPrint("Prev Avg Volume  : $prevAvg");
+    debugPrint("Spike Ratio      : ${ratio.toStringAsFixed(2)}x");
+    debugPrint("5 Day High       : $fiveDayHigh");
+    debugPrint("Current Price    : $currentPrice");
+    debugPrint("Above 5D High    : $isAbove5DayHigh");
+    debugPrint("Volume Pass      : ${todayAvg > prevAvg * multiplier}");
+    debugPrint("------------------------------");
+    return todayAvg > prevAvg * multiplier && isAbove5DayHigh;
   }
 
   static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
     if (candles.length < 30) return false;
 
-    if (candles.last.timestamp.hour == 01 &&
-        candles.last.timestamp.minute == 05) {
+    if (candles.last.timestamp.hour == 10 &&
+        candles.last.timestamp.minute == 10) {
       debugPrint("Checking Volume Breakout for ${candles.last.timestamp}");
     }
 
@@ -531,7 +568,174 @@ class IndicatorUtils {
     final avg5 =
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
 
-    return last > ema20! * 1.5 && last > avg20 * 1.5 && last > avg5 * 1.5;
+    final isVolumeSpike = last > avg20 * 1.3;
+
+    final strongCount =
+        volumes.sublist(volumes.length - 5).where((v) => v > avg20).length;
+
+    final isSustain = strongCount >= 2;
+
+    return last > ema20! * 1.2 &&
+        last > avg20 * 1.5 &&
+        last > avg5 * 1.5 &&
+        isSustain;
+  }
+
+  static bool isVolumeBreakoutStrongV3(
+      List<HistoricalDataModel> candles,
+      int failureCount,
+      ) {
+    if (candles.length < 100) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
+
+    for (final c in candles) {
+      final d = c.timestamp;
+      final key = DateTime(d.year, d.month, d.day);
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+
+    /// Need today + previous 5 days minimum
+    if (dayMap.length < 6) return false;
+
+    final keys = dayMap.keys.toList()..sort();
+
+    final todayKey = keys.last;
+    final todayCandles = dayMap[todayKey]!;
+
+    if (todayCandles.length < 8) return false;
+
+    /// ===============================
+    /// TODAY DATA
+    /// ===============================
+    final currentPrice = todayCandles.last.close;
+    final todayOpen = todayCandles.first.open;
+
+    double dayHigh = todayCandles.first.high;
+    double dayLow = todayCandles.first.low;
+
+    for (final c in todayCandles) {
+      if (c.high > dayHigh) dayHigh = c.high;
+      if (c.low < dayLow) dayLow = c.low;
+    }
+
+    /// ===============================
+    /// TODAY AVG VOLUME
+    /// ===============================
+    final todayAvg =
+        todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            todayCandles.length;
+
+    /// ===============================
+    /// PREVIOUS DAY AVG VOLUME
+    /// ===============================
+    double prevTotal = 0;
+    int prevCount = 0;
+
+    for (int i = keys.length - 2; i >= 0 && prevCount < 1; i--) {
+      final dayCandles = dayMap[keys[i]]!;
+
+      final avg =
+          dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+              dayCandles.length;
+
+      prevTotal += avg;
+      prevCount++;
+    }
+
+    if (prevCount == 0) return false;
+
+    final prevAvg = prevTotal / prevCount;
+    final ratio = todayAvg / prevAvg;
+
+    /// ===============================
+    /// FAILURE MULTIPLIER
+    /// ===============================
+    int multiplier = 7;
+
+    if (failureCount == 2) {
+      multiplier = 10;
+    } else if (failureCount >= 3) {
+      multiplier = 15;
+    }
+
+    final volumePass = todayAvg > prevAvg * multiplier;
+
+    /// ===============================
+    /// 5 DAY HIGH
+    /// ===============================
+    double fiveDayHigh = 0;
+
+    for (int i = keys.length - 2; i >= 0 && i >= keys.length - 6; i--) {
+      final dayCandles = dayMap[keys[i]]!;
+
+      for (final c in dayCandles) {
+        if (c.high > fiveDayHigh) {
+          fiveDayHigh = c.high;
+        }
+      }
+    }
+
+    final breakoutPass = currentPrice > fiveDayHigh;
+
+    /// ===============================
+    /// RISING VOLUME CHECK
+    /// first 4 candles vs last 4 candles
+    /// ===============================
+    final firstPart = todayCandles.take(4).toList();
+    final lastPart = todayCandles.skip(todayCandles.length - 4).toList();
+
+    final earlyAvg =
+        firstPart.map((e) => e.volume).reduce((a, b) => a + b) /
+            firstPart.length;
+
+    final recentAvg =
+        lastPart.map((e) => e.volume).reduce((a, b) => a + b) /
+            lastPart.length;
+
+    final risingVolumePass = recentAvg > earlyAvg * 1.20;
+
+    /// ===============================
+    /// PRICE POSITION CHECK
+    /// stock upper half me hona chahiye
+    /// ===============================
+    final range = dayHigh - dayLow;
+    final pricePositionPass =
+    range == 0 ? false : currentPrice > (dayLow + range * 0.60);
+
+    /// ===============================
+    /// TREND CHECK
+    /// ===============================
+    final openPass = currentPrice > todayOpen;
+
+    /// ===============================
+    /// DEBUG
+    /// ===============================
+    debugPrint("-------- Smart Momentum Debug --------");
+    debugPrint("Current Price      : $currentPrice");
+    debugPrint("Today Open         : $todayOpen");
+    debugPrint("Day High           : $dayHigh");
+    debugPrint("Day Low            : $dayLow");
+    debugPrint("5 Day High         : $fiveDayHigh");
+    debugPrint("Today Avg Vol      : $todayAvg");
+    debugPrint("Prev Avg Vol       : $prevAvg");
+    debugPrint("Spike Ratio        : ${ratio.toStringAsFixed(2)}x");
+    debugPrint("Early Avg Vol      : $earlyAvg");
+    debugPrint("Recent Avg Vol     : $recentAvg");
+    debugPrint("Volume Pass        : $volumePass");
+    debugPrint("Breakout Pass      : $breakoutPass");
+    debugPrint("Rising Volume Pass : $risingVolumePass");
+    debugPrint("Price Pos Pass     : $pricePositionPass");
+    debugPrint("Open Pass          : $openPass");
+    debugPrint("------------------------------------");
+
+    return volumePass &&
+        breakoutPass &&
+        risingVolumePass &&
+        pricePositionPass &&
+        openPass;
   }
 
   /// today close >= yesterday high * (1 + pct)
@@ -729,7 +933,7 @@ class IndicatorUtils {
 
     // ❌ NEW RULE:
     // If ANY of last 8 candles has volume <= 2000 → reject
-    final last8 = volumes.sublist(volumes.length - 20);
+    final last8 = volumes.sublist(volumes.length - 10);
     if (last8.any((v) => v <= 2000)) {
       return false;
     }

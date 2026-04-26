@@ -18,27 +18,44 @@ class DashboardService {
   final List<StockModel> _finalList = [];
 
   /// Fetch live quotes, apply filters and historical data checks
-  Future<List<FinalStockModel>> fetchQuotes() async {
+  Future<List<FinalStockModel>> fetchQuotes(
+      {List<String>? symbolsToFilter}) async {
     await Utilities.loadStocksList();
     _finalList.clear();
     // Filter valid symbols
-    final symbols = DataManager.instance.stocksList
-        .where((s) => s.token != '#N/A')
-        .map((s) => s.symbol)
-        .whereType<String>()
+    var symbols = DataManager.instance.stocksList
+        .where((s) => s.token != '#N/A' && s.symbol != null)
         .toList();
 
-    var excludeLargeCap =
-        symbols.where((s) => !Utilities.blockedSymbols.contains(s)).toList();
+    if (symbolsToFilter != null && symbolsToFilter.isNotEmpty) {
+      final cleanFilters = symbolsToFilter
+          .map((e) => e.replaceAll("NSE:", "").trim().toUpperCase())
+          .toSet();
+      symbols = symbols.where((s) {
+        final cleanSym = s.symbol?.replaceAll("NSE:", "").trim().toUpperCase();
+        return cleanFilters.contains(cleanSym);
+      }).toList();
+    }
 
-    final allQuotes = await _fetchLiveDataInBatches(excludeLargeCap, batchSize: 500);
+    final symbolStrings = symbols.map((s) => s.symbol!).toList();
+
+    var symbolsToFetch = symbolsToFilter != null
+        ? symbolStrings
+        : symbolStrings
+            .where((s) => !Utilities.blockedSymbols.contains(s))
+            .toList();
+
+    final allQuotes =
+        await _fetchLiveDataInBatches(symbolsToFetch, batchSize: 500);
 
     // Filter tradable stocks
     final quoteList = allQuotes.where(FilterUtils.isTradable).toList();
     log("First Filter Count: ${quoteList.length}");
 
     // Fetch historical data in throttled batches
-    await _fetchHistoricalDataWithFilter(quoteList, maxCallsPerSecond: 12);
+    await _fetchHistoricalDataWithFilter(
+        symbolsToFilter != null ? allQuotes : quoteList,
+        maxCallsPerSecond: 12);
 
     Utilities.addAndShowNotification(_finalList);
 

@@ -225,7 +225,7 @@ class AIScoreCalculator {
     if (last.volume > avgVol20 * 1.5) score += 7;
 
     int? strongCandleIndex;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 10; i++) {
       int index = volumes.length - 5 + i;
       if (volumes[index] > avgVol20 * 1.2 && closes[index] > opens[index]) {
         strongCandleIndex = index;

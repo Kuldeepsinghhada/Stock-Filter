@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/history_model.dart';
@@ -182,18 +183,24 @@ class Utilities {
       DateTime(2026, 12, 25), // Christmas
     ];
 
-    DateTime date = now;
+    // We'll compute the "last completed trading day".
+    DateTime date = DateTime(now.year, now.month, now.day);
+
+    // Market timings
+    final marketClose = DateTime(now.year, now.month, now.day, 15, 30);
+
+    // If current time is BEFORE market close, the last completed trading day
+    // is the previous calendar day (we don't want to treat today's incomplete
+    // session as the last working day).
+    if (now.isBefore(marketClose)) {
+      date = date.subtract(const Duration(days: 1));
+    }
 
     // --- Weekend adjustment ---
     if (date.weekday == DateTime.saturday) {
       date = date.subtract(const Duration(days: 1)); // Saturday → Friday
     } else if (date.weekday == DateTime.sunday) {
       date = date.subtract(const Duration(days: 2)); // Sunday → Friday
-    } else if (date.weekday == DateTime.monday &&
-        (date.hour < 9 || (date.hour == 9 && date.minute < 5))) {
-      date = date.subtract(
-        const Duration(days: 3),
-      ); // Monday before 9:05 → Friday
     }
 
     // --- Check for holiday (loop backward until working day) ---
@@ -201,7 +208,7 @@ class Utilities {
       (h) => h.year == date.year && h.month == date.month && h.day == date.day,
     )) {
       date = date.subtract(const Duration(days: 1));
-      // If holiday falls on Monday, also skip weekend behind
+      // If holiday falls on weekend, skip the weekend behind
       if (date.weekday == DateTime.sunday) {
         date = date.subtract(const Duration(days: 2));
       } else if (date.weekday == DateTime.saturday) {
@@ -209,7 +216,8 @@ class Utilities {
       }
     }
 
-    return date;
+    // Return normalized date (midnight) so callers can compare year/month/day safely
+    return DateTime(date.year, date.month, date.day);
   }
 
   // -----------GET START DATE FOR HISTORICAL DATA -----------
@@ -358,8 +366,9 @@ class Utilities {
   /// last 20 trading days + today's candles till current time
   static Future<List<HistoryModel>> buildTodayHistory(
     List<HistoricalDataModel> candles,
-    StockModel model,
-  ) async {
+    StockModel model, {
+    bool isDayBreakOut = false,
+  }) async {
     if (candles.isEmpty) return [];
 
     // 1️⃣ Sort candles
@@ -402,6 +411,13 @@ class Utilities {
     // 5️⃣ Iterate candle-by-candle (NO future leakage)
     for (int i = 0; i < todayCandles.length; i++) {
       final current = todayCandles[i];
+
+      // 🕒 Filter: check only from 9:30 AM to 11:00 AM
+      final hour = current.timestamp.hour;
+      final minute = current.timestamp.minute;
+      final totalMinutes = hour * 60 + minute;
+      // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
+      if (totalMinutes < 570 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [

@@ -57,6 +57,13 @@ class FilterUtils {
     );
     if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
+    bool isVolumeAverageOK =
+        IndicatorUtils.isVolumeBreakoutStrongV3(candles, failedReasons.length);
+
+    if (isVolumeAverageOK && failedReasons.length < 3 && atrOk) {
+      return true;
+    }
+
     // FINAL RESULT
     bool result = isVolumeOk &&
         aboveEma20 &&
@@ -68,13 +75,6 @@ class FilterUtils {
         is2PcChange &&
         isVolume1M &&
         isVolumeBreakout;
-
-    // 🔥 Print only when exactly ONE condition failed
-    if (failedReasons.length == 1) {
-      log(
-        "⚠️ $token — Only 1 Less Failed: $failedReasons : ${candles.last.timestamp}",
-      );
-    }
     return result;
   }
 
@@ -116,12 +116,12 @@ class FilterUtils {
     );
     if (!is1HourPass) return false;
 
-    final isDayPass = await isPassHistoryChart(
-      Utilities.convertToDaily(historyCandles ?? []),
-      stock,
-      1,
-    );
-    if (!isDayPass) return false;
+    // final isDayPass = await isPassHistoryChart(
+    //   Utilities.convertToDaily(historyCandles ?? []),
+    //   stock,
+    //   1,
+    // );
+    // if (!isDayPass) return false;
 
     // final isMeetPercent = IndicatorUtils.isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
     //   historyCandles ?? [],
