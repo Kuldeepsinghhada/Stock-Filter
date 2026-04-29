@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -46,7 +47,7 @@ class FilterUtils {
     //   failedReasons.add("Yesterday Volume Not Enough");
     // }
 
-    bool isVolume1M = IndicatorUtils.isYesterdayVolumeAbove1M(candles);
+    // bool isVolume1M = IndicatorUtils.isPreviousTradingDayVolumeAbove1M(candles);
 
     bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
     if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
@@ -58,11 +59,11 @@ class FilterUtils {
     if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
     bool isVolumeAverageOK =
-        IndicatorUtils.isVolumeBreakoutStrongV3(candles, failedReasons.length);
+        IndicatorUtils.isVolumeBreakoutStrongV2(candles, failedReasons.length);
 
-    if (isVolumeAverageOK && failedReasons.length < 3 && atrOk) {
-      return true;
-    }
+    // if (isVolumeAverageOK && failedReasons.length < 3 && atrOk) {
+    //   return true;
+    // }
 
     // FINAL RESULT
     bool result = isVolumeOk &&
@@ -73,8 +74,11 @@ class FilterUtils {
         adxRes &&
         atrOk &&
         is2PcChange &&
-        isVolume1M &&
+        //isVolume1M &&
         isVolumeBreakout;
+    if (failedReasons.length == 1) {
+      debugPrint(failedReasons.first);
+    }
     return result;
   }
 

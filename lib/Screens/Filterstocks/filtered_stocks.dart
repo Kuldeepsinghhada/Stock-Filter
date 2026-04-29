@@ -24,6 +24,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   bool isTaskRunning = false;
   List<FinalStockModel> quoteList = [];
   final TextEditingController _symbolsController = TextEditingController();
+  DateTime selectedDate = DateTime.now();
 
   List<NotificationModel> notificationsList = [];
 
@@ -73,8 +74,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             input.split(',').map((e) => e.trim().toUpperCase()).toList();
       }
 
-      final result =
-          await DashboardService.instance.fetchQuotes(symbolsToFilter: symbols);
+      final result = await DashboardService.instance
+          .fetchQuotes(symbolsToFilter: symbols, selectedDate: selectedDate);
       await SharedPreferenceHelper.instance.saveStocks(result);
       setState(() => quoteList = result);
       var savedTokenList =
@@ -146,6 +147,36 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       body: Column(
         children: [
           Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Till Date: ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}",
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null && picked != selectedDate) {
+                      setState(() {
+                        selectedDate = picked;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today),
+                  label: const Text("Select Date"),
+                ),
+              ],
+            ),
+          ),
+          Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
               controller: _symbolsController,
@@ -207,6 +238,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'filtered_stocks_fab',
         child: Text(isTaskRunning ? "STOP" : "START"),
         onPressed: () async {
           // Only allow starting the task after 9:28 AM local time.

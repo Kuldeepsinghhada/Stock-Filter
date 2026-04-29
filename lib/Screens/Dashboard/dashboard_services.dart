@@ -19,7 +19,7 @@ class DashboardService {
 
   /// Fetch live quotes, apply filters and historical data checks
   Future<List<FinalStockModel>> fetchQuotes(
-      {List<String>? symbolsToFilter}) async {
+      {List<String>? symbolsToFilter, DateTime? selectedDate}) async {
     await Utilities.loadStocksList();
     _finalList.clear();
     // Filter valid symbols
@@ -45,19 +45,28 @@ class DashboardService {
             .where((s) => !Utilities.blockedSymbols.contains(s))
             .toList();
 
+    final isToday = selectedDate == null ||
+        (selectedDate.year == DateTime.now().year &&
+            selectedDate.month == DateTime.now().month &&
+            selectedDate.day == DateTime.now().day);
+
     final allQuotes =
         await _fetchLiveDataInBatches(symbolsToFetch, batchSize: 500);
 
-    // Filter tradable stocks
-    final quoteList = allQuotes.where(FilterUtils.isTradable).toList();
+    // Filter tradable stocks (only for today's live mode)
+    final quoteList =
+        isToday ? allQuotes.where(FilterUtils.isTradable).toList() : allQuotes;
     log("First Filter Count: ${quoteList.length}");
 
     // Fetch historical data in throttled batches
     await _fetchHistoricalDataWithFilter(
         symbolsToFilter != null ? allQuotes : quoteList,
-        maxCallsPerSecond: 12);
+        maxCallsPerSecond: 12,
+        selectedDate: selectedDate);
 
-    Utilities.addAndShowNotification(_finalList);
+    if (isToday) {
+      Utilities.addAndShowNotification(_finalList);
+    }
 
     log(
       "Final Filtered Stocks Count: ${_finalList.length} \n${_finalList.map((e) => e.symbol).join(", ")}",
@@ -65,7 +74,7 @@ class DashboardService {
 
     return _finalList.map((s) {
       return FinalStockModel(
-        dateTime: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
+        dateTime: Utilities.formatDDMMMHHMMDateTime(selectedDate ?? DateTime.now()),
         stockSymbol: s.symbol,
         token: s.token,
         name: "",
@@ -116,6 +125,7 @@ class DashboardService {
   Future<void> _fetchHistoricalDataWithFilter(
     List<StockModel> quoteList, {
     int maxCallsPerSecond = 12,
+    DateTime? selectedDate,
   }) async {
     List<StockModel> preFilteredList =
         []; // 👈 new list for only history != null
@@ -127,8 +137,8 @@ class DashboardService {
         batch.map((stock) async {
           try {
             final history = await fetchHistoricalData(
-              int.tryParse(stock.token.toString()) ?? 0,
-            );
+                int.tryParse(stock.token.toString()) ?? 0,
+                selectedDate: selectedDate);
             if (history != null) {
               var notificationList =
                   await SharedPreferenceHelper.instance.getNotificationList();
@@ -180,10 +190,11 @@ class DashboardService {
 
   /// Fetch historical data for a given instrument token
   Future<List<HistoricalDataModel>?> fetchHistoricalData(
-    int instrumentToken,
-  ) async {
+    int instrumentToken, {
+    DateTime? selectedDate,
+  }) async {
     final interval = "5minute";
-    final today = DateTime.now();
+    final today = selectedDate ?? DateTime.now();
     final from = Utilities.getBusinessDaysAgo(today, 60);
     final to =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";

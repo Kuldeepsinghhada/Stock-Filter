@@ -298,6 +298,7 @@ class _IntradayScreenState extends State<IntradayScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'intraday_fab',
         onPressed: isTaskRunning ? stopTask : startTask,
         label: Text(isTaskRunning ? "STOP" : "START"),
         icon: Icon(isTaskRunning ? Icons.stop : Icons.play_arrow),

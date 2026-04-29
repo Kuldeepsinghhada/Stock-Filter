@@ -533,6 +533,7 @@ class IndicatorUtils {
 
     /// Debug
     debugPrint("-------- Volume Debug --------");
+    debugPrint("Time : ${candles.last.timestamp}");
     debugPrint("Today Avg Volume : $todayAvg");
     debugPrint("Prev Avg Volume  : $prevAvg");
     debugPrint("Spike Ratio      : ${ratio.toStringAsFixed(2)}x");
@@ -541,7 +542,7 @@ class IndicatorUtils {
     debugPrint("Above 5D High    : $isAbove5DayHigh");
     debugPrint("Volume Pass      : ${todayAvg > prevAvg * multiplier}");
     debugPrint("------------------------------");
-    return todayAvg > prevAvg * multiplier && isAbove5DayHigh;
+    return (todayAvg > prevAvg * 5) && todayAvg > 10000;
   }
 
   static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
@@ -575,16 +576,15 @@ class IndicatorUtils {
 
     final isSustain = strongCount >= 2;
 
-    return last > ema20! * 1.2 &&
-        last > avg20 * 1.5 &&
-        last > avg5 * 1.5 &&
-        isSustain;
+    var result =
+        last > ema20! * 1.2 && last > avg20 * 2 && last > avg5 * 2 && isSustain;
+    return result;
   }
 
   static bool isVolumeBreakoutStrongV3(
-      List<HistoricalDataModel> candles,
-      int failureCount,
-      ) {
+    List<HistoricalDataModel> candles,
+    int failureCount,
+  ) {
     if (candles.length < 100) return false;
 
     CandleUtils.sortByTime(candles);
@@ -624,9 +624,8 @@ class IndicatorUtils {
     /// ===============================
     /// TODAY AVG VOLUME
     /// ===============================
-    final todayAvg =
-        todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            todayCandles.length;
+    final todayAvg = todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+        todayCandles.length;
 
     /// ===============================
     /// PREVIOUS DAY AVG VOLUME
@@ -637,9 +636,8 @@ class IndicatorUtils {
     for (int i = keys.length - 2; i >= 0 && prevCount < 1; i--) {
       final dayCandles = dayMap[keys[i]]!;
 
-      final avg =
-          dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-              dayCandles.length;
+      final avg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+          dayCandles.length;
 
       prevTotal += avg;
       prevCount++;
@@ -687,13 +685,11 @@ class IndicatorUtils {
     final firstPart = todayCandles.take(4).toList();
     final lastPart = todayCandles.skip(todayCandles.length - 4).toList();
 
-    final earlyAvg =
-        firstPart.map((e) => e.volume).reduce((a, b) => a + b) /
-            firstPart.length;
+    final earlyAvg = firstPart.map((e) => e.volume).reduce((a, b) => a + b) /
+        firstPart.length;
 
     final recentAvg =
-        lastPart.map((e) => e.volume).reduce((a, b) => a + b) /
-            lastPart.length;
+        lastPart.map((e) => e.volume).reduce((a, b) => a + b) / lastPart.length;
 
     final risingVolumePass = recentAvg > earlyAvg * 1.20;
 
@@ -703,7 +699,7 @@ class IndicatorUtils {
     /// ===============================
     final range = dayHigh - dayLow;
     final pricePositionPass =
-    range == 0 ? false : currentPrice > (dayLow + range * 0.60);
+        range == 0 ? false : currentPrice > (dayLow + range * 0.60);
 
     /// ===============================
     /// TREND CHECK
@@ -958,7 +954,7 @@ class IndicatorUtils {
         volumeToCheck = lastWorkDayCandle.volume;
       }
     }
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 10000) : false;
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck >10000) : false;
     return isVolumeOk;
   }
 
@@ -1132,42 +1128,33 @@ class IndicatorUtils {
     return close > open;
   }
 
-  static bool isYesterdayVolumeAbove1M(List<HistoricalDataModel> candles) {
+  static bool isPreviousTradingDayVolumeAbove1M(
+    List<HistoricalDataModel> candles,
+  ) {
     if (candles.isEmpty) return false;
 
-    // Step 1: sort by time
     candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
-    // Step 2: group by date
-    Map<String, List<HistoricalDataModel>> dayMap = {};
+    final Map<DateTime, double> dayVolume = {};
 
-    for (var c in candles) {
-      final d = c.timestamp;
-      final key = "${d.year}-${d.month}-${d.day}";
+    for (final c in candles) {
+      final d = DateTime(
+        c.timestamp.year,
+        c.timestamp.month,
+        c.timestamp.day,
+      );
 
-      if (!dayMap.containsKey(key)) {
-        dayMap[key] = [];
-      }
-      dayMap[key]!.add(c);
+      dayVolume[d] = (dayVolume[d] ?? 0) + c.volume.toDouble();
     }
 
-    // Step 3: get sorted dates
-    final dates = dayMap.keys.toList()..sort();
+    final dates = dayVolume.keys.toList()..sort();
 
     if (dates.length < 2) return false;
 
-    // Step 4: second last date (yesterday)
-    final yesterdayKey = dates[dates.length - 2];
-    final yesterdayCandles = dayMap[yesterdayKey]!;
+    final previousDay = dates[dates.length - 2];
+    final volume = dayVolume[previousDay]!;
 
-    // Step 5: sum volume
-    double totalVolume = 0;
-    for (var c in yesterdayCandles) {
-      totalVolume += c.volume.toDouble();
-    }
-
-    // Step 6: check > 1M
-    return totalVolume > 1000000;
+    return volume > 1000000;
   }
 }
 
