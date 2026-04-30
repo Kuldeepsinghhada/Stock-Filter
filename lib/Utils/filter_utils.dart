@@ -59,11 +59,11 @@ class FilterUtils {
     if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
     bool isVolumeAverageOK =
-        IndicatorUtils.isVolumeBreakoutStrongV2(candles, failedReasons.length);
+        IndicatorUtils.isEveryCandleVolumeStrong(candles, failedReasons.length);
 
-    // if (isVolumeAverageOK && failedReasons.length < 3 && atrOk) {
-    //   return true;
-    // }
+    if (isVolumeAverageOK) {
+      return true;
+    }
 
     // FINAL RESULT
     bool result = isVolumeOk &&
@@ -76,8 +76,8 @@ class FilterUtils {
         is2PcChange &&
         //isVolume1M &&
         isVolumeBreakout;
-    if (failedReasons.length == 1) {
-      debugPrint(failedReasons.first);
+    if (failedReasons.isNotEmpty) {
+      debugPrint("Stock ${candles.last.timestamp} $token failed filters: ${failedReasons.join(", ")}");
     }
     return result;
   }

@@ -462,8 +462,10 @@ class _IntradayScreenState extends State<IntradayScreen> {
         maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) => _SearchStockWidget(
-          onStockSelected: (s) {
-            _addStock(s.symbol!, s.token!, s.name ?? '');
+          onStocksSelected: (stocks) {
+            for (var s in stocks) {
+              _addStock(s.symbol!, s.token ?? '', s.name ?? '');
+            }
             Navigator.pop(context);
           },
         ),
@@ -473,8 +475,8 @@ class _IntradayScreenState extends State<IntradayScreen> {
 }
 
 class _SearchStockWidget extends StatefulWidget {
-  final Function(StockModel) onStockSelected;
-  const _SearchStockWidget({required this.onStockSelected});
+  final Function(List<StockModel>) onStocksSelected;
+  const _SearchStockWidget({required this.onStocksSelected});
 
   @override
   State<_SearchStockWidget> createState() => _SearchStockWidgetState();
@@ -490,20 +492,39 @@ class _SearchStockWidgetState extends State<_SearchStockWidget> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: TextField(
-            controller: _controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: "Search stock symbol...",
-              hintStyle: const TextStyle(color: Colors.white38),
-              prefixIcon: const Icon(Icons.search, color: Colors.white38),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.05),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none),
-            ),
-            onChanged: _performSearch,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "Enter symbols (comma separated)...",
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white38),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                  ),
+                  onChanged: _performSearch,
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _addCommaSeparated,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text("ADD"),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -517,7 +538,7 @@ class _SearchStockWidgetState extends State<_SearchStockWidget> {
                 subtitle: Text(s.name ?? '',
                     style:
                         const TextStyle(color: Colors.white38, fontSize: 12)),
-                onTap: () => widget.onStockSelected(s),
+                onTap: () => widget.onStocksSelected([s]),
               );
             },
           ),
@@ -526,11 +547,44 @@ class _SearchStockWidgetState extends State<_SearchStockWidget> {
     );
   }
 
+  void _addCommaSeparated() {
+    final text = _controller.text;
+    if (text.isEmpty) return;
+
+    final symbols = text.split(',')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (symbols.isEmpty) return;
+
+    List<StockModel> foundStocks = [];
+    for (var sym in symbols) {
+      try {
+        final stock = DataManager.instance.stocksList.firstWhere(
+          (s) => s.symbol?.toLowerCase() == sym,
+        );
+        foundStocks.add(stock);
+      } catch (e) {
+        foundStocks.add(StockModel(symbol: sym.toUpperCase(), name: sym.toUpperCase()));
+      }
+    }
+
+    if (foundStocks.isNotEmpty) {
+      widget.onStocksSelected(foundStocks);
+    }
+  }
+
   void _performSearch(String query) {
     if (query.length < 2) {
       setState(() => _results = []);
       return;
     }
+    if (query.contains(',')) {
+      setState(() => _results = []);
+      return;
+    }
+
     final results = DataManager.instance.stocksList
         .where((s) {
           return (s.symbol?.toLowerCase().contains(query.toLowerCase()) ??

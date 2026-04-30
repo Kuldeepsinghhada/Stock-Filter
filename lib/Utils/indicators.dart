@@ -449,6 +449,81 @@ class IndicatorUtils {
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
 
+  static bool isEveryCandleVolumeStrong(
+    List<HistoricalDataModel> candles,
+    int failureCount,
+  ) {
+    if (candles.length < 100) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
+
+    for (final c in candles) {
+      final d = c.timestamp;
+      final key = DateTime(d.year, d.month, d.day);
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+
+    /// Need at least today + previous day
+    if (dayMap.length < 2) return false;
+
+    final keys = dayMap.keys.toList()..sort();
+
+    final todayKey = keys.last;
+    final todayCandles = dayMap[todayKey]!;
+
+    if (todayCandles.length < 3) return false;
+
+    /// ===============================
+    /// Previous Day Avg Volume
+    /// ===============================
+    final prevDayCandles = dayMap[keys[keys.length - 2]]!;
+
+    final prevAvg =
+        prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            prevDayCandles.length;
+
+    /// ===============================
+    /// 🔥 CONDITIONS
+    /// Last candle > 10X
+    /// Other today's candles > 5X
+    /// ===============================
+
+    final lastCandle = todayCandles.last;
+
+    final lastCandleAbove10x = lastCandle.volume > (prevAvg * 10);
+
+    final otherCandlesAbove5x = todayCandles
+        .sublist(0, todayCandles.length - 1)
+        .every((c) => c.volume > (prevAvg * 5));
+
+    final todayAvg = todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+        todayCandles.length;
+
+    /// Debug
+    debugPrint("-------- Volume Debug --------");
+    debugPrint("Time : ${candles.last.timestamp}");
+    debugPrint("Prev Avg Volume : $prevAvg");
+    debugPrint("Today Avg Volume: $todayAvg");
+    debugPrint("Last Candle >10x : $lastCandleAbove10x");
+    debugPrint("Others >5x       : $otherCandlesAbove5x");
+
+    for (int i = 0; i < todayCandles.length; i++) {
+      final c = todayCandles[i];
+      final isLast = i == todayCandles.length - 1;
+
+      debugPrint(
+        "${c.timestamp.hour}:${c.timestamp.minute} => ${c.volume}"
+        " | Need > ${(prevAvg * (isLast ? 10 : 5)).toStringAsFixed(0)}",
+      );
+    }
+
+    debugPrint("------------------------------");
+
+    return lastCandleAbove10x && otherCandlesAbove5x && todayAvg > 10000;
+  }
+
   static bool isVolumeBreakoutStrongV2(
     List<HistoricalDataModel> candles,
     int failureCount,
@@ -954,7 +1029,7 @@ class IndicatorUtils {
         volumeToCheck = lastWorkDayCandle.volume;
       }
     }
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck >10000) : false;
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 10000) : false;
     return isVolumeOk;
   }
 
