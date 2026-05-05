@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'package:flutter/cupertino.dart';
+import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -47,7 +48,7 @@ class FilterUtils {
     //   failedReasons.add("Yesterday Volume Not Enough");
     // }
 
-    // bool isVolume1M = IndicatorUtils.isPreviousTradingDayVolumeAbove1M(candles);
+    bool isVolume1M = IndicatorUtils.isPreviousTradingDayVolumeAbove1M(candles);
 
     bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
     if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
@@ -61,9 +62,17 @@ class FilterUtils {
     bool isVolumeAverageOK =
         IndicatorUtils.isEveryCandleVolumeStrong(candles, failedReasons.length);
 
-    if (isVolumeAverageOK) {
+    bool isPattern = BullishPatternDetector.detectTop3Patterns85(
+      Utilities.convertToDaily(candles),
+    );
+    if (!isPattern) failedReasons.add("No bullish pattern on daily");
+
+    if (isVolumeAverageOK & isPattern && aboveSupertrend && aboveEma20) {
       return true;
     }
+    print(
+        "Result: ${candles.last.timestamp}\n Volume: $isVolumeAverageOK\n Pattern: $isPattern\n EMA20: $aboveEma20\n Supertrend: $aboveSupertrend");
+    return false;
 
     // FINAL RESULT
     bool result = isVolumeOk &&
@@ -74,10 +83,11 @@ class FilterUtils {
         adxRes &&
         atrOk &&
         is2PcChange &&
-        //isVolume1M &&
+        isVolume1M &&
         isVolumeBreakout;
     if (failedReasons.isNotEmpty) {
-      debugPrint("Stock ${candles.last.timestamp} $token failed filters: ${failedReasons.join(", ")}");
+      debugPrint(
+          "Stock ${candles.last.timestamp} $token failed filters: ${failedReasons.join(", ")}");
     }
     return result;
   }
@@ -126,12 +136,12 @@ class FilterUtils {
     //   1,
     // );
     // if (!isDayPass) return false;
-
-    // final isMeetPercent = IndicatorUtils.isCloseAboveYesterdayCloseByPctAndYesterdayBullish(
-    //   historyCandles ?? [],
-    // );
-    // if (!isMeetPercent) return false;
-
+    final isPattern = BullishPatternDetector.detect(
+        Utilities.convertToDaily(historyCandles ?? []));
+    debugPrint(isPattern.name);
+    if (!isPattern.found) {
+      return false;
+    }
     log("✅ Stock Passed All Timeframes: ${stock.symbol}");
     return true;
   }
@@ -205,7 +215,7 @@ class FilterUtils {
     final rangePercent = ((high - low) / open) * 100;
 
     // ✅ Price range filter
-    if (lastPrice < 30 || lastPrice > 1500) return false;
+    if (lastPrice < 30 || lastPrice > 5000) return false;
 
     // ✅ Avoid circuit stocks
     if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;

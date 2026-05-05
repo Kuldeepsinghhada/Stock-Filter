@@ -492,31 +492,31 @@ class IndicatorUtils {
 
     final lastCandle = todayCandles.last;
 
-    final lastCandleAbove10x = lastCandle.volume > (prevAvg * 10);
+    final lastCandleAbove10x = lastCandle.volume > (prevAvg * 15);
 
     final otherCandlesAbove5x = todayCandles
         .sublist(0, todayCandles.length - 1)
-        .every((c) => c.volume > (prevAvg * 5));
+        .every((c) => c.volume > (prevAvg * 10));
 
     final todayAvg = todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
         todayCandles.length;
 
     /// Debug
-    debugPrint("-------- Volume Debug --------");
-    debugPrint("Time : ${candles.last.timestamp}");
-    debugPrint("Prev Avg Volume : $prevAvg");
-    debugPrint("Today Avg Volume: $todayAvg");
-    debugPrint("Last Candle >10x : $lastCandleAbove10x");
-    debugPrint("Others >5x       : $otherCandlesAbove5x");
+    // debugPrint("-------- Volume Debug --------");
+    // debugPrint("Time : ${candles.last.timestamp}");
+    // debugPrint("Prev Avg Volume : $prevAvg");
+    // debugPrint("Today Avg Volume: $todayAvg");
+    // debugPrint("Last Candle >10x : $lastCandleAbove10x");
+    // debugPrint("Others >5x       : $otherCandlesAbove5x");
 
     for (int i = 0; i < todayCandles.length; i++) {
       final c = todayCandles[i];
       final isLast = i == todayCandles.length - 1;
 
-      debugPrint(
-        "${c.timestamp.hour}:${c.timestamp.minute} => ${c.volume}"
-        " | Need > ${(prevAvg * (isLast ? 10 : 5)).toStringAsFixed(0)}",
-      );
+      // debugPrint(
+      //   "${c.timestamp.hour}:${c.timestamp.minute} => ${c.volume}"
+      //   " | Need > ${(prevAvg * (isLast ? 10 : 5)).toStringAsFixed(0)}",
+      // );
     }
 
     debugPrint("------------------------------");

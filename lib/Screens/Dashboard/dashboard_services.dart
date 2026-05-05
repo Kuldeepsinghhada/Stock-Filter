@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
+import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
@@ -74,7 +75,8 @@ class DashboardService {
 
     return _finalList.map((s) {
       return FinalStockModel(
-        dateTime: Utilities.formatDDMMMHHMMDateTime(selectedDate ?? DateTime.now()),
+        dateTime:
+            Utilities.formatDDMMMHHMMDateTime(selectedDate ?? DateTime.now()),
         stockSymbol: s.symbol,
         token: s.token,
         name: "",
@@ -162,7 +164,11 @@ class DashboardService {
                 ),
               );
               // Apply final filter check
-              if (await FilterUtils.isPassAllTimeFrame(history, stock)) {
+
+              final isPattern = BullishPatternDetector.detectTop3Patterns85(
+                  Utilities.convertToDaily(history ?? []));
+              if (isPattern == true &&
+                  await FilterUtils.isPassAllTimeFrame(history, stock)) {
                 return stock.copyWith(
                   symbol: stock.symbol?.replaceAll("NSE:", ""),
                   historyFiveMin: history,
