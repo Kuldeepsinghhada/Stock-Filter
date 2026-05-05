@@ -19,9 +19,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _screens = [
-      BulkAnalysisScreen(selectedDate: DateTime.now()),
-      const IntradayScreen(),
       FilteredStockScreen(),
+      BulkAnalysisScreen(selectedDate: DateTime.now()),
+      // const IntradayScreen(),
     ];
   }
 
@@ -39,13 +39,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         items: const [
           BottomNavigationBarItem(
-              icon: Icon(Icons.data_usage), label: "INVESTMENT"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.trending_up), label: "INTRADAY"),
-          BottomNavigationBarItem(
             icon: Icon(Icons.filter_center_focus),
             label: "TRADE",
-          )
+          ),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.data_usage), label: "INVESTMENT"),
+          // BottomNavigationBarItem(
+          //     icon: Icon(Icons.trending_up), label: "INTRADAY"),
         ],
       ),
     );
