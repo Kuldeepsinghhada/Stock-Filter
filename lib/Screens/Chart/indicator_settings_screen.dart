@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../Utils/sharepreference_helper.dart';
+import '../Settings/volume_settings_screen.dart';
 
 class IndicatorSettingsScreen extends StatefulWidget {
   const IndicatorSettingsScreen({super.key});
@@ -14,6 +15,7 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
   bool _supertrendEnabled = true;
   bool _swingScannerEnabled = true;
   bool _onlyGreenEnabled = false;
+  bool _nearEmaOrSupertrendEnabled = false;
 
   @override
   void initState() {
@@ -27,12 +29,14 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
     final supertrend = await prefs.getSupertrendVisible();
     final swing = await prefs.getEnableSwingScannerLoose();
     final onlyGreen = await prefs.getClosedInGreenEnabled();
-
+    final nearEma = await prefs.getNearEmaOrSupertrendEnabled();
+    
     setState(() {
       _emaEnabled = ema;
       _supertrendEnabled = supertrend;
       _swingScannerEnabled = swing;
       _onlyGreenEnabled = onlyGreen;
+      _nearEmaOrSupertrendEnabled = nearEma;
     });
   }
 
@@ -77,6 +81,17 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
             icon: Icons.filter_list,
             iconColor: Colors.green,
           ),
+          _buildSwitchTile(
+            title: "Near EMA20 or Supertrend",
+            subtitle: "Only show stocks currently trading near EMA20 or Supertrend.",
+            value: _nearEmaOrSupertrendEnabled,
+            onChanged: (val) async {
+              await SharedPreferenceHelper.instance.setNearEmaOrSupertrendEnabled(val);
+              setState(() => _nearEmaOrSupertrendEnabled = val);
+            },
+            icon: Icons.near_me,
+            iconColor: Colors.cyanAccent,
+          ),
           const Divider(color: Colors.white10, height: 32),
           _buildSectionHeader("Chart Indicators"),
           _buildSwitchTile(
@@ -101,6 +116,35 @@ class _IndicatorSettingsScreenState extends State<IndicatorSettingsScreen> {
             },
             icon: Icons.bolt,
             iconColor: Colors.orange,
+          ),
+          const Divider(color: Colors.white10, height: 32),
+          _buildSectionHeader("Advanced Settings"),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VolumeSettingsScreen()),
+              ),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.bar_chart, color: Colors.blueAccent, size: 24),
+              ),
+              title: const Text("Volume Multiplier Settings",
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text("Adjust multipliers for volume strong check.",
+                  style: TextStyle(color: Colors.white54, fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+            ),
           ),
         ],
       ),

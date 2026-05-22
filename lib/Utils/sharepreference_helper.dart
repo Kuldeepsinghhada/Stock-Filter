@@ -20,6 +20,14 @@ class SharedPreferenceHelper {
   String closedInGreenKey = "closedInGreen";
   String emaVisibleKey = "emaVisible";
   String supertrendVisibleKey = "supertrendVisible";
+  String lastCandleMultiplierKey = "lastCandleMultiplier";
+  String otherCandlesMultiplierKey = "otherCandlesMultiplier";
+  String isVolumeAverageOKKey = "isVolumeAverageOK";
+  String isPatternKey = "isPattern";
+  String aboveSupertrendKey = "aboveSupertrend";
+  String aboveEma20Key = "aboveEma20";
+  String isVolumeBreakoutKey = "isVolumeBreakout";
+  String isNearEmaOrSupertrendKey = "isNearEmaOrSupertrend";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -250,5 +258,85 @@ class SharedPreferenceHelper {
   Future<List<String>?> getStringList(String key) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(key);
+  }
+
+  Future<void> setLastCandleMultiplier(double value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(lastCandleMultiplierKey, value);
+  }
+
+  Future<double> getLastCandleMultiplier() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(lastCandleMultiplierKey) ?? 15.0;
+  }
+
+  Future<void> setOtherCandlesMultiplier(double value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(otherCandlesMultiplierKey, value);
+  }
+
+  Future<double> getOtherCandlesMultiplier() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(otherCandlesMultiplierKey) ?? 10.0;
+  }
+
+  Future<void> setVolumeAverageEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(isVolumeAverageOKKey, value);
+  }
+
+  Future<bool> getVolumeAverageEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(isVolumeAverageOKKey) ?? true;
+  }
+
+  Future<void> setPatternEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(isPatternKey, value);
+  }
+
+  Future<bool> getPatternEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(isPatternKey) ?? true;
+  }
+
+  Future<void> setSupertrendEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(aboveSupertrendKey, value);
+  }
+
+  Future<bool> getSupertrendEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(aboveSupertrendKey) ?? true;
+  }
+
+  Future<void> setEma20Enabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(aboveEma20Key, value);
+  }
+
+  Future<bool> getEma20Enabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(aboveEma20Key) ?? true;
+  }
+
+  Future<void> setVolumeBreakoutEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(isVolumeBreakoutKey, value);
+  }
+
+  Future<bool> getVolumeBreakoutEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(isVolumeBreakoutKey) ?? true;
+  }
+
+  Future<void> setNearEmaOrSupertrendEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(isNearEmaOrSupertrendKey, value);
+  }
+
+  Future<bool> getNearEmaOrSupertrendEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(isNearEmaOrSupertrendKey) ?? false;
   }
 }

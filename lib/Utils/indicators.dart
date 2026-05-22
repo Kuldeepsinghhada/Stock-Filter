@@ -451,8 +451,10 @@ class IndicatorUtils {
 
   static bool isEveryCandleVolumeStrong(
     List<HistoricalDataModel> candles,
-    int failureCount,
-  ) {
+    int failureCount, {
+    double lastMultiplier = 15.0,
+    double otherMultiplier = 10.0,
+  }) {
     if (candles.length < 100) return false;
 
     CandleUtils.sortByTime(candles);
@@ -486,42 +488,63 @@ class IndicatorUtils {
 
     /// ===============================
     /// 🔥 CONDITIONS
-    /// Last candle > 10X
-    /// Other today's candles > 5X
+    /// Last candle > lastMultiplierX
+    /// Other today's candles > otherMultiplierX
     /// ===============================
 
     final lastCandle = todayCandles.last;
 
-    final lastCandleAbove10x = lastCandle.volume > (prevAvg * 15);
+    final lastCandleAboveX = lastCandle.volume > (prevAvg * lastMultiplier);
 
-    final otherCandlesAbove5x = todayCandles
-        .sublist(0, todayCandles.length - 1)
-        .every((c) => c.volume > (prevAvg * 10));
+    final otherCandles = todayCandles.sublist(
+      1,
+      todayCandles.length - 1,
+    );
+
+    final otherAvgVolume =
+        otherCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            otherCandles.length;
+
+    final otherCandlesAvgX = otherAvgVolume / prevAvg;
+
+    final otherCandlesAboveX = otherCandlesAvgX >= otherMultiplier;
 
     final todayAvg = todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
         todayCandles.length;
 
-    /// Debug
-    // debugPrint("-------- Volume Debug --------");
-    // debugPrint("Time : ${candles.last.timestamp}");
-    // debugPrint("Prev Avg Volume : $prevAvg");
-    // debugPrint("Today Avg Volume: $todayAvg");
-    // debugPrint("Last Candle >10x : $lastCandleAbove10x");
-    // debugPrint("Others >5x       : $otherCandlesAbove5x");
+    debugPrint("--------------${lastCandle.timestamp}----------------");
+    final lastCandleX = lastCandle.volume / prevAvg;
+    debugPrint(
+      "Last Candle => ${lastCandleX.toStringAsFixed(2)}X"
+      " | Need: ${lastMultiplier}X"
+      " | Result: $lastCandleAboveX",
+    );
+    debugPrint(
+      "Other Candles Avg => "
+      "${otherCandlesAvgX.toStringAsFixed(2)}X"
+      " | Need: ${otherMultiplier}X"
+      " | Result: $otherCandlesAboveX",
+    );
 
-    for (int i = 0; i < todayCandles.length; i++) {
-      final c = todayCandles[i];
-      final isLast = i == todayCandles.length - 1;
-
-      // debugPrint(
-      //   "${c.timestamp.hour}:${c.timestamp.minute} => ${c.volume}"
-      //   " | Need > ${(prevAvg * (isLast ? 10 : 5)).toStringAsFixed(0)}",
-      // );
+    var result = has200KVolumeInLast3Candles(candles) &&
+        lastCandleAboveX &&
+        otherCandlesAboveX;
+    if (result) {
+      print("RESULT PASSED : ${candles.last.timestamp}");
     }
+    return result;
+  }
 
-    debugPrint("------------------------------");
+  static bool has200KVolumeInLast3Candles(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.length < 3) return false;
 
-    return lastCandleAbove10x && otherCandlesAbove5x && todayAvg > 10000;
+    CandleUtils.sortByTime(candles);
+
+    final last3Candles = candles.sublist(candles.length - 3);
+
+    return last3Candles.any((c) => c.volume >= 100000);
   }
 
   static bool isVolumeBreakoutStrongV2(
@@ -651,8 +674,10 @@ class IndicatorUtils {
 
     final isSustain = strongCount >= 2;
 
-    var result =
-        last > ema20! * 1.2 && last > avg20 * 2 && last > avg5 * 2 && isSustain;
+    var result = last > ema20! * 1.2 &&
+        last > avg20 * 1.5 &&
+        last > avg5 * 1.5 &&
+        isSustain;
     return result;
   }
 
@@ -835,6 +860,46 @@ class IndicatorUtils {
     return todayClose >= yHigh * (1.0 + pct);
   }
 
+  static bool isNotAbove5Percent(
+      List<HistoricalDataModel> candles,
+      ) {
+    CandleUtils.sortByTime(candles);
+
+    final grouped = CandleUtils.groupByDate(candles);
+
+    final dates = grouped.keys.toList()..sort();
+
+    if (dates.length < 2) return false;
+
+    /// =========================
+    /// TODAY
+    /// =========================
+    final todayDate = dates.last;
+    final todayCandles = grouped[todayDate]!;
+
+    final todayClose = todayCandles.last.close;
+
+    /// =========================
+    /// YESTERDAY
+    /// =========================
+    final yesterdayDate = dates[dates.length - 2];
+    final yesterdayCandles = grouped[yesterdayDate]!;
+
+    final yesterdayClose = yesterdayCandles.last.close;
+
+    /// % change from yesterday close
+    final percentChange =
+        ((todayClose - yesterdayClose) / yesterdayClose) * 100;
+
+    /// Reject if already above 5%
+    if (percentChange > 5) {
+      debugPrint(
+        "Rejected: Up ${percentChange.toStringAsFixed(2)}% from yesterday close",
+      );
+      return false;
+    }
+    return true;
+  }
   /// today close >= yesterday close * (1 + pct) AND yesterday was bullish (open < close)
   /// today close >= yesterday high * (1 + pct)
   /// AND yesterday was bullish (open < close)

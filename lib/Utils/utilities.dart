@@ -417,7 +417,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      if (totalMinutes < 570 || totalMinutes > 660) continue;
+      if (totalMinutes < 565 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [

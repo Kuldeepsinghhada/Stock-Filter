@@ -2,14 +2,21 @@ import 'dart:developer';
 import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
 class FilterUtils {
   /// 🔹 Checks if all core indicator filters are passed
-  static bool passesFilter(List<HistoricalDataModel> candles, String token) {
+  static Future<bool> passesFilter(
+      List<HistoricalDataModel> candles, String token) async {
     List<String> failedReasons = [];
+
+    final lastMultiplier =
+        await SharedPreferenceHelper.instance.getLastCandleMultiplier();
+    final otherMultiplier =
+        await SharedPreferenceHelper.instance.getOtherCandlesMultiplier();
 
     // bool yesGreen = IndicatorUtils.wasYesterdayGreenFrom5Min(candles);
     // if(!yesGreen) failedReasons.add("Yesterday NOT Green from 5Min");
@@ -59,19 +66,38 @@ class FilterUtils {
     );
     if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
 
-    bool isVolumeAverageOK =
-        IndicatorUtils.isEveryCandleVolumeStrong(candles, failedReasons.length);
+    bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
+        candles, failedReasons.length,
+        lastMultiplier: lastMultiplier, otherMultiplier: otherMultiplier);
 
     bool isPattern = BullishPatternDetector.detectTop3Patterns85(
       Utilities.convertToDaily(candles),
     );
     if (!isPattern) failedReasons.add("No bullish pattern on daily");
 
-    if (isVolumeAverageOK & isPattern && aboveSupertrend && aboveEma20) {
+    final prefs = SharedPreferenceHelper.instance;
+    final isVolAvgEnabled = await prefs.getVolumeAverageEnabled();
+    final isPatternEnabled = await prefs.getPatternEnabled();
+    final isSupertrendEnabled = await prefs.getSupertrendEnabled();
+    final isEma20Enabled = await prefs.getEma20Enabled();
+    final isVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
+
+    bool passVolAvg = !isVolAvgEnabled || isVolumeAverageOK;
+    bool passPattern = !isPatternEnabled || isPattern;
+    bool passSupertrend = !isSupertrendEnabled || aboveSupertrend;
+    bool passEma20 = !isEma20Enabled || aboveEma20;
+    bool passVolBreakout = !isVolBreakoutEnabled || isVolumeBreakout;
+
+    bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
+
+    if (passVolAvg &&
+        passPattern &&
+        passSupertrend &&
+        passEma20 && passVolBreakout) {
       return true;
     }
     print(
-        "Result: ${candles.last.timestamp}\n Volume: $isVolumeAverageOK\n Pattern: $isPattern\n EMA20: $aboveEma20\n Supertrend: $aboveSupertrend");
+        "Result: ${candles.last.timestamp}\n Volume: $isVolumeAverageOK (Enabled: $isVolAvgEnabled)\n Pattern: $isPattern (Enabled: $isPatternEnabled)\n EMA20: $aboveEma20 (Enabled: $isEma20Enabled)\n Supertrend: $aboveSupertrend (Enabled: $isSupertrendEnabled)\n VolBreakout: $isVolumeBreakout (Enabled: $isVolBreakoutEnabled)");
     return false;
 
     // FINAL RESULT
@@ -85,7 +111,7 @@ class FilterUtils {
         is2PcChange &&
         isVolume1M &&
         isVolumeBreakout;
-    if (failedReasons.isNotEmpty) {
+    if (failedReasons.length == 1) {
       debugPrint(
           "Stock ${candles.last.timestamp} $token failed filters: ${failedReasons.join(", ")}");
     }
@@ -156,7 +182,8 @@ class FilterUtils {
 
     switch (timeFrame) {
       case 5:
-        bool isPass = passesFilter(historyCandles, stock.token.toString());
+        bool isPass =
+            await passesFilter(historyCandles, stock.token.toString());
         return isPass;
 
       case 15:

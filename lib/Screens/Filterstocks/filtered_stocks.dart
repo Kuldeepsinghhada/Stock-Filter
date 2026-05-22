@@ -5,6 +5,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
 import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
+import 'package:stock_demo/Screens/Settings/trade_setting_screen.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
@@ -70,8 +71,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       final input = _symbolsController.text.trim();
       List<String>? symbols;
       if (input.isNotEmpty) {
-        symbols =
-            input.split(',').map((e) => e.trim().toUpperCase()).toList();
+        symbols = input.split(',').map((e) => e.trim().toUpperCase()).toList();
       }
 
       final result = await DashboardService.instance
@@ -142,12 +142,20 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             ),
             icon: const Icon(Icons.search),
           ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TradeSettingPage()),
+            ),
+            icon: const Icon(Icons.settings),
+          ),
         ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

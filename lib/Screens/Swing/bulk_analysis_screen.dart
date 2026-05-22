@@ -8,6 +8,7 @@ import 'package:stock_demo/Utils/ai_score_calculator.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../Chart/indicator_settings_screen.dart';
 
 class BulkAnalysisScreen extends StatefulWidget {
@@ -158,95 +159,108 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       _rawResults.clear();
     });
 
-    final List<String> symbols = inputText
-        .split(',')
-        .map((e) => e.trim().toUpperCase())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    try {
+      await WakelockPlus.enable();
 
-    // Save last analyzed symbols so local filters can re-create errors for missing ones
-    _lastAnalyzedSymbols = List<String>.from(symbols);
+      final List<String> symbols = inputText
+          .split(',')
+          .map((e) => e.trim().toUpperCase())
+          .where((e) => e.isNotEmpty)
+          .toList();
 
-    if (_allStocks.isEmpty) {
-      await _loadStocksData();
-    }
+      // Save last analyzed symbols so local filters can re-create errors for missing ones
+      _lastAnalyzedSymbols = List<String>.from(symbols);
 
-    final DateTime toDate = _selectedDate;
+      if (_allStocks.isEmpty) {
+        await _loadStocksData();
+      }
 
-    setState(() {
-      _statusMessage = isRefresh
-          ? "Refreshing historical data (${symbols.length} symbols)..."
-          : "Fetching local/historical data (${symbols.length} symbols)...";
-    });
+      final DateTime toDate = _selectedDate;
 
-    final enableSwingScannerLoose =
-        await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
+      setState(() {
+        _statusMessage = isRefresh
+            ? "Refreshing historical data (${symbols.length} symbols)..."
+            : "Fetching local/historical data (${symbols.length} symbols)...";
+      });
 
-    // Read boolean preference: if true, show only symbols whose last candle closed green
-    final closedInGreenEnabled =
-        await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
+      final enableSwingScannerLoose =
+          await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
 
-    // Call the batch fetching logic in HistoryServices to get StockModel objects
-    List<StockModel> fetched = await HistoryServices.instance.fetchQuotes(
-      toDate,
-      symbols,
-      isRefresh: isRefresh,
-    );
+      // Read boolean preference: if true, show only symbols whose last candle closed green
+      final closedInGreenEnabled =
+          await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
 
-    // Build raw results by calculating score for each available stock locally.
-    List<Map<String, dynamic>> raw = [];
+      // Call the batch fetching logic in HistoryServices to get StockModel objects
+      List<StockModel> fetched = await HistoryServices.instance.fetchQuotes(
+        toDate,
+        symbols,
+        isRefresh: isRefresh,
+      );
 
-    fetched.removeWhere(
-      (item) =>
-          (item.historyFiveMin != null && item.historyFiveMin!.length < 200),
-    );
+      // Build raw results by calculating score for each available stock locally.
+      List<Map<String, dynamic>> raw = [];
 
-    for (var stock in fetched) {
-      if (symbols.contains(stock.symbol)) {
-        if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
-          try {
-            // Always compute scoreResult so we can re-filter locally later
-            final Map<String, dynamic> scoreResult =
-                AIScoreCalculator.calculateAIScoreV2(
-              stock.historyFiveMin!,
-              targetDate: toDate,
-            );
-            // Mark symbol and stock reference
-            scoreResult['symbol'] = stock.symbol;
-            scoreResult['stock'] = stock;
+      fetched.removeWhere(
+        (item) =>
+            (item.historyFiveMin != null && item.historyFiveMin!.length < 200),
+      );
 
-            raw.add(scoreResult);
-          } catch (e) {
+      for (var stock in fetched) {
+        if (symbols.contains(stock.symbol)) {
+          if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
+            try {
+              // Always compute scoreResult so we can re-filter locally later
+              final Map<String, dynamic> scoreResult =
+                  AIScoreCalculator.calculateAIScoreV2(
+                stock.historyFiveMin!,
+                targetDate: toDate,
+              );
+              // Mark symbol and stock reference
+              scoreResult['symbol'] = stock.symbol;
+              scoreResult['stock'] = stock;
+
+              raw.add(scoreResult);
+            } catch (e) {
+              raw.add({
+                "symbol": stock.symbol,
+                "error": "Failed to calculate score: ${e.toString()}",
+              });
+            }
+          } else {
             raw.add({
               "symbol": stock.symbol,
-              "error": "Failed to calculate score: ${e.toString()}",
+              "error": "Insufficient historical data",
             });
           }
-        } else {
+        }
+      }
+
+      // Also add missing symbols that were not present in fetched list as errors
+      final fetchedSymbolsSet = raw.map((r) => r['symbol']).toSet();
+      for (final symbol in symbols) {
+        if (!fetchedSymbolsSet.contains(symbol)) {
           raw.add({
-            "symbol": stock.symbol,
-            "error": "Insufficient historical data",
+            "symbol": symbol,
+            "error": "Failed to fetch data or symbol not found",
           });
         }
       }
-    }
 
-    // Also add missing symbols that were not present in fetched list as errors
-    final fetchedSymbolsSet = raw.map((r) => r['symbol']).toSet();
-    for (final symbol in symbols) {
-      if (!fetchedSymbolsSet.contains(symbol)) {
-        raw.add({
-          "symbol": symbol,
-          "error": "Failed to fetch data or symbol not found",
+      // Store raw results and apply active settings filters locally (no network/db needed)
+      _rawResults = raw;
+
+      // Apply filters and update displayed _results
+      await _applyFiltersFromSettings(isRefresh: isRefresh);
+    } catch (e) {
+      debugPrint("Analysis failed: $e");
+    } finally {
+      await WakelockPlus.disable();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
         });
       }
     }
-
-    // Store raw results and apply active settings filters locally (no network/db needed)
-    _rawResults = raw;
-
-    // Apply filters and update displayed _results
-    await _applyFiltersFromSettings(isRefresh: isRefresh);
   }
 
   // Apply current settings to _rawResults and update _results without network calls
@@ -255,6 +269,8 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
         await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
     final closedInGreenEnabled =
         await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
+    final nearEmaOrSupertrendEnabled =
+        await SharedPreferenceHelper.instance.getNearEmaOrSupertrendEnabled();
 
     // Split raw into successes and errors
     final errors = _rawResults.where((r) => r.containsKey('error')).toList();
@@ -269,6 +285,11 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
     // Apply closed-in-green filter if enabled
     if (closedInGreenEnabled) {
       filtered = filtered.where((r) => r['isLastCandleGreen'] == true).toList();
+    }
+
+    // Apply near EMA or Supertrend filter if enabled
+    if (nearEmaOrSupertrendEnabled) {
+      filtered = filtered.where((r) => r['isNearBuyZone'] == true).toList();
     }
 
     // Sort successes by score
@@ -361,6 +382,28 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
       appBar: AppBar(
         title: Text('ANALYSIS'.toUpperCase()),
         actions: [
+          IconButton(
+            onPressed: () {
+              final passedSymbols = _results
+                  .where((r) =>
+                      r['symbol'] != null &&
+                      !r.containsKey('error') &&
+                      (r['score'] ?? 0) > 50)
+                  .map((r) => r['symbol'].toString())
+                  .join(', ');
+              if (passedSymbols.isNotEmpty) {
+                Clipboard.setData(ClipboardData(text: passedSymbols));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(
+                        'Copied ${passedSymbols.split(',').length} symbols to clipboard')));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('No symbols with score > 50')));
+              }
+            },
+            icon: const Icon(Icons.copy, color: Colors.white),
+            tooltip: 'Copy symbols > 50%',
+          ),
           IconButton(
             onPressed:
                 _isLoading ? null : () => _analyzeSymbols(isRefresh: true),

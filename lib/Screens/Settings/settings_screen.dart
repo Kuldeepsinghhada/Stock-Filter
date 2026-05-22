@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'trade_setting_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -69,6 +70,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'When enabled, bulk analysis will show only symbols whose last candle closed green.'),
                   value: _closedInGreen,
                   onChanged: _toggleClosedInGreen,
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.settings_suggest, color: Colors.blueAccent),
+                  title: const Text('Trade Logic Settings'),
+                  subtitle: const Text('Configure filter toggles and volume multipliers'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TradeSettingPage()),
+                    );
+                  },
                 ),
               ],
             ),
