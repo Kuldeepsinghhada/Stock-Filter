@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'trade_setting_screen.dart';
+import 'package:stock_demo/Screens/StrategyTesting/strategy_testing_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -81,6 +82,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const TradeSettingPage()),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.analytics, color: Colors.blueAccent),
+                  title: const Text('Strategy Testing'),
+                  subtitle: const Text('Test backtest accuracy for specific stocks'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const StrategyTestingScreen()),
                     );
                   },
                 ),

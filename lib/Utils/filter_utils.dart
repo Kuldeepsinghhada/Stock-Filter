@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/indicators.dart';
@@ -6,6 +7,8 @@ import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
+import 'candle_utils.dart';
+import 'math_utils.dart';
 
 class FilterUtils {
   /// 🔹 Checks if all core indicator filters are passed
@@ -87,17 +90,19 @@ class FilterUtils {
     bool passSupertrend = !isSupertrendEnabled || aboveSupertrend;
     bool passEma20 = !isEma20Enabled || aboveEma20;
     bool passVolBreakout = !isVolBreakoutEnabled || isVolumeBreakout;
-
     bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
-
+    int score = getSmartPriceActionScore(candles);
+    bool isScoreGood = score >= 70;
     if (passVolAvg &&
         passPattern &&
         passSupertrend &&
-        passEma20 && passVolBreakout) {
+        passEma20 &&
+        isScoreGood) {
+      print("Passed : $token");
       return true;
     }
     print(
-        "Result: ${candles.last.timestamp}\n Volume: $isVolumeAverageOK (Enabled: $isVolAvgEnabled)\n Pattern: $isPattern (Enabled: $isPatternEnabled)\n EMA20: $aboveEma20 (Enabled: $isEma20Enabled)\n Supertrend: $aboveSupertrend (Enabled: $isSupertrendEnabled)\n VolBreakout: $isVolumeBreakout (Enabled: $isVolBreakoutEnabled)");
+        "Result: ${candles.last.timestamp}\n Volume:  (Enabled: $isVolAvgEnabled)\n Pattern: $isPattern (Enabled: $isPatternEnabled)\n EMA20: $aboveEma20 (Enabled: $isEma20Enabled)\n Supertrend: $aboveSupertrend (Enabled: $isSupertrendEnabled)\n VolBreakout: $isVolumeBreakout (Enabled: $isVolBreakoutEnabled)");
     return false;
 
     // FINAL RESULT
@@ -168,7 +173,7 @@ class FilterUtils {
     if (!isPattern.found) {
       return false;
     }
-    log("✅ Stock Passed All Timeframes: ${stock.symbol}");
+    debugPrint("✅ Stock Passed All Timeframes: ${stock.symbol}");
     return true;
   }
 
@@ -415,5 +420,489 @@ class FilterUtils {
       if (volume <= 100000) return false;
     }
     return true;
+  }
+
+  /// 🔥 DAILY INSTITUTIONAL TREND FILTER
+  ///
+  /// Purpose:
+  /// Find strong trending stocks
+  /// with healthy pullback structure
+  /// before intraday entry.
+  ///
+  /// Use this FIRST.
+  /// Then run 5min strategy only
+  /// on shortlisted symbols.
+
+  static bool isStrongDailyTrendSetup(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.length < 200) {
+      return false;
+    }
+
+    CandleUtils.sortByTime(candles);
+
+    final daily = Utilities.convertToDaily(candles);
+
+    final closes = daily.map((e) => e.close).toList();
+
+    final ema20List = MathUtils.emaAligned(
+      closes,
+      20,
+    );
+
+    if (ema20List.isEmpty) {
+      return false;
+    }
+
+    final ema20 = ema20List.last!;
+
+    /// =========================================
+    /// DAILY SUPERTREND
+    /// =========================================
+
+    /// =========================================
+    /// DAILY RSI HEALTHY
+    /// =========================================
+
+    final rsiOk = IndicatorUtils.isRsiBetween(
+      daily,
+      14,
+      min: 52,
+      max: 75,
+    );
+
+    if (!rsiOk) {
+      return false;
+    }
+
+    /// =========================================
+    /// DAILY VOLUME PARTICIPATION
+    /// =========================================
+
+    final dailyVolumes = daily.map((e) => e.volume.toDouble()).toList();
+
+    final avg10Volume = dailyVolumes
+            .sublist(
+              dailyVolumes.length - 10,
+            )
+            .reduce((a, b) => a + b) /
+        10;
+
+    final currentVolume = dailyVolumes.last;
+
+    if (currentVolume < avg10Volume * 0.8) {
+      return false;
+    }
+
+    /// =========================================
+    /// RECENT MOMENTUM
+    /// =========================================
+
+    final currentClose = daily.last.close;
+
+    final oldClose = daily[daily.length - 10].close;
+
+    final movePct = ((currentClose - oldClose) / oldClose) * 100;
+
+    if (movePct < 5) {
+      return false;
+    }
+
+    /// =========================================
+    /// NOT OVEREXTENDED
+    /// =========================================
+
+    final distanceFromEMA20 = ((currentClose - ema20) / ema20) * 100;
+
+    if (distanceFromEMA20 > 10) {
+      return false;
+    }
+
+    /// =========================================
+    /// DAILY GREEN CANDLE
+    /// =========================================
+
+    final lastDaily = daily.last;
+
+    if (lastDaily.close <= lastDaily.open) {
+      return false;
+    }
+
+    /// =========================================
+    /// CONTROLLED PULLBACK
+    /// =========================================
+
+    final recent = daily.sublist(
+      daily.length - 5,
+    );
+
+    int redCount = 0;
+
+    for (final c in recent) {
+      if (c.close < c.open) {
+        redCount++;
+      }
+    }
+
+    if (redCount > 4) {
+      return false;
+    }
+
+    /// =========================================
+    /// VOLUME DRY-UP
+    /// =========================================
+
+    final previousTrendCandles = daily.sublist(
+      daily.length - 15,
+      daily.length - 5,
+    );
+
+    final previousAvgVolume =
+        previousTrendCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            previousTrendCandles.length;
+
+    final recentAvgVolume =
+        recent.map((e) => e.volume).reduce((a, b) => a + b) / recent.length;
+
+    final dryUp = recentAvgVolume < previousAvgVolume * 0.8;
+
+    if (!dryUp) {
+      return false;
+    }
+
+    /// =========================================
+    /// HOLDING EMA20
+    /// =========================================
+
+    final nearEMA20 = currentClose >= ema20 * 0.97;
+
+    if (!nearEMA20) {
+      return false;
+    }
+
+    /// =========================================
+    /// RECLAIM CANDLE
+    /// =========================================
+
+    final last = daily.last;
+
+    final candleRange = last.high - last.low;
+
+    if (candleRange <= 0) {
+      return false;
+    }
+
+    final candleBody = (last.close - last.open).abs();
+
+    final bullish = last.close > last.open;
+
+    final closeNearHigh = ((last.high - last.close) / candleRange) < 0.35;
+
+    final upperWick = last.high -
+        max(
+          last.open,
+          last.close,
+        );
+
+    final lowUpperWick = upperWick < candleBody * 0.8;
+
+    if (!bullish || !closeNearHigh || !lowUpperWick) {
+      return false;
+    }
+
+    /// =========================================
+    /// AVOID PARABOLIC STOCKS
+    /// =========================================
+
+    if (movePct > 30) {
+      return false;
+    }
+
+    debugPrint(
+      "🔥 DAILY STRONG TREND SETUP => "
+      "${candles.last.timestamp}",
+    );
+
+    return true;
+  }
+
+  static double getVolumeMultiplication(List<HistoricalDataModel> candles) {
+    final daily = Utilities.convertToDaily(candles);
+    if (daily.length < 10) return 0.0;
+
+    final recent5 = daily.sublist(daily.length - 5);
+    final prev5 = daily.sublist(
+      daily.length - 10,
+      daily.length - 5,
+    );
+
+    final recentAvgVolume =
+        recent5.map((e) => e.volume).reduce((a, b) => a + b) / recent5.length;
+
+    final prevAvgVolume =
+        prev5.map((e) => e.volume).reduce((a, b) => a + b) / prev5.length;
+
+    if (prevAvgVolume == 0) return 0.0;
+    return recentAvgVolume / prevAvgVolume;
+  }
+
+  static int getSmartPriceActionScore(
+    List<HistoricalDataModel> candles,
+  ) {
+    // =========================================================
+    // 5 MIN → DAILY
+    // =========================================================
+
+    final daily = Utilities.convertToDaily(candles);
+
+    if (daily.length < 20) {
+      return 0;
+    }
+
+    CandleUtils.sortByTime(daily);
+
+    int score = 0;
+
+    final previousDayVolume = daily[daily.length - 2].volume;
+
+    final volume1Lakh = previousDayVolume >= 100000;
+
+    if (!volume1Lakh) {
+      return 0;
+    }
+
+    final last = daily.last;
+
+    final close = last.close;
+    final open = last.open;
+    final high = last.high;
+    final low = last.low;
+
+    // =========================================================
+    // 1️⃣ CLOSE NEAR DAY HIGH
+    // Strong closing = institutions buying
+    // =========================================================
+
+    final closeNearHigh = close >= high * 0.985;
+
+    if (closeNearHigh) {
+      score += 15;
+    }
+
+    // =========================================================
+    // 2️⃣ LOW UPPER WICK
+    // Avoid profit booking candles
+    // =========================================================
+
+    final body = (close - open).abs();
+
+    final upperWick = high - max(open, close);
+
+    final lowUpperWick = body > 0 && upperWick <= body * 0.6;
+
+    if (lowUpperWick) {
+      score += 10;
+    }
+
+    // =========================================================
+    // 3️⃣ STRONG GREEN CANDLE
+    // =========================================================
+
+    final candlePct = ((close - open).abs() / open) * 100;
+
+    final strongGreen = close > open && candlePct >= 1.2;
+
+    if (strongGreen) {
+      score += 15;
+    }
+
+    // =========================================================
+    // 4️⃣ VOLUME EXPANSION
+    // Real momentum
+    // =========================================================
+
+    final recent5 = daily.sublist(daily.length - 5);
+
+    final prev5 = daily.sublist(
+      daily.length - 10,
+      daily.length - 5,
+    );
+
+    final recentAvgVolume =
+        recent5.map((e) => e.volume).reduce((a, b) => a + b) / recent5.length;
+
+    final prevAvgVolume =
+        prev5.map((e) => e.volume).reduce((a, b) => a + b) / prev5.length;
+
+    final volumeExpansion = recentAvgVolume > prevAvgVolume * 1.4;
+
+    if (volumeExpansion) {
+      score += 20;
+    }
+
+    // =========================================================
+    // 5️⃣ SMOOTH STRUCTURE
+    // Remove operator/choppy stocks
+    // =========================================================
+
+    int badWickCount = 0;
+
+    final recentCandles = daily.sublist(daily.length - 10);
+
+    for (final c in recentCandles) {
+      final cBody = (c.close - c.open).abs();
+
+      final cUpperWick = c.high - max(c.open, c.close);
+
+      final cLowerWick = min(c.open, c.close) - c.low;
+
+      final totalWick = cUpperWick + cLowerWick;
+
+      if (cBody > 0 && totalWick > cBody * 1.5) {
+        badWickCount++;
+      }
+    }
+
+    final smoothStructure = badWickCount <= 1;
+
+    if (smoothStructure) {
+      score += 20;
+    }
+
+    // =========================================================
+    // 6️⃣ TIGHT CONSOLIDATION
+    // Strong stocks move cleanly
+    // =========================================================
+
+    double recentHigh = 0;
+    double recentLow = double.infinity;
+
+    for (int i = daily.length - 5; i < daily.length; i++) {
+      if (daily[i].high > recentHigh) {
+        recentHigh = daily[i].high;
+      }
+
+      if (daily[i].low < recentLow) {
+        recentLow = daily[i].low;
+      }
+    }
+
+    final rangePct = ((recentHigh - recentLow) / recentLow) * 100;
+
+    final tightStructure = rangePct <= 4.5;
+
+    if (tightStructure) {
+      score += 15;
+    }
+
+    // =========================================================
+    // 7️⃣ BREAKOUT QUALITY
+    // Fresh breakout only
+    // =========================================================
+
+    double highestHigh = 0;
+
+    for (int i = daily.length - 20; i < daily.length - 1; i++) {
+      if (daily[i].high > highestHigh) {
+        highestHigh = daily[i].high;
+      }
+    }
+
+    final breakout = close > highestHigh * 1.002;
+
+    if (breakout) {
+      score += 20;
+    }
+
+    // =========================================================
+    // 8️⃣ HEALTHY PULLBACK
+    // Avoid weak structures
+    // =========================================================
+
+    int redCount = 0;
+
+    final last7 = daily.sublist(daily.length - 7);
+
+    for (final c in last7) {
+      if (c.close < c.open) {
+        redCount++;
+      }
+    }
+
+    final healthyPullback = redCount <= 2;
+
+    if (healthyPullback) {
+      score += 10;
+    }
+
+    // =========================================================
+    // 9️⃣ AVOID PARABOLIC MOVE
+    // Retail trap removal
+    // =========================================================
+
+    final tenDayAgoClose = daily[daily.length - 10].close;
+
+    final runUpPct = ((close - tenDayAgoClose) / tenDayAgoClose) * 100;
+
+    final notOverExtended = runUpPct <= 18;
+
+    if (notOverExtended) {
+      score += 10;
+    }
+
+    // =========================================================
+    // 🔟 NO BIG GAP-UP
+    // Late entries avoid
+    // =========================================================
+
+    final gapPct = ((open - daily[daily.length - 2].close) /
+            daily[daily.length - 2].close) *
+        100;
+
+    final controlledGap = gapPct <= 2.5;
+
+    if (controlledGap) {
+      score += 10;
+    }
+
+    // =========================================================
+    // FINAL
+    // =========================================================
+
+    // final nearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(
+    //   daily,
+    //   tolerancePercent: 5,
+    // );
+    //
+    // if (!nearBuyingZone) {
+    //   return false;
+    // }
+    //
+    final passed = score >= 70;
+
+    // bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
+    //     candles, 0,
+    //     lastMultiplier: 1, otherMultiplier: 1);
+
+    // if(!isVolumeAverageOK){
+    //   return false;
+    // }
+
+    print(
+      "${candles.last.timestamp}\n"
+      "Smart Price Action Score: $score\n"
+      "CloseNearHigh: $closeNearHigh\n"
+      "LowUpperWick: $lowUpperWick\n"
+      "StrongGreen: $strongGreen\n"
+      "VolumeExpansion: $volumeExpansion\n"
+      "SmoothStructure: $smoothStructure\n"
+      "TightStructure: $tightStructure\n"
+      "Breakout: $breakout\n"
+      "HealthyPullback: $healthyPullback\n"
+      "NotOverExtended: $notOverExtended\n"
+      "ControlledGap: $controlledGap",
+    );
+    return score;
   }
 }

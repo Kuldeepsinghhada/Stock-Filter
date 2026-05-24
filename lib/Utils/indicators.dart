@@ -532,7 +532,7 @@ class IndicatorUtils {
     if (result) {
       print("RESULT PASSED : ${candles.last.timestamp}");
     }
-    return result;
+    return lastCandleAboveX && otherCandlesAboveX;
   }
 
   static bool has200KVolumeInLast3Candles(
@@ -861,8 +861,8 @@ class IndicatorUtils {
   }
 
   static bool isNotAbove5Percent(
-      List<HistoricalDataModel> candles,
-      ) {
+    List<HistoricalDataModel> candles,
+  ) {
     CandleUtils.sortByTime(candles);
 
     final grouped = CandleUtils.groupByDate(candles);
@@ -900,6 +900,7 @@ class IndicatorUtils {
     }
     return true;
   }
+
   /// today close >= yesterday close * (1 + pct) AND yesterday was bullish (open < close)
   /// today close >= yesterday high * (1 + pct)
   /// AND yesterday was bullish (open < close)

@@ -166,9 +166,9 @@ class DashboardService {
               // Apply final filter check
 
               final isPattern = BullishPatternDetector.detectTop3Patterns85(
-                  Utilities.convertToDaily(history ?? []));
-              if (isPattern == true &&
-                  await FilterUtils.isPassAllTimeFrame(history, stock)) {
+                  Utilities.convertToDaily(history));
+              var score = FilterUtils.getSmartPriceActionScore(history);
+              if (isPattern == true && score >= 70) {
                 return stock.copyWith(
                   symbol: stock.symbol?.replaceAll("NSE:", ""),
                   historyFiveMin: history,
