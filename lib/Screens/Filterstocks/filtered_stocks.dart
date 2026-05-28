@@ -9,6 +9,7 @@ import 'package:stock_demo/Screens/Settings/trade_setting_screen.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -38,6 +39,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
   Future<void> _initialize() async {
     await NotificationService.requestPermissions();
+    await FilterUtils.cacheFilterSettings();
     await _loadCachedStocks();
     //await fetchQuotesFromService(); // always fetch fresh data once
   }
@@ -261,6 +263,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
           await WakelockPlus.enable();
           if (!isTaskRunning) {
+            await FilterUtils.cacheFilterSettings();
             isTaskRunning = true;
             await fetchQuotesFromService();
           } else {

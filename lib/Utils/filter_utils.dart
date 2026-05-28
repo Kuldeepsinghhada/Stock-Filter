@@ -11,15 +11,33 @@ import 'candle_utils.dart';
 import 'math_utils.dart';
 
 class FilterUtils {
+  // Static cached variables to avoid querying SharedPreferences repetitively
+  static double cachedLastMultiplier = 15.0;
+  static double cachedOtherMultiplier = 10.0;
+  static bool cachedIsVolAvgEnabled = true;
+  static bool cachedIsPatternEnabled = true;
+  static bool cachedIsSupertrendEnabled = true;
+  static bool cachedIsEma20Enabled = true;
+  static bool cachedIsVolBreakoutEnabled = true;
+
+  /// Loads and caches the settings from SharedPreferences
+  static Future<void> cacheFilterSettings() async {
+    final prefs = SharedPreferenceHelper.instance;
+    cachedLastMultiplier = await prefs.getLastCandleMultiplier();
+    cachedOtherMultiplier = await prefs.getOtherCandlesMultiplier();
+    cachedIsVolAvgEnabled = await prefs.getVolumeAverageEnabled();
+    cachedIsPatternEnabled = await prefs.getPatternEnabled();
+    cachedIsSupertrendEnabled = await prefs.getSupertrendEnabled();
+    cachedIsEma20Enabled = await prefs.getEma20Enabled();
+    cachedIsVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
+  }
+
   /// 🔹 Checks if all core indicator filters are passed
-  static Future<bool> passesFilter(
-      List<HistoricalDataModel> candles, String token) async {
+  static bool passesFilter(List<HistoricalDataModel> candles, String token) {
     List<String> failedReasons = [];
 
-    final lastMultiplier =
-        await SharedPreferenceHelper.instance.getLastCandleMultiplier();
-    final otherMultiplier =
-        await SharedPreferenceHelper.instance.getOtherCandlesMultiplier();
+    final lastMultiplier = cachedLastMultiplier;
+    final otherMultiplier = cachedOtherMultiplier;
 
     // bool yesGreen = IndicatorUtils.wasYesterdayGreenFrom5Min(candles);
     // if(!yesGreen) failedReasons.add("Yesterday NOT Green from 5Min");
@@ -73,17 +91,20 @@ class FilterUtils {
         candles, failedReasons.length,
         lastMultiplier: lastMultiplier, otherMultiplier: otherMultiplier);
 
-    bool isPattern = BullishPatternDetector.detectTop3Patterns85(
+    // if (isVolumeAverageOK) {
+    //   return true;
+    // }
+
+    var isPattern = BullishPatternDetector.detectTop3Patterns85(
       Utilities.convertToDaily(candles),
     );
     if (!isPattern) failedReasons.add("No bullish pattern on daily");
 
-    final prefs = SharedPreferenceHelper.instance;
-    final isVolAvgEnabled = await prefs.getVolumeAverageEnabled();
-    final isPatternEnabled = await prefs.getPatternEnabled();
-    final isSupertrendEnabled = await prefs.getSupertrendEnabled();
-    final isEma20Enabled = await prefs.getEma20Enabled();
-    final isVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
+    final isVolAvgEnabled = cachedIsVolAvgEnabled;
+    final isPatternEnabled = cachedIsPatternEnabled;
+    final isSupertrendEnabled = cachedIsSupertrendEnabled;
+    final isEma20Enabled = cachedIsEma20Enabled;
+    final isVolBreakoutEnabled = cachedIsVolBreakoutEnabled;
 
     bool passVolAvg = !isVolAvgEnabled || isVolumeAverageOK;
     bool passPattern = !isPatternEnabled || isPattern;
@@ -93,11 +114,21 @@ class FilterUtils {
     bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
     int score = getSmartPriceActionScore(candles);
     bool isScoreGood = score >= 70;
-    if (passVolAvg &&
-        passPattern &&
+    final isDayPass = isPassHistoryChart(
+      Utilities.convertToDaily(candles),
+      token.toString(),
+      1,
+    );
+    if ((passVolAvg || (score > 100)) &&
         passSupertrend &&
         passEma20 &&
-        isScoreGood) {
+        passVolBreakout &&
+        passPattern &&
+        isScoreGood &&
+        atrOk &&
+        adxRes &&
+        isNotAbove5Percent &&
+        isDayPass) {
       print("Passed : $token");
       return true;
     }
@@ -128,35 +159,36 @@ class FilterUtils {
     List<HistoricalDataModel>? historyCandles,
     StockModel stock,
   ) async {
-    final is5MinPass = await isPassHistoryChart(historyCandles, stock, 5);
+    final is5MinPass =
+        isPassHistoryChart(historyCandles, stock.token.toString(), 5);
     if (!is5MinPass) return false;
 
-    final is15MinPass = await isPassHistoryChart(
+    final is15MinPass = isPassHistoryChart(
       Utilities.resampleCandles(
         historyCandles ?? [],
         const Duration(minutes: 15),
       ),
-      stock,
+      stock.token.toString(),
       15,
     );
     if (!is15MinPass) return false;
 
-    final is30MinPass = await isPassHistoryChart(
+    final is30MinPass = isPassHistoryChart(
       Utilities.resampleCandles(
         historyCandles ?? [],
         const Duration(minutes: 30),
       ),
-      stock,
+      stock.token.toString(),
       30,
     );
     if (!is30MinPass) return false;
 
-    final is1HourPass = await isPassHistoryChart(
+    final is1HourPass = isPassHistoryChart(
       Utilities.resampleCandles(
         historyCandles ?? [],
         const Duration(minutes: 60),
       ),
-      stock,
+      stock.token.toString(),
       60,
     );
     if (!is1HourPass) return false;
@@ -178,17 +210,16 @@ class FilterUtils {
   }
 
   /// 🔹 Handles individual timeframe logic
-  static Future<bool> isPassHistoryChart(
+  static bool isPassHistoryChart(
     List<HistoricalDataModel>? historyCandles,
-    StockModel stock,
+    String token,
     int timeFrame,
-  ) async {
+  ) {
     if (historyCandles == null || historyCandles.isEmpty) return false;
 
     switch (timeFrame) {
       case 5:
-        bool isPass =
-            await passesFilter(historyCandles, stock.token.toString());
+        bool isPass = passesFilter(historyCandles, token.toString());
         return isPass;
 
       case 15:
@@ -205,13 +236,7 @@ class FilterUtils {
           historyCandles,
           atrPeriod: 10,
         ).isPassed;
-        bool rsiOk = IndicatorUtils.isRsiBetween(
-          historyCandles,
-          14,
-          min: 50,
-          max: 70,
-        );
-        return isEMA20 && aboveSupertrend && rsiOk;
+        return isEMA20 || aboveSupertrend;
 
       default:
         return false;
@@ -650,6 +675,19 @@ class FilterUtils {
   static int getSmartPriceActionScore(
     List<HistoricalDataModel> candles,
   ) {
+    if (candles.isEmpty) return 0;
+
+    final groupedByDate = CandleUtils.groupByDate(candles);
+    final sortedDates = groupedByDate.keys.toList()..sort();
+    if (sortedDates.isNotEmpty) {
+      final todayCandles = groupedByDate[sortedDates.last]!;
+      for (var c in todayCandles) {
+        if (c.volume <= 5000) {
+          return 0;
+        }
+      }
+    }
+
     // =========================================================
     // 5 MIN → DAILY
     // =========================================================

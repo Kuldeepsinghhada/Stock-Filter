@@ -417,7 +417,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      if (totalMinutes < 580 || totalMinutes > 605) continue;
+      if (totalMinutes < 570 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [
@@ -426,8 +426,8 @@ class Utilities {
       ];
 
       try {
-        final passed = await FilterUtils.passesFilter(
-            historySoFar, model.token.toString());
+        final passed =
+            FilterUtils.passesFilter(historySoFar, model.token.toString());
         // final passed = isDayBreakOut
         //     ? candleTillCandle(current, baseHistory)
         //     : FilterUtils.getSmartPriceActionScore(historySoFar);

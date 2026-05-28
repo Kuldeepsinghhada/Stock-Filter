@@ -21,6 +21,7 @@ class DashboardService {
   /// Fetch live quotes, apply filters and historical data checks
   Future<List<FinalStockModel>> fetchQuotes(
       {List<String>? symbolsToFilter, DateTime? selectedDate}) async {
+    await FilterUtils.cacheFilterSettings();
     await Utilities.loadStocksList();
     _finalList.clear();
     // Filter valid symbols
@@ -167,8 +168,9 @@ class DashboardService {
 
               final isPattern = BullishPatternDetector.detectTop3Patterns85(
                   Utilities.convertToDaily(history));
-              var score = FilterUtils.getSmartPriceActionScore(history);
-              if (isPattern == true && score >= 70) {
+              var isPassed = FilterUtils.passesFilter(
+                  history, stock.token.toString());
+              if (isPattern == true && isPassed) {
                 return stock.copyWith(
                   symbol: stock.symbol?.replaceAll("NSE:", ""),
                   historyFiveMin: history,

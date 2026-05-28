@@ -532,7 +532,7 @@ class IndicatorUtils {
     if (result) {
       print("RESULT PASSED : ${candles.last.timestamp}");
     }
-    return lastCandleAboveX && otherCandlesAboveX;
+    return result;
   }
 
   static bool has200KVolumeInLast3Candles(
@@ -892,7 +892,7 @@ class IndicatorUtils {
         ((todayClose - yesterdayClose) / yesterdayClose) * 100;
 
     /// Reject if already above 5%
-    if (percentChange > 5) {
+    if (percentChange > 10) {
       debugPrint(
         "Rejected: Up ${percentChange.toStringAsFixed(2)}% from yesterday close",
       );
