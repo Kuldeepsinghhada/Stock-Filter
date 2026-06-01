@@ -25,8 +25,10 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
   var isLoading = false;
   int totalSignals = 0;
   int profitableSignals = 0;
+  int slSignals = 0;
+  int neutralSignals = 0;
   double accuracy = 0.0;
-  Map<String, bool> stockProfitability = {};
+  Map<String, String> stockTradeResult = {};
 
   @override
   void initState() {
@@ -36,16 +38,20 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
 
   Future<void> _initialize() async {
     quoteList.clear();
-    stockProfitability.clear();
+    stockTradeResult.clear();
     Future.delayed(const Duration(milliseconds: 200), () async {
       setState(() {
         isLoading = true;
         totalSignals = 0;
         profitableSignals = 0;
+        slSignals = 0;
+        neutralSignals = 0;
         accuracy = 0.0;
       });
       int tSignals = 0;
-      int pSignals = 0;
+      int targetHits = 0;
+      int slHits = 0;
+      int neutralHits = 0;
       for (var item in DataManager.instance.preFilteredStocksList) {
         var result = await Utilities.buildTodayHistory(
           item.historyFiveMin ?? [],
@@ -65,7 +71,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
 
               var signal = result.first;
               tSignals++;
-              bool profitable = false;
+              String tradeState = "Neutral";
               var signalDateTime = signal.dateTime ?? todayDate;
               var subsequentCandles = todayCandles
                   .where((c) => c.timestamp.isAfter(signalDateTime))
@@ -77,16 +83,27 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                 for (var candle in subsequentCandles) {
                   double highChange =
                       ((candle.high - signalPrice) / signalPrice) * 100;
+                  double lowChange =
+                      ((candle.low - signalPrice) / signalPrice) * 100;
 
-                  if (highChange >= 2.0) {
-                    profitable = true;
+                  if (lowChange <= -1.0) {
+                    tradeState = "SL Hit";
+                    break;
+                  } else if (highChange >= 2.0) {
+                    tradeState = "Target Hit";
                     break;
                   }
                 }
               }
 
-              if (profitable) pSignals++;
-              stockProfitability[item.symbol ?? ''] = profitable;
+              if (tradeState == "Target Hit")
+                targetHits++;
+              else if (tradeState == "SL Hit")
+                slHits++;
+              else
+                neutralHits++;
+
+              stockTradeResult[item.symbol ?? ''] = tradeState;
             }
           }
         }
@@ -95,8 +112,10 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
       setState(() {
         isLoading = false;
         totalSignals = tSignals;
-        profitableSignals = pSignals;
-        accuracy = tSignals > 0 ? (pSignals / tSignals) * 100 : 0.0;
+        profitableSignals = targetHits;
+        slSignals = slHits;
+        neutralSignals = neutralHits;
+        accuracy = tSignals > 0 ? (targetHits / tSignals) * 100 : 0.0;
       });
     });
   }
@@ -128,7 +147,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
             const Text('Pre Filtered Stocks', style: TextStyle(fontSize: 18)),
             if (!isLoading && totalSignals > 0)
               Text(
-                'Accuracy: ${accuracy.toStringAsFixed(2)}% ($profitableSignals/$totalSignals)',
+                'Acc: ${accuracy.toStringAsFixed(1)}% | TGT: $profitableSignals | SL: $slSignals | NEU: $neutralSignals',
                 style: const TextStyle(
                     fontSize: 14, fontWeight: FontWeight.normal),
               ),
@@ -176,16 +195,28 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                         final stock = filtered[index];
                         final symbol =
                             stock.symbol?.replaceAll("NSE:", "") ?? '';
-                        bool isProfitable =
-                            stockProfitability[stock.symbol ?? ''] ?? false;
+                        String tradeState =
+                            stockTradeResult[stock.symbol ?? ''] ?? "Neutral";
                         int originalIndex = quoteList.indexOf(stock);
                         List<HistoryModel> stockHistory = originalIndex != -1
                             ? historyList[originalIndex]
                             : [];
 
+                        Color? tileColor;
+                        Color? textColor;
+                        if (tradeState == "Target Hit") {
+                          tileColor = Colors.green.withOpacity(0.1);
+                          textColor = Colors.green;
+                        } else if (tradeState == "SL Hit") {
+                          tileColor = Colors.red.withOpacity(0.1);
+                          textColor = Colors.red;
+                        } else {
+                          tileColor = Colors.grey.withOpacity(0.1);
+                          textColor = Colors.orange;
+                        }
+
                         return ListTile(
-                          tileColor:
-                              isProfitable ? null : Colors.red.withOpacity(0.1),
+                          tileColor: tileColor,
                           leading: Text(
                             '${index + 1}',
                             style: const TextStyle(fontSize: 16),
@@ -193,8 +224,8 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                           title: Text(
                             symbol,
                             style: TextStyle(
-                              color: isProfitable ? null : Colors.red,
-                              fontWeight: isProfitable
+                              color: textColor,
+                              fontWeight: tradeState == "Neutral"
                                   ? FontWeight.normal
                                   : FontWeight.bold,
                             ),
@@ -273,6 +304,11 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                     Text('Signal Price: $signalPrice',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 8),
+                                    Text('Trade Result: $tradeState',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: textColor)),
                                     const SizedBox(height: 8),
                                     Text('Score: $score'),
                                     Text(

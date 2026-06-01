@@ -339,4 +339,39 @@ class SharedPreferenceHelper {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool(isNearEmaOrSupertrendKey) ?? false;
   }
+
+  String selectedPlanKey = "selectedPlan";
+  String lastPlanBAlertTimeKey = "lastPlanBAlertTime_";
+
+  Future<void> setSelectedPlan(String value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(selectedPlanKey, value);
+  }
+
+  Future<String> getSelectedPlan() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(selectedPlanKey) ?? "Controlled Trade";
+  }
+
+  Future<void> setLastPlanBAlertTime(String symbol, String timestampStr) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(lastPlanBAlertTimeKey + symbol, timestampStr);
+  }
+
+  Future<String?> getLastPlanBAlertTime(String symbol) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(lastPlanBAlertTimeKey + symbol);
+  }
+
+  String lastControlledAlertTimeKey = "lastControlledAlertTime_";
+
+  Future<void> setLastControlledAlertTime(String symbol, String timestampStr) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(lastControlledAlertTimeKey + symbol, timestampStr);
+  }
+
+  Future<String?> getLastControlledAlertTime(String symbol) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(lastControlledAlertTimeKey + symbol);
+  }
 }

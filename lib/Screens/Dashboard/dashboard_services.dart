@@ -165,16 +165,45 @@ class DashboardService {
                 ),
               );
               // Apply final filter check
+              String selectedPlan = await SharedPreferenceHelper.instance.getSelectedPlan();
 
-              final isPattern = BullishPatternDetector.detectTop3Patterns85(
-                  Utilities.convertToDaily(history));
-              var isPassed = FilterUtils.passesFilter(
-                  history, stock.token.toString());
-              if (isPattern == true && isPassed) {
-                return stock.copyWith(
-                  symbol: stock.symbol?.replaceAll("NSE:", ""),
-                  historyFiveMin: history,
-                );
+              if (selectedPlan == "Controlled Trade") {
+                final isPattern = BullishPatternDetector.detectTop3Patterns85(
+                    Utilities.convertToDaily(history));
+                var isPassed = FilterUtils.passesFilter(
+                    history, stock.token.toString());
+                if (isPattern == true && isPassed) {
+                  bool isNear = FilterUtils.isNearBuyingZone5Min(history);
+                  if (isNear) {
+                    String timestampStr = history.last.timestamp.toIso8601String();
+                    String? lastAlertTime = await SharedPreferenceHelper.instance.getLastControlledAlertTime(symbol ?? "");
+                    if (lastAlertTime != timestampStr) {
+                      Utilities.addAndShowControlledTradeNotification(stock);
+                      await SharedPreferenceHelper.instance.setLastControlledAlertTime(symbol ?? "", timestampStr);
+                    }
+                  }
+                  return stock.copyWith(
+                    symbol: stock.symbol?.replaceAll("NSE:", ""),
+                    historyFiveMin: history,
+                  );
+                }
+              } else if (selectedPlan == "Volume TRADE") {
+                bool isPassed = FilterUtils.passesPlanB(history, stock);
+                if (isPassed) {
+                  bool isNear = FilterUtils.isNearBuyingZone5Min(history);
+                  if (isNear) {
+                    String timestampStr = history.last.timestamp.toIso8601String();
+                    String? lastAlertTime = await SharedPreferenceHelper.instance.getLastPlanBAlertTime(symbol ?? "");
+                    if (lastAlertTime != timestampStr) {
+                      Utilities.addAndShowPlanBNotification(stock);
+                      await SharedPreferenceHelper.instance.setLastPlanBAlertTime(symbol ?? "", timestampStr);
+                    }
+                  }
+                  return stock.copyWith(
+                    symbol: stock.symbol?.replaceAll("NSE:", ""),
+                    historyFiveMin: history,
+                  );
+                }
               }
             }
           } catch (e) {

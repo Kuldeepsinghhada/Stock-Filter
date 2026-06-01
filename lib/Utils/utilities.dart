@@ -162,6 +162,93 @@ class Utilities {
     await SharedPreferenceHelper.instance.setBuyAlertList(notificationsList);
   }
 
+  static Future<void> addAndShowPlanBNotification(StockModel stockModel) async {
+    // Show notification for Plan B (allows multiple alerts over time, but throttled by candle time elsewhere)
+    if (Platform.isAndroid) {
+      await NotificationService.showNotification(
+        title: "Plan B Buy Alert",
+        body:
+            "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
+      );
+    }
+    log("Plan B Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}");
+
+    List<NotificationModel> notificationsList =
+        await SharedPreferenceHelper.instance.getBuyAlertLists();
+
+    final symbolText = "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''}";
+    final timeStr = Utilities.formatDDMMMHHMMDateTime(DateTime.now());
+
+    bool found = false;
+    for (var n in notificationsList) {
+      if (n.stocksNameList != null &&
+          n.stocksNameList!
+              .toUpperCase()
+              .contains(stockModel.symbol!.toUpperCase())) {
+        if (n.time != null && !n.time!.contains(timeStr)) {
+          n.time = "${n.time}, $timeStr";
+        }
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      notificationsList.add(
+        NotificationModel(
+          stocksNameList: symbolText,
+          time: timeStr,
+        ),
+      );
+    }
+
+    await SharedPreferenceHelper.instance.setBuyAlertList(notificationsList);
+  }
+
+  static Future<void> addAndShowControlledTradeNotification(
+      StockModel stockModel) async {
+    // Show notification for Controlled Trade (allows multiple alerts over time, but throttled by candle time elsewhere)
+    if (Platform.isAndroid) {
+      await NotificationService.showNotification(
+        title: "Buy Alert",
+        body:
+            "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
+      );
+    }
+    log("Controlled Trade Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}");
+
+    List<NotificationModel> notificationsList =
+        await SharedPreferenceHelper.instance.getBuyAlertLists();
+
+    final symbolText = "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''}";
+    final timeStr = Utilities.formatDDMMMHHMMDateTime(DateTime.now());
+
+    bool found = false;
+    for (var n in notificationsList) {
+      if (n.stocksNameList != null &&
+          n.stocksNameList!
+              .toUpperCase()
+              .contains(stockModel.symbol!.toUpperCase())) {
+        if (n.time != null && !n.time!.contains(timeStr)) {
+          n.time = "${n.time}, $timeStr";
+        }
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      notificationsList.add(
+        NotificationModel(
+          stocksNameList: symbolText,
+          time: timeStr,
+        ),
+      );
+    }
+
+    await SharedPreferenceHelper.instance.setBuyAlertList(notificationsList);
+  }
+
   // -----------GET END DATE FOR HISTORICAL DATA -----------
   static DateTime getLastWorkingDay(DateTime now) {
     // --- Define market holidays for 2025 & 2026 ---
@@ -417,7 +504,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      if (totalMinutes < 570 || totalMinutes > 660) continue;
+      // if (totalMinutes < 570 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [
@@ -426,8 +513,20 @@ class Utilities {
       ];
 
       try {
-        final passed =
-            FilterUtils.passesFilter(historySoFar, model.token.toString());
+        String selectedPlan =
+            await SharedPreferenceHelper.instance.getSelectedPlan();
+        bool passed = false;
+
+        if (selectedPlan == "Controlled Trade") {
+          passed =
+              FilterUtils.passesFilter(historySoFar, model.token.toString());
+        } else if (selectedPlan == "Volume TRADE") {
+          bool passesPlan = FilterUtils.passesPlanB(historySoFar, model);
+          if (passesPlan) {
+            passed = FilterUtils.isNearBuyingZone5Min(historySoFar);
+          }
+        }
+
         // final passed = isDayBreakOut
         //     ? candleTillCandle(current, baseHistory)
         //     : FilterUtils.getSmartPriceActionScore(historySoFar);

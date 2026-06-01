@@ -122,7 +122,7 @@ class FilterUtils {
     if ((passVolAvg || (score > 100)) &&
         passSupertrend &&
         passEma20 &&
-        passVolBreakout &&
+        // passVolBreakout &&
         passPattern &&
         isScoreGood &&
         atrOk &&
@@ -152,6 +152,127 @@ class FilterUtils {
           "Stock ${candles.last.timestamp} $token failed filters: ${failedReasons.join(", ")}");
     }
     return result;
+  }
+
+  /// 🔹 Plan B logic
+  static bool passesPlanB(List<HistoricalDataModel> candles, StockModel stock) {
+    if (candles.isEmpty || stock.lastPrice == null) {
+      debugPrint(
+          "PlanB Failed: ${stock.symbol} - No candles or lastPrice is null");
+      return false;
+    }
+
+    // Last candle volume check
+    // if (candles.last.volume < 5000) {
+    //   debugPrint(
+    //       "PlanB Failed: ${stock.symbol} - Last candle volume (${candles.last.volume}) < 10000");
+    //   return false;
+    // }
+
+    // 1. Price > 30
+    if (stock.lastPrice! <= 30) {
+      debugPrint(
+          "PlanB Failed: ${stock.symbol} - Price (${stock.lastPrice}) <= 30");
+      return false;
+    }
+
+    // 2. Daily Timeframe check: Stock close above 20 EMA and Above Supertrend
+    final dailyCandles = Utilities.convertToDaily(candles);
+    if (dailyCandles.length < 20) {
+      debugPrint(
+          "PlanB Failed: ${stock.symbol} - Not enough daily candles for EMA20");
+      return false; // Need enough data for EMA20
+    }
+
+    bool aboveEma20Daily =
+        IndicatorUtils.isCloseAboveEMA(dailyCandles, 20).isPassed;
+    bool aboveSupertrendDaily = IndicatorUtils.isCloseAboveSupertrend(
+      dailyCandles,
+      atrPeriod: 10,
+      multiplier: 3,
+    ).isPassed;
+
+    if (!aboveEma20Daily || !aboveSupertrendDaily) {
+      debugPrint(
+          "PlanB Failed: ${stock.symbol} - Not above EMA20 ($aboveEma20Daily) or Supertrend ($aboveSupertrendDaily) on Daily");
+      return false;
+    }
+
+    // 3. 5-min timeframe check: Today any candle volume is 50x yesterday's avg and > 50000
+    // Group candles by date
+    final groupedByDate = CandleUtils.groupByDate(candles);
+    final sortedDates = groupedByDate.keys.toList()..sort();
+    if (sortedDates.length < 2) {
+      debugPrint(
+          "PlanB Failed: ${stock.symbol} - Not enough days to calculate previous day average");
+      return false;
+    }
+
+    final todayDate = sortedDates.last;
+    final todayCandles = groupedByDate[todayDate]!;
+
+    final yesterdayDate = sortedDates[sortedDates.length - 2];
+    final yesterdayCandles = groupedByDate[yesterdayDate]!;
+
+    if (yesterdayCandles.isEmpty) {
+      debugPrint(
+          "PlanB Failed: ${stock.symbol} - Yesterday's candles are empty");
+      return false;
+    }
+
+    final prevAvg =
+        yesterdayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            yesterdayCandles.length;
+
+    bool volumeSpikeMet = false;
+    for (int i = 0; i < todayCandles.length; i++) {
+      var currentCandle = todayCandles[i];
+
+      if (currentCandle.volume >= 50000 &&
+          currentCandle.volume >= (prevAvg * 30)) {
+        volumeSpikeMet = true;
+        break;
+      }
+    }
+    debugPrint(
+        "PlanB Failed: ${stock.symbol} - No 50x volume spike today compared to yesterday's avg (${prevAvg.toStringAsFixed(0)})");
+    if (!volumeSpikeMet) {
+      return false;
+    }
+
+    debugPrint("PlanB Passed: ${stock.symbol} - Found 50x volume spike today");
+    return true;
+  }
+
+  /// 🔹 Check if stock is near 20EMA or Supertrend on 5m (Buying zone)
+  static bool isNearBuyingZone5Min(List<HistoricalDataModel> candles,
+      {double threshold = 0.0050}) {
+    if (candles.length < 20) return false;
+
+    // Must be a green candle
+    if (candles.last.close <= candles.last.open) return false;
+
+    final currentLow = candles.last.low;
+
+    // EMA 20 calculation
+    final closes = candles.map((e) => e.close).toList();
+    final ema20List = MathUtils.emaAligned(closes, 20);
+    if (ema20List.isNotEmpty) {
+      final ema20 = ema20List.last!;
+      final distanceToEma = ((currentLow - ema20).abs() / ema20);
+      if (distanceToEma <= threshold) return true;
+    }
+
+    // Supertrend calculation
+    final stRes = IndicatorUtils.isCloseAboveSupertrend(candles,
+        atrPeriod: 10, multiplier: 3);
+    if (stRes.value != null && stRes.value! > 0) {
+      final stValue = stRes.value!;
+      final distanceToSt = ((currentLow - stValue).abs() / stValue);
+      if (distanceToSt <= threshold) return true;
+    }
+
+    return false;
   }
 
   /// 🔹 Main multi-timeframe validation

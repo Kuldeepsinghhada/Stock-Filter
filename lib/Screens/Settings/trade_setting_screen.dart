@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../Utils/sharepreference_helper.dart';
+import 'package:stock_demo/Screens/Settings/strategy_selection_screen.dart';
 
 class TradeSettingPage extends StatefulWidget {
   const TradeSettingPage({super.key});
@@ -30,7 +31,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final prefs = SharedPreferenceHelper.instance;
     final lastMultiplier = await prefs.getLastCandleMultiplier();
     final otherMultiplier = await prefs.getOtherCandlesMultiplier();
-    
+
     final volAvg = await prefs.getVolumeAverageEnabled();
     final pattern = await prefs.getPatternEnabled();
     final supertrend = await prefs.getSupertrendEnabled();
@@ -56,7 +57,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     if (last != null && other != null) {
       await prefs.setLastCandleMultiplier(last);
       await prefs.setOtherCandlesMultiplier(other);
-      
+
       await prefs.setVolumeAverageEnabled(_isVolumeAverageOK);
       await prefs.setPatternEnabled(_isPattern);
       await prefs.setSupertrendEnabled(_aboveSupertrend);
@@ -71,7 +72,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please enter valid numbers for multipliers")),
+          const SnackBar(
+              content: Text("Please enter valid numbers for multipliers")),
         );
       }
     }
@@ -82,8 +84,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     return Scaffold(
       backgroundColor: const Color(0xff131722),
       appBar: AppBar(
-        title: const Text("Trade Settings",
-            style: TextStyle(color: Colors.white)),
+        title:
+            const Text("Trade Settings", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xff131722),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -92,6 +94,25 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ListTile(
+              leading:
+                  const Icon(Icons.compare_arrows, color: Colors.blueAccent),
+              title: const Text('Strategy Selection',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                  'Toggle between Controlled Trade and Volume TRADE',
+                  style: TextStyle(color: Colors.white70)),
+              trailing: const Icon(Icons.arrow_forward_ios,
+                  size: 16, color: Colors.white54),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const StrategySelectionScreen()),
+                );
+              },
+            ),
+            const Divider(color: Colors.white10, height: 40),
             const Text("Filter Conditions",
                 style: TextStyle(
                     color: Colors.blueAccent,
@@ -168,7 +189,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     required ValueChanged<bool> onChanged,
   }) {
     return SwitchListTile(
-      title: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 15)),
+      title: Text(label,
+          style: const TextStyle(color: Colors.white70, fontSize: 15)),
       value: value,
       onChanged: onChanged,
       activeThumbColor: Colors.blueAccent,
