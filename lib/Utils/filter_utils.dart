@@ -32,126 +32,102 @@ class FilterUtils {
     cachedIsVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
   }
 
-  /// 🔹 Checks if all core indicator filters are passed
   static bool passesFilter(List<HistoricalDataModel> candles, String token) {
-    List<String> failedReasons = [];
+    final timeStr =
+        candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
-    final lastMultiplier = cachedLastMultiplier;
-    final otherMultiplier = cachedOtherMultiplier;
-
-    // bool yesGreen = IndicatorUtils.wasYesterdayGreenFrom5Min(candles);
-    // if(!yesGreen) failedReasons.add("Yesterday NOT Green from 5Min");
-
-    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
-    if (!aboveEma20) failedReasons.add("Close NOT above EMA20");
-
-    bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 60, max: 95);
-    if (!rsiOk) failedReasons.add("RSI not between 60–95");
-
-    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
-    if (!atrOk) failedReasons.add("ATR not greater than adaptive threshold");
-
-    bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
-    if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
-
-    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-      candles,
-      atrPeriod: 10,
-      multiplier: 3,
-    ).isPassed;
-    if (!aboveSupertrend) failedReasons.add("Close NOT above Supertrend");
-
-    bool adxRes = IndicatorUtils.isAdxBullish(candles);
-    if (!adxRes) failedReasons.add("ADX NOT bullish");
-
-    bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-    if (!isVolumeOk) {
-      failedReasons.add("Volume NOT > 15000 (vol=$isVolumeOk)");
-    }
-
-    // bool isYesterdayAvgVolumeOk = IndicatorUtils.isYesterdayAverageVolumeAbove(
-    //   candles,token
-    // );
-    // if (!isYesterdayAvgVolumeOk) {
-    //   failedReasons.add("Yesterday Volume Not Enough");
-    // }
-
-    bool isVolume1M = IndicatorUtils.isPreviousTradingDayVolumeAbove1M(candles);
-
-    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
-    if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
-
-    bool is2PcChange =
-        IndicatorUtils.isCloseAboveYesterdayHighByPctAndYesterdayBullish(
-      candles,
-    );
-    if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
-
-    bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
-        candles, failedReasons.length,
-        lastMultiplier: lastMultiplier, otherMultiplier: otherMultiplier);
-
-    // if (isVolumeAverageOK) {
-    //   return true;
-    // }
-
-    var isPattern = BullishPatternDetector.detectTop3Patterns85(
-      Utilities.convertToDaily(candles),
-    );
-    if (!isPattern) failedReasons.add("No bullish pattern on daily");
-
-    final isVolAvgEnabled = cachedIsVolAvgEnabled;
-    final isPatternEnabled = cachedIsPatternEnabled;
-    final isSupertrendEnabled = cachedIsSupertrendEnabled;
-    final isEma20Enabled = cachedIsEma20Enabled;
-    final isVolBreakoutEnabled = cachedIsVolBreakoutEnabled;
-
-    bool passVolAvg = !isVolAvgEnabled || isVolumeAverageOK;
-    bool passPattern = !isPatternEnabled || isPattern;
-    bool passSupertrend = !isSupertrendEnabled || aboveSupertrend;
-    bool passEma20 = !isEma20Enabled || aboveEma20;
-    bool passVolBreakout = !isVolBreakoutEnabled || isVolumeBreakout;
+    // 1. Not above 5% check (very fast)
     bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
-    int score = getSmartPriceActionScore(candles);
-    bool isScoreGood = score >= 70;
-    final isDayPass = isPassHistoryChart(
-      Utilities.convertToDaily(candles),
-      token.toString(),
-      1,
-    );
-    if ((passVolAvg || (score > 100)) &&
-        passSupertrend &&
-        passEma20 &&
-        // passVolBreakout &&
-        passPattern &&
-        isScoreGood &&
-        atrOk &&
-        adxRes &&
-        isNotAbove5Percent &&
-        isDayPass) {
-      print("Passed : $token");
-      return true;
+    if (!isNotAbove5Percent) {
+      debugPrint("Failed: $token at $timeStr - Reason: Above 5% Change");
+      return false;
     }
-    print(
-        "Result: ${candles.last.timestamp}\n Volume:  (Enabled: $isVolAvgEnabled)\n Pattern: $isPattern (Enabled: $isPatternEnabled)\n EMA20: $aboveEma20 (Enabled: $isEma20Enabled)\n Supertrend: $aboveSupertrend (Enabled: $isSupertrendEnabled)\n VolBreakout: $isVolumeBreakout (Enabled: $isVolBreakoutEnabled)");
-    return false;
 
-    // FINAL RESULT
-    bool result = isVolumeOk &&
-        aboveEma20 &&
-        rsiOk &&
-        aboveVwap &&
-        aboveSupertrend &&
-        adxRes &&
-        atrOk &&
-        is2PcChange &&
-        isVolume1M &&
-        isVolumeBreakout;
-    if (failedReasons.length == 1) {
-      debugPrint(
-          "Stock ${candles.last.timestamp} $token failed filters: ${failedReasons.join(", ")}");
+    // 2. EMA20 Check
+    if (cachedIsEma20Enabled) {
+      bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
+      if (!aboveEma20) {
+        debugPrint("Failed: $token at $timeStr - Reason: Below EMA20");
+        return false;
+      }
     }
-    return result;
+
+    // 3. Supertrend Check
+    if (cachedIsSupertrendEnabled) {
+      bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+        candles,
+        atrPeriod: 10,
+        multiplier: 3,
+      ).isPassed;
+      if (!aboveSupertrend) {
+        debugPrint("Failed: $token at $timeStr - Reason: Below Supertrend");
+        return false;
+      }
+    }
+
+    // // 4. Volume Breakout Check
+    // if (cachedIsVolBreakoutEnabled) {
+    //   bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
+    //   if (!isVolumeBreakout) {
+    //     debugPrint("Failed: $token at $timeStr - Reason: Weak Volume Breakout");
+    //     return false;
+    //   }
+    // }
+
+    // 5. ATR Check
+    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
+    if (!atrOk) {
+      debugPrint("Failed: $token at $timeStr - Reason: Low ATR");
+      return false;
+    }
+
+    // 6. ADX Check
+    bool adxRes = IndicatorUtils.isAdxBullish(candles);
+    if (!adxRes) {
+      debugPrint("Failed: $token at $timeStr - Reason: ADX Not Bullish");
+      return false;
+    }
+
+    // 7. Score Check (getSmartPriceActionScore)
+    int score = getSmartPriceActionScore(candles);
+    if (score < 70) {
+      debugPrint(
+          "Failed: $token at $timeStr - Reason: Low Smart Score ($score)");
+      return false;
+    }
+
+    // 8. Volume Avg Check
+    if (cachedIsVolAvgEnabled && score <= 100) {
+      bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
+          candles, 0,
+          lastMultiplier: cachedLastMultiplier,
+          otherMultiplier: cachedOtherMultiplier);
+      if (!isVolumeAverageOK) {
+        debugPrint(
+            "Failed: $token at $timeStr - Reason: Volume Average Not OK");
+        return false;
+      }
+    }
+
+    // 9. Day Pass Check (requires converting to daily, slightly heavier)
+    final dailyCandles = Utilities.convertToDaily(candles);
+    final isDayPass = isPassHistoryChart(dailyCandles, token, 1);
+    if (!isDayPass) {
+      debugPrint(
+          "Failed: $token at $timeStr - Reason: Day History Chart Failed");
+      return false;
+    }
+
+    // 10. Pattern Check (requires daily candles)
+    // if (cachedIsPatternEnabled) {
+    //   var isPattern = BullishPatternDetector.detect(dailyCandles);
+    //   if (!isPattern.found) {
+    //     debugPrint("Failed: $token at $timeStr - Reason: No Bullish Pattern");
+    //     return false;
+    //   }
+    // }
+    print("Passed : $token");
+    return true;
   }
 
   /// 🔹 Plan B logic
@@ -176,35 +152,10 @@ class FilterUtils {
       return false;
     }
 
-    // 2. Daily Timeframe check: Stock close above 20 EMA and Above Supertrend
-    final dailyCandles = Utilities.convertToDaily(candles);
-    if (dailyCandles.length < 20) {
-      debugPrint(
-          "PlanB Failed: ${stock.symbol} - Not enough daily candles for EMA20");
-      return false; // Need enough data for EMA20
-    }
-
-    bool aboveEma20Daily =
-        IndicatorUtils.isCloseAboveEMA(dailyCandles, 20).isPassed;
-    bool aboveSupertrendDaily = IndicatorUtils.isCloseAboveSupertrend(
-      dailyCandles,
-      atrPeriod: 10,
-      multiplier: 3,
-    ).isPassed;
-
-    if (!aboveEma20Daily || !aboveSupertrendDaily) {
-      debugPrint(
-          "PlanB Failed: ${stock.symbol} - Not above EMA20 ($aboveEma20Daily) or Supertrend ($aboveSupertrendDaily) on Daily");
-      return false;
-    }
-
-    // 3. 5-min timeframe check: Today any candle volume is 50x yesterday's avg and > 50000
-    // Group candles by date
+    // 2. 5-min timeframe check: Today any candle volume is 50x yesterday's avg and > 50000
     final groupedByDate = CandleUtils.groupByDate(candles);
     final sortedDates = groupedByDate.keys.toList()..sort();
     if (sortedDates.length < 2) {
-      debugPrint(
-          "PlanB Failed: ${stock.symbol} - Not enough days to calculate previous day average");
       return false;
     }
 
@@ -215,8 +166,6 @@ class FilterUtils {
     final yesterdayCandles = groupedByDate[yesterdayDate]!;
 
     if (yesterdayCandles.isEmpty) {
-      debugPrint(
-          "PlanB Failed: ${stock.symbol} - Yesterday's candles are empty");
       return false;
     }
 
@@ -227,20 +176,33 @@ class FilterUtils {
     bool volumeSpikeMet = false;
     for (int i = 0; i < todayCandles.length; i++) {
       var currentCandle = todayCandles[i];
-
       if (currentCandle.volume >= 50000 &&
           currentCandle.volume >= (prevAvg * 30)) {
         volumeSpikeMet = true;
         break;
       }
     }
-    debugPrint(
-        "PlanB Failed: ${stock.symbol} - No 50x volume spike today compared to yesterday's avg (${prevAvg.toStringAsFixed(0)})");
     if (!volumeSpikeMet) {
       return false;
     }
 
-    debugPrint("PlanB Passed: ${stock.symbol} - Found 50x volume spike today");
+    // 3. Daily Timeframe check (Heavy, so done last): Stock close above 20 EMA and Above Supertrend
+    final dailyCandles = Utilities.convertToDaily(candles);
+    if (dailyCandles.length < 20) {
+      return false;
+    }
+
+    bool aboveEma20Daily =
+        IndicatorUtils.isCloseAboveEMA(dailyCandles, 20).isPassed;
+    if (!aboveEma20Daily) return false;
+
+    bool aboveSupertrendDaily = IndicatorUtils.isCloseAboveSupertrend(
+      dailyCandles,
+      atrPeriod: 10,
+      multiplier: 3,
+    ).isPassed;
+    if (!aboveSupertrendDaily) return false;
+
     return true;
   }
 
@@ -472,55 +434,16 @@ class FilterUtils {
   }
 
   static bool passedDayFilter(List<HistoricalDataModel> candles, String token) {
-    List<String> failedReasons = [];
-
-    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
-    if (!aboveEma20) failedReasons.add("Close NOT above EMA20");
-
-    bool rsiOk = IndicatorUtils.isRsiBetween(candles, 14, min: 55, max: 95);
-    if (!rsiOk) failedReasons.add("RSI not between 60–95");
-
-    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
-    if (!atrOk) failedReasons.add("ATR not greater than adaptive threshold");
-
-    bool aboveVwap = IndicatorUtils.isCloseAboveVWAP(candles);
-    if (!aboveVwap) failedReasons.add("Close NOT above VWAP");
-
-    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-      candles,
-      atrPeriod: 10,
-      multiplier: 3,
-    ).isPassed;
-    if (!aboveSupertrend) failedReasons.add("Close NOT above Supertrend");
-
-    bool adxRes = IndicatorUtils.isAdxBullish(candles);
-    if (!adxRes) failedReasons.add("ADX NOT bullish");
-
-    // bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-    // if (!isVolumeOk) {
-    //   failedReasons.add("Volume NOT > 15000 (vol=$isVolumeOk)");
-    // }
-
-    // bool isNearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(
-    //   candles,
-    // );
-    // if (!isNearBuyingZone) {
-    //   failedReasons.add("Not near EMA20 or Supertrend for Day");
-    // }
-
-    bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
-    if (!isVolumeBreakout) failedReasons.add("Volume breakout weak");
-
-    // bool is2PcChange =
-    //     IndicatorUtils.isCloseAboveYesterdayHighByPctAndYesterdayBullish(
-    //       candles,
-    //     );
-    // if (!is2PcChange) failedReasons.add("2% Up + Yesterday Bullish failed");
-
-    // FINAL RESULT
-    bool result = aboveEma20 && rsiOk && aboveSupertrend && adxRes && atrOk;
-    isVolumeBreakout;
-    return result;
+    if (!IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed) return false;
+    if (!IndicatorUtils.isRsiBetween(candles, 14, min: 55, max: 95))
+      return false;
+    if (!IndicatorUtils.isCloseAboveSupertrend(candles,
+            atrPeriod: 10, multiplier: 3)
+        .isPassed) return false;
+    if (!IndicatorUtils.isAdxBullish(candles)) return false;
+    if (!IndicatorUtils.isAtrGreaterThanAdaptive(candles)) return false;
+    if (!IndicatorUtils.isVolumeBreakoutStrong(candles)) return false;
+    return true;
   }
 
   static bool isDayTradable(StockModel stock) {

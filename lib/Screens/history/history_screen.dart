@@ -14,26 +14,28 @@ class HistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(stockName)),
-      body: ListView.separated(
-        itemCount: historyModel.length,
-        itemBuilder: (context, position) {
-          return ListTile(
-            title: Text(
-              "Time: ${Utilities.formatDDMMMHHMMDateTime(historyModel[position].dateTime ?? DateTime.now())}",
+      body: historyModel.isEmpty
+          ? Center(child: Text("No data found"))
+          : ListView.separated(
+              itemCount: historyModel.length,
+              itemBuilder: (context, position) {
+                return ListTile(
+                  title: Text(
+                    "Time: ${Utilities.formatDDMMMHHMMDateTime(historyModel[position].dateTime ?? DateTime.now())}",
+                  ),
+                  // subtitle: Text(
+                  //   "Trigger Price is : ${historyModel[position].price.toString()}",
+                  // ),
+                  trailing: Text(
+                    " Price: ${historyModel[position].price.toString()}",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                );
+              },
+              separatorBuilder: (context, position) {
+                return Divider();
+              },
             ),
-            // subtitle: Text(
-            //   "Trigger Price is : ${historyModel[position].price.toString()}",
-            // ),
-            trailing: Text(
-              " Price: ${historyModel[position].price.toString()}",
-              style: TextStyle(fontSize: 16),
-            ),
-          );
-        },
-        separatorBuilder: (context, position) {
-          return Divider();
-        },
-      ),
     );
   }
 }

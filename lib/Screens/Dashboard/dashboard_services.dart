@@ -165,14 +165,22 @@ class DashboardService {
                 ),
               );
               // Apply final filter check
-              String selectedPlan = await SharedPreferenceHelper.instance.getSelectedPlan();
+              String selectedPlan =
+                  await SharedPreferenceHelper.instance.getSelectedPlan();
 
               if (selectedPlan == "Controlled Trade") {
                 final isPattern = BullishPatternDetector.detectTop3Patterns85(
                     Utilities.convertToDaily(history));
-                var isPassed = FilterUtils.passesFilter(
+                var isPassedCurrent = FilterUtils.passesFilter(
                     history, stock.token.toString());
-                if (isPattern == true && isPassed) {
+                
+                // Save locally if it passes right now
+                if (isPassedCurrent) {
+                  DataManager.instance.passedTodayPlanA.add(stock.token.toString());
+                }
+                
+                // If it EVER passed today, check for Buy Alert (pullback to EMA/Supertrend)
+                if (DataManager.instance.passedTodayPlanA.contains(stock.token.toString())) {
                   bool isNear = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNear) {
                     String timestampStr = history.last.timestamp.toIso8601String();
@@ -182,6 +190,9 @@ class DashboardService {
                       await SharedPreferenceHelper.instance.setLastControlledAlertTime(symbol ?? "", timestampStr);
                     }
                   }
+                }
+                
+                if (isPattern == true && isPassedCurrent) {
                   return stock.copyWith(
                     symbol: stock.symbol?.replaceAll("NSE:", ""),
                     historyFiveMin: history,
@@ -192,11 +203,15 @@ class DashboardService {
                 if (isPassed) {
                   bool isNear = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNear) {
-                    String timestampStr = history.last.timestamp.toIso8601String();
-                    String? lastAlertTime = await SharedPreferenceHelper.instance.getLastPlanBAlertTime(symbol ?? "");
+                    String timestampStr =
+                        history.last.timestamp.toIso8601String();
+                    String? lastAlertTime = await SharedPreferenceHelper
+                        .instance
+                        .getLastPlanBAlertTime(symbol ?? "");
                     if (lastAlertTime != timestampStr) {
                       Utilities.addAndShowPlanBNotification(stock);
-                      await SharedPreferenceHelper.instance.setLastPlanBAlertTime(symbol ?? "", timestampStr);
+                      await SharedPreferenceHelper.instance
+                          .setLastPlanBAlertTime(symbol ?? "", timestampStr);
                     }
                   }
                   return stock.copyWith(

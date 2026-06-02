@@ -18,18 +18,19 @@ class PatternResult {
 }
 
 class BullishPatternDetector {
-
   static bool detectTop3Patterns85(List<HistoricalDataModel> candles) {
-    if (candles.length < 6) return false;
+    // Need at least 7 candles to ignore the running candle and still have 5 past candles
+    if (candles.length < 7) return false;
 
+    // Ignore today's running candle (candles.last)
     // Last 2 completed candles
-    final prev = candles[candles.length - 2];
-    final curr = candles[candles.length - 1];
+    final curr = candles[candles.length - 2]; // Yesterday
+    final prev = candles[candles.length - 3]; // Day before yesterday
 
     // Previous trend candles
-    final c3 = candles[candles.length - 3];
-    final c4 = candles[candles.length - 4];
-    final c5 = candles[candles.length - 5];
+    final c3 = candles[candles.length - 4];
+    final c4 = candles[candles.length - 5];
+    final c5 = candles[candles.length - 6];
 
     List<PatternResult> basePatterns = [
       bullishEngulfRecovery(prev, curr),
@@ -50,8 +51,7 @@ class BullishPatternDetector {
 
       // 2. Strong Close Near High
       double range = curr.high - curr.low;
-      if (range > 0 &&
-          (curr.high - curr.close) <= range * 0.15) {
+      if (range > 0 && (curr.high - curr.close) <= range * 0.15) {
         score += 1.2;
       }
 
@@ -81,9 +81,10 @@ class BullishPatternDetector {
     return false;
   }
 
-  static List<PatternResult> detectTop3Patterns(List<HistoricalDataModel> candles) {
-    // Need minimum 2 completed candles
-    if (candles.length < 2) {
+  static List<PatternResult> detectTop3Patterns(
+      List<HistoricalDataModel> candles) {
+    // Need minimum 3 candles (1 running ignored + 2 completed)
+    if (candles.length < 3) {
       return [
         PatternResult(
           found: false,
@@ -93,9 +94,9 @@ class BullishPatternDetector {
       ];
     }
 
-    // Last 2 closed candles only
-    final c1 = candles[candles.length - 2];
-    final c2 = candles[candles.length - 1];
+    // Ignore the current running candle
+    final c1 = candles[candles.length - 3];
+    final c2 = candles[candles.length - 2];
 
     final checks = [
       bullishEngulfRecovery(c1, c2),
@@ -126,8 +127,8 @@ class BullishPatternDetector {
   }
 
   static PatternResult detect(List<HistoricalDataModel> candles) {
-    // Need minimum 2 completed candles
-    if (candles.length < 2) {
+    // Need minimum 3 candles (1 running ignored + 2 completed)
+    if (candles.length < 3) {
       return PatternResult(
         found: false,
         name: "No Data",
@@ -138,8 +139,8 @@ class BullishPatternDetector {
     // Current running candle ignore kar diya
     // Last 2 closed candles use honge
 
-    final c1 = candles[candles.length - 2]; // previous closed
-    final c2 = candles[candles.length - 1]; // latest closed
+    final c1 = candles[candles.length - 3]; // previous closed
+    final c2 = candles[candles.length - 2]; // latest closed
 
     final checks = [
       bullishEngulfRecovery(c1, c2),

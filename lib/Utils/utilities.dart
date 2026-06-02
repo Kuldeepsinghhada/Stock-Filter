@@ -12,6 +12,7 @@ import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
+import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'filter_utils.dart';
 
 class Utilities {
@@ -494,6 +495,7 @@ class Utilities {
     }
 
     final List<HistoryModel> result = [];
+    bool hasPassedToday = false;
 
     // 5️⃣ Iterate candle-by-candle (NO future leakage)
     for (int i = 0; i < todayCandles.length; i++) {
@@ -504,7 +506,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      // if (totalMinutes < 570 || totalMinutes > 660) continue;
+      if (totalMinutes < 560 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [
@@ -515,27 +517,36 @@ class Utilities {
       try {
         String selectedPlan =
             await SharedPreferenceHelper.instance.getSelectedPlan();
-        bool passed = false;
+        bool isRadarHit = false;
+        bool buyAlert = false;
 
         if (selectedPlan == "Controlled Trade") {
-          passed =
+          isRadarHit =
               FilterUtils.passesFilter(historySoFar, model.token.toString());
+          if (isRadarHit) {
+            hasPassedToday = true;
+          }
+          if (hasPassedToday) {
+            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar);
+          }
         } else if (selectedPlan == "Volume TRADE") {
           bool passesPlan = FilterUtils.passesPlanB(historySoFar, model);
           if (passesPlan) {
-            passed = FilterUtils.isNearBuyingZone5Min(historySoFar);
+            hasPassedToday = true;
           }
+          if (hasPassedToday) {
+            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar);
+          }
+          isRadarHit = passesPlan;
         }
 
-        // final passed = isDayBreakOut
-        //     ? candleTillCandle(current, baseHistory)
-        //     : FilterUtils.getSmartPriceActionScore(historySoFar);
-        if (passed) {
+        if (isRadarHit || buyAlert) {
           result.add(
             HistoryModel(
               dateTime: current.timestamp,
               price: current.close,
-              isPassed: true,
+              isPassed: isRadarHit,
+              isBuyAlert: buyAlert,
             ),
           );
         }

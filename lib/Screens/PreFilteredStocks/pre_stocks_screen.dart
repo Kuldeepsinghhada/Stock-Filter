@@ -332,17 +332,34 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                   TextButton(
                                     onPressed: () {
                                       Navigator.pop(context);
+                                      final radarHits = stockHistory.where((h) => h.isPassed == true).toList();
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) => HistoryScreen(
                                             stockName: stock.symbol ?? '',
-                                            historyModel: stockHistory,
+                                            historyModel: radarHits,
                                           ),
                                         ),
                                       );
                                     },
-                                    child: const Text('View Chart'),
+                                    child: const Text('Radar Hits'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      final buyAlerts = stockHistory.where((h) => h.isBuyAlert == true).toList();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => HistoryScreen(
+                                            stockName: (stock.symbol ?? '') + ' (Buy Alerts)',
+                                            historyModel: buyAlerts,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text('Buy Alerts'),
                                   ),
                                   TextButton(
                                     onPressed: () => Navigator.pop(context),
