@@ -97,7 +97,7 @@ class FilterUtils {
     }
 
     // 8. Volume Avg Check
-    if (cachedIsVolAvgEnabled && score <= 100) {
+    if (cachedIsVolAvgEnabled) {
       bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
           candles, 0,
           lastMultiplier: cachedLastMultiplier,

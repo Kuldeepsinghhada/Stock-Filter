@@ -28,6 +28,7 @@ class SharedPreferenceHelper {
   String aboveEma20Key = "aboveEma20";
   String isVolumeBreakoutKey = "isVolumeBreakout";
   String isNearEmaOrSupertrendKey = "isNearEmaOrSupertrend";
+  String telegramAlertsKey = "telegramAlerts";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -373,5 +374,16 @@ class SharedPreferenceHelper {
   Future<String?> getLastControlledAlertTime(String symbol) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getString(lastControlledAlertTimeKey + symbol);
+  }
+
+  Future<void> setTelegramAlertsEnabled(bool enabled) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(telegramAlertsKey, enabled);
+  }
+
+  Future<bool> getTelegramAlertsEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    // Enabled by default
+    return prefs.getBool(telegramAlertsKey) ?? true;
   }
 }

@@ -68,25 +68,30 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
           : historyList.isEmpty
               ? const Center(child: Text('No candle data matches filters'))
               : ListView.separated(
-                itemCount: historyList.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final obj = historyList[index];
-                  return ListTile(
-                    leading: Icon(
-                      (obj.isPassed == true)
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward,
-                      color: (obj.isPassed == true) ? Colors.green : Colors.red,
-                    ),
-                    title: Text(obj.price.toString()),
-                    subtitle: Text(
-                      obj.dateTime.toString(),
-                    ),
-                    dense: true,
-                  );
-                },
-              ),
+                  itemCount: historyList.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final obj = historyList[index];
+                    return ListTile(
+                      leading: Icon(
+                        (obj.isPassed == true)
+                            ? Icons.arrow_upward
+                            : Icons.arrow_downward,
+                        color:
+                            (obj.isPassed == true) ? Colors.green : Colors.red,
+                      ),
+                      title: Text(obj.price.toString()),
+                      subtitle: Text(
+                        obj.dateTime.toString(),
+                      ),
+                      trailing: (obj.isBuyAlert == true)
+                          ? const Icon(Icons.notifications_active,
+                              color: Colors.blue)
+                          : null,
+                      dense: true,
+                    );
+                  },
+                ),
     );
   }
 }

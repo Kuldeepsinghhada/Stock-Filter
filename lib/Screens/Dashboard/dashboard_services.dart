@@ -171,27 +171,53 @@ class DashboardService {
               if (selectedPlan == "Controlled Trade") {
                 final isPattern = BullishPatternDetector.detectTop3Patterns85(
                     Utilities.convertToDaily(history));
-                var isPassedCurrent = FilterUtils.passesFilter(
-                    history, stock.token.toString());
-                
+                var isPassedCurrent =
+                    FilterUtils.passesFilter(history, stock.token.toString());
+
                 // Save locally if it passes right now
                 if (isPassedCurrent) {
-                  DataManager.instance.passedTodayPlanA.add(stock.token.toString());
+                  DataManager.instance.passedTodayPlanA
+                      .add(stock.token.toString());
                 }
-                
+
                 // If it EVER passed today, check for Buy Alert (pullback to EMA/Supertrend)
-                if (DataManager.instance.passedTodayPlanA.contains(stock.token.toString())) {
+                if (DataManager.instance.passedTodayPlanA
+                    .contains(stock.token.toString())) {
                   bool isNear = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNear) {
-                    String timestampStr = history.last.timestamp.toIso8601String();
-                    String? lastAlertTime = await SharedPreferenceHelper.instance.getLastControlledAlertTime(symbol ?? "");
+                    String timestampStr =
+                        history.last.timestamp.toIso8601String();
+                    String? lastAlertTime = await SharedPreferenceHelper
+                        .instance
+                        .getLastControlledAlertTime(symbol ?? "");
                     if (lastAlertTime != timestampStr) {
                       Utilities.addAndShowControlledTradeNotification(stock);
-                      await SharedPreferenceHelper.instance.setLastControlledAlertTime(symbol ?? "", timestampStr);
+                      await SharedPreferenceHelper.instance
+                          .setLastControlledAlertTime(
+                              symbol ?? "", timestampStr);
+
+                      bool isTelegramEnabled = await SharedPreferenceHelper
+                          .instance
+                          .getTelegramAlertsEnabled();
+                      if (isTelegramEnabled) {
+                        final cleanSymbol =
+                            stock.symbol?.replaceAll("NSE:", "") ?? "";
+                        final message = '''
+🔥 BUY ALERT (Plan A) 🔥
+
+📈 Stock : $cleanSymbol
+💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+
+⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
+
+⚠️ Educational Purpose Only
+''';
+                        Utilities.sendTelegramAlert(message);
+                      }
                     }
                   }
                 }
-                
+
                 if (isPattern == true && isPassedCurrent) {
                   return stock.copyWith(
                     symbol: stock.symbol?.replaceAll("NSE:", ""),
@@ -201,6 +227,8 @@ class DashboardService {
               } else if (selectedPlan == "Volume TRADE") {
                 bool isPassed = FilterUtils.passesPlanB(history, stock);
                 if (isPassed) {
+                  DataManager.instance.passedTodayPlanB
+                      .add(stock.token.toString());
                   bool isNear = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNear) {
                     String timestampStr =
@@ -212,6 +240,25 @@ class DashboardService {
                       Utilities.addAndShowPlanBNotification(stock);
                       await SharedPreferenceHelper.instance
                           .setLastPlanBAlertTime(symbol ?? "", timestampStr);
+
+                      bool isTelegramEnabled = await SharedPreferenceHelper
+                          .instance
+                          .getTelegramAlertsEnabled();
+                      if (isTelegramEnabled) {
+                        final cleanSymbol =
+                            stock.symbol?.replaceAll("NSE:", "") ?? "";
+                        final message = '''
+🔥 BUY ALERT (Plan B) 🔥
+
+📈 Stock : $cleanSymbol
+💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+
+⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
+
+⚠️ Educational Purpose Only
+''';
+                        Utilities.sendTelegramAlert(message);
+                      }
                     }
                   }
                   return stock.copyWith(

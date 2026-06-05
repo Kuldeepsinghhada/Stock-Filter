@@ -20,6 +20,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
   bool _aboveSupertrend = true;
   bool _aboveEma20 = true;
   bool _isVolumeBreakout = true;
+  bool _telegramAlerts = true;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final supertrend = await prefs.getSupertrendEnabled();
     final ema20 = await prefs.getEma20Enabled();
     final volBreakout = await prefs.getVolumeBreakoutEnabled();
+    final telegram = await prefs.getTelegramAlertsEnabled();
 
     setState(() {
       _lastMultiplierController.text = lastMultiplier.toString();
@@ -46,6 +48,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       _aboveSupertrend = supertrend;
       _aboveEma20 = ema20;
       _isVolumeBreakout = volBreakout;
+      _telegramAlerts = telegram;
     });
   }
 
@@ -63,6 +66,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       await prefs.setSupertrendEnabled(_aboveSupertrend);
       await prefs.setEma20Enabled(_aboveEma20);
       await prefs.setVolumeBreakoutEnabled(_isVolumeBreakout);
+      await prefs.setTelegramAlertsEnabled(_telegramAlerts);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -143,6 +147,11 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               label: "Volume Breakout",
               value: _isVolumeBreakout,
               onChanged: (val) => setState(() => _isVolumeBreakout = val),
+            ),
+            _buildToggleTile(
+              label: "Telegram Buy Alerts",
+              value: _telegramAlerts,
+              onChanged: (val) => setState(() => _telegramAlerts = val),
             ),
             const Divider(color: Colors.white10, height: 40),
             const Text("Volume Multipliers",

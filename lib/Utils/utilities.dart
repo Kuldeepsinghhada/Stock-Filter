@@ -6,14 +6,13 @@ import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
-import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'filter_utils.dart';
+import 'package:http/http.dart' as http;
 
 class Utilities {
   static String formatIndianNumber(num value) {
@@ -506,7 +505,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      if (totalMinutes < 560 || totalMinutes > 660) continue;
+      // if (totalMinutes < 560 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [
@@ -772,4 +771,17 @@ class Utilities {
     "ADANIPOWER",
     "MAXHEALTH",
   ];
+
+  static Future<void> sendTelegramAlert(String message) async {
+    const token = '8900884559:AAEt1DV_VhAqYKH--4ZdpwU2slC9Libpm6w';
+    const chatId = '-1003995285098';
+    final url = 'https://api.telegram.org/bot$token/sendMessage';
+    await http.post(
+      Uri.parse(url),
+      body: {
+        'chat_id': chatId,
+        'text': message,
+      },
+    );
+  }
 }

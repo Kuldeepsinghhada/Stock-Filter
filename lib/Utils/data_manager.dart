@@ -19,4 +19,5 @@ class DataManager {
   List<StockModel> stocksList = [];
 
   Set<String> passedTodayPlanA = {};
+  Set<String> passedTodayPlanB = {};
 }
