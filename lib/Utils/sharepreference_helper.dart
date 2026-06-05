@@ -386,4 +386,16 @@ class SharedPreferenceHelper {
     // Enabled by default
     return prefs.getBool(telegramAlertsKey) ?? true;
   }
+
+  String lastTelegramAlertDateKey = "lastTelegramAlertDate_";
+
+  Future<void> setLastTelegramAlertDate(String symbol, String dateStr) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(lastTelegramAlertDateKey + symbol, dateStr);
+  }
+
+  Future<String?> getLastTelegramAlertDate(String symbol) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(lastTelegramAlertDateKey + symbol);
+  }
 }

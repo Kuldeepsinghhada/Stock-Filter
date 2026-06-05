@@ -12,6 +12,7 @@ import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'filter_utils.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 import 'package:http/http.dart' as http;
 
 class Utilities {
@@ -82,26 +83,42 @@ class Utilities {
 
     List<String> newStockSymbols = [];
     for (var stock in finalList) {
-      bool exists = notificationsList.any(
+      int existingIndex = notificationsList.indexWhere(
         (n) =>
             n.stocksNameList?.toUpperCase().contains(
                   stock.symbol!.toUpperCase(),
                 ) ??
             false,
       );
-      if (!exists) {
+
+      double volX = 0.0;
+      double todayAvgVol = 0.0;
+      if (stock.historyFiveMin != null) {
+        volX = IndicatorUtils.getAllCandlesAvgX(stock.historyFiveMin!);
+        todayAvgVol = IndicatorUtils.getTodayAvgVolume(stock.historyFiveMin!);
+      }
+
+      if (existingIndex == -1) {
+        notificationsList.add(
+          NotificationModel(
+            stocksNameList: "${stock.symbol!} - ${stock.lastPrice ?? ''}",
+            time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
+            volumeX: volX,
+            initialAvgVolume: todayAvgVol,
+          ),
+        );
         newStockSymbols.add("${stock.symbol!} - ${stock.lastPrice ?? ''}");
+      } else {
+        notificationsList[existingIndex].volumeX = volX;
+        notificationsList[existingIndex].stocksNameList = "${stock.symbol!} - ${stock.lastPrice ?? ''}";
+        if (notificationsList[existingIndex].initialAvgVolume == null && todayAvgVol > 0) {
+          notificationsList[existingIndex].initialAvgVolume = todayAvgVol;
+        }
       }
     }
 
     // Add new notifications
     if (newStockSymbols.isNotEmpty) {
-      notificationsList.add(
-        NotificationModel(
-          stocksNameList: newStockSymbols.join(','),
-          time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
-        ),
-      );
       // Show notification
       if (Platform.isAndroid) {
         await NotificationService.showNotification(
@@ -540,12 +557,15 @@ class Utilities {
         }
 
         if (isRadarHit || buyAlert) {
+          double volumeX = IndicatorUtils.getOtherCandlesAvgX(historySoFar);
+
           result.add(
             HistoryModel(
               dateTime: current.timestamp,
               price: current.close,
               isPassed: isRadarHit,
               isBuyAlert: buyAlert,
+              volumeX: volumeX,
             ),
           );
         }

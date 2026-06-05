@@ -3,14 +3,16 @@ class HistoryModel {
   double? price;
   bool? isPassed;
   bool? isBuyAlert;
+  double? volumeX;
 
-  HistoryModel({this.dateTime, this.price, this.isPassed, this.isBuyAlert});
+  HistoryModel({this.dateTime, this.price, this.isPassed, this.isBuyAlert, this.volumeX});
 
   HistoryModel.fromJson(Map<String, dynamic> json) {
     dateTime = json['dateTime'];
     price = json['stockSymbol'];
     isPassed = json['token'];
     isBuyAlert = json['isBuyAlert'];
+    volumeX = json['volumeX'];
   }
 
   Map<String, dynamic> toJson() {
@@ -19,6 +21,7 @@ class HistoryModel {
     data['price'] = price;
     data['isPassed'] = isPassed;
     data['isBuyAlert'] = isBuyAlert;
+    data['volumeX'] = volumeX;
     return data;
   }
 }

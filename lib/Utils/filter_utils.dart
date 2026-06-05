@@ -36,6 +36,12 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
+    // bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
+    //     candles, 0,
+    //     lastMultiplier: 10, otherMultiplier: 10);
+    //
+    // return isVolumeAverageOK;
+
     // 1. Not above 5% check (very fast)
     bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
     if (!isNotAbove5Percent) {

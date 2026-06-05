@@ -108,7 +108,14 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   Future<bool> getNotifications() async {
     notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
-    notificationsList = notificationsList.reversed.toList();
+
+    // Sort by volumeX descending, placing nulls at the end
+    notificationsList.sort((a, b) {
+      double volA = a.volumeX ?? 0.0;
+      double volB = b.volumeX ?? 0.0;
+      return volB.compareTo(volA);
+    });
+
     setState(() {});
     return true;
   }
@@ -205,7 +212,11 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                 itemBuilder: (context, index) {
                   return ListTile(
                     title: Text(notificationsList[index].stocksNameList ?? ''),
-                    subtitle: Text(notificationsList[index].time ?? ''),
+                    subtitle: Text("${notificationsList[index].time ?? ''}" +
+                        (notificationsList[index].volumeX != null &&
+                                notificationsList[index].volumeX! > 0
+                            ? " | Vol: ${notificationsList[index].volumeX!.toStringAsFixed(2)}x"
+                            : "")),
                     leading: const Icon(Icons.notifications),
                     trailing: IconButton(
                       onPressed: () async {
@@ -253,13 +264,13 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         onPressed: () async {
           // Only allow starting the task after 9:28 AM local time.
           final now = DateTime.now();
-          final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 28);
+          final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
 
           // If currently not running (we're trying to START) and time is before allowed time, block it.
-          // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-          //   Fluttertoast.showToast(msg: "Start allowed after 9:28 AM");
-          //   return;
-          // }
+          if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+            Fluttertoast.showToast(msg: "Start allowed after 9:28 AM");
+            return;
+          }
 
           await WakelockPlus.enable();
           if (!isTaskRunning) {

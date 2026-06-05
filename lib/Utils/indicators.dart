@@ -535,6 +535,83 @@ class IndicatorUtils {
     return result;
   }
 
+  static double getOtherCandlesAvgX(List<HistoricalDataModel> candles) {
+    if (candles.length < 100) return 0.0;
+    CandleUtils.sortByTime(candles);
+    final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
+    for (final c in candles) {
+      final d = c.timestamp;
+      final key = DateTime(d.year, d.month, d.day);
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+    if (dayMap.length < 2) return 0.0;
+    final keys = dayMap.keys.toList()..sort();
+    final todayKey = keys.last;
+    final todayCandles = dayMap[todayKey]!;
+    if (todayCandles.length < 3) return 0.0;
+
+    final prevDayCandles = dayMap[keys[keys.length - 2]]!;
+    final prevAvg =
+        prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            prevDayCandles.length;
+    if (prevAvg == 0) return 0.0;
+
+    final otherCandles = todayCandles.sublist(1, todayCandles.length - 1);
+    if (otherCandles.isEmpty) return 0.0;
+    final otherAvgVolume =
+        otherCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            otherCandles.length;
+
+    return otherAvgVolume / prevAvg;
+  }
+
+  static double getAllCandlesAvgX(List<HistoricalDataModel> candles) {
+    if (candles.length < 100) return 0.0;
+    CandleUtils.sortByTime(candles);
+    final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
+    for (final c in candles) {
+      final d = c.timestamp;
+      final key = DateTime(d.year, d.month, d.day);
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+    if (dayMap.length < 2) return 0.0;
+    final keys = dayMap.keys.toList()..sort();
+    final todayKey = keys.last;
+    final todayCandles = dayMap[todayKey]!;
+    if (todayCandles.isEmpty) return 0.0;
+
+    final prevDayCandles = dayMap[keys[keys.length - 2]]!;
+    final prevAvg =
+        prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            prevDayCandles.length;
+    if (prevAvg == 0) return 0.0;
+
+    final todayAvgVolume =
+        todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+            todayCandles.length;
+
+    return todayAvgVolume / prevAvg;
+  }
+
+  static double getTodayAvgVolume(List<HistoricalDataModel> candles) {
+    if (candles.isEmpty) return 0.0;
+    CandleUtils.sortByTime(candles);
+    final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
+    for (final c in candles) {
+      final d = c.timestamp;
+      final key = DateTime(d.year, d.month, d.day);
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+    final keys = dayMap.keys.toList()..sort();
+    final todayKey = keys.last;
+    final todayCandles = dayMap[todayKey]!;
+    if (todayCandles.isEmpty) return 0.0;
+    return todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+        todayCandles.length;
+  }
+
+
+
   static bool has200KVolumeInLast3Candles(
     List<HistoricalDataModel> candles,
   ) {

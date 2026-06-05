@@ -11,6 +11,7 @@ import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/model/notification_model.dart';
 
 class DashboardService {
   DashboardService._internal();
@@ -185,24 +186,33 @@ class DashboardService {
                     .contains(stock.token.toString())) {
                   bool isNear = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNear) {
-                    String timestampStr =
-                        history.last.timestamp.toIso8601String();
-                    String? lastAlertTime = await SharedPreferenceHelper
-                        .instance
-                        .getLastControlledAlertTime(symbol ?? "");
-                    if (lastAlertTime != timestampStr) {
-                      Utilities.addAndShowControlledTradeNotification(stock);
-                      await SharedPreferenceHelper.instance
-                          .setLastControlledAlertTime(
-                              symbol ?? "", timestampStr);
+                    double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
+                    double initialAvgVol = currentAvgVol;
+                    
+                    List<NotificationModel> notifList = await SharedPreferenceHelper.instance.getNotificationList();
+                    int idx = notifList.indexWhere((n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.toUpperCase()) ?? false);
+                    if (idx >= 0 && notifList[idx].initialAvgVolume != null) {
+                      initialAvgVol = notifList[idx].initialAvgVolume!;
+                    }
 
-                      bool isTelegramEnabled = await SharedPreferenceHelper
-                          .instance
-                          .getTelegramAlertsEnabled();
-                      if (isTelegramEnabled) {
-                        final cleanSymbol =
-                            stock.symbol?.replaceAll("NSE:", "") ?? "";
-                        final message = '''
+                    bool meetsVolumeCriteria = currentAvgVol > (initialAvgVol / 2);
+
+                    if (meetsVolumeCriteria) {
+                      String timestampStr = history.last.timestamp.toIso8601String();
+                      String dateStr = "${history.last.timestamp.year}-${history.last.timestamp.month.toString().padLeft(2,'0')}-${history.last.timestamp.day.toString().padLeft(2,'0')}";
+                      
+                      String? lastAlertTime = await SharedPreferenceHelper.instance.getLastControlledAlertTime(symbol ?? "");
+                      if (lastAlertTime != timestampStr) {
+                        Utilities.addAndShowControlledTradeNotification(stock);
+                        await SharedPreferenceHelper.instance.setLastControlledAlertTime(symbol ?? "", timestampStr);
+                      }
+
+                      String? lastTelegramDate = await SharedPreferenceHelper.instance.getLastTelegramAlertDate(symbol ?? "");
+                      if (lastTelegramDate != dateStr) {
+                        bool isTelegramEnabled = await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
+                        if (isTelegramEnabled) {
+                          final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
+                          final message = '''
 🔥 BUY ALERT (Plan A) 🔥
 
 📈 Stock : $cleanSymbol
@@ -212,7 +222,9 @@ class DashboardService {
 
 ⚠️ Educational Purpose Only
 ''';
-                        Utilities.sendTelegramAlert(message);
+                          Utilities.sendTelegramAlert(message);
+                          await SharedPreferenceHelper.instance.setLastTelegramAlertDate(symbol ?? "", dateStr);
+                        }
                       }
                     }
                   }
@@ -231,23 +243,33 @@ class DashboardService {
                       .add(stock.token.toString());
                   bool isNear = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNear) {
-                    String timestampStr =
-                        history.last.timestamp.toIso8601String();
-                    String? lastAlertTime = await SharedPreferenceHelper
-                        .instance
-                        .getLastPlanBAlertTime(symbol ?? "");
-                    if (lastAlertTime != timestampStr) {
-                      Utilities.addAndShowPlanBNotification(stock);
-                      await SharedPreferenceHelper.instance
-                          .setLastPlanBAlertTime(symbol ?? "", timestampStr);
+                    double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
+                    double initialAvgVol = currentAvgVol;
+                    
+                    List<NotificationModel> notifList = await SharedPreferenceHelper.instance.getNotificationList();
+                    int idx = notifList.indexWhere((n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.toUpperCase()) ?? false);
+                    if (idx >= 0 && notifList[idx].initialAvgVolume != null) {
+                      initialAvgVol = notifList[idx].initialAvgVolume!;
+                    }
 
-                      bool isTelegramEnabled = await SharedPreferenceHelper
-                          .instance
-                          .getTelegramAlertsEnabled();
-                      if (isTelegramEnabled) {
-                        final cleanSymbol =
-                            stock.symbol?.replaceAll("NSE:", "") ?? "";
-                        final message = '''
+                    bool meetsVolumeCriteria = currentAvgVol > (initialAvgVol / 2);
+
+                    if (meetsVolumeCriteria) {
+                      String timestampStr = history.last.timestamp.toIso8601String();
+                      String dateStr = "${history.last.timestamp.year}-${history.last.timestamp.month.toString().padLeft(2,'0')}-${history.last.timestamp.day.toString().padLeft(2,'0')}";
+                      
+                      String? lastAlertTime = await SharedPreferenceHelper.instance.getLastPlanBAlertTime(symbol ?? "");
+                      if (lastAlertTime != timestampStr) {
+                        Utilities.addAndShowPlanBNotification(stock);
+                        await SharedPreferenceHelper.instance.setLastPlanBAlertTime(symbol ?? "", timestampStr);
+                      }
+
+                      String? lastTelegramDate = await SharedPreferenceHelper.instance.getLastTelegramAlertDate(symbol ?? "");
+                      if (lastTelegramDate != dateStr) {
+                        bool isTelegramEnabled = await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
+                        if (isTelegramEnabled) {
+                          final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
+                          final message = '''
 🔥 BUY ALERT (Plan B) 🔥
 
 📈 Stock : $cleanSymbol
@@ -257,7 +279,9 @@ class DashboardService {
 
 ⚠️ Educational Purpose Only
 ''';
-                        Utilities.sendTelegramAlert(message);
+                          Utilities.sendTelegramAlert(message);
+                          await SharedPreferenceHelper.instance.setLastTelegramAlertDate(symbol ?? "", dateStr);
+                        }
                       }
                     }
                   }

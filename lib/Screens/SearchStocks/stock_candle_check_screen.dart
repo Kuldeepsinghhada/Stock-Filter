@@ -82,7 +82,7 @@ class _StockCandleCheckScreenState extends State<StockCandleCheckScreen> {
                       ),
                       title: Text(obj.price.toString()),
                       subtitle: Text(
-                        obj.dateTime.toString(),
+                        "${obj.dateTime}" + (obj.volumeX != null && obj.volumeX! > 0 ? " | Vol: ${obj.volumeX!.toStringAsFixed(2)}x" : ""),
                       ),
                       trailing: (obj.isBuyAlert == true)
                           ? const Icon(Icons.notifications_active,
