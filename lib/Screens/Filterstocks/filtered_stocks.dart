@@ -11,6 +11,7 @@ import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
+import 'package:stock_demo/model/notification_model.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class FilteredStockScreen extends StatefulWidget {
@@ -41,6 +42,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     await NotificationService.requestPermissions();
     await FilterUtils.cacheFilterSettings();
     await _loadCachedStocks();
+    getNotifications();
     //await fetchQuotesFromService(); // always fetch fresh data once
   }
 
@@ -53,6 +55,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _loadCachedStocks(); // reload latest cached data when app resumes
+      getNotifications();
     }
   }
 
@@ -248,7 +251,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                           setState(() {});
                         }
                       },
-                      icon: Icon(Icons.delete),
+                      icon: const Icon(Icons.delete),
                     ),
                     onTap: () {},
                   );

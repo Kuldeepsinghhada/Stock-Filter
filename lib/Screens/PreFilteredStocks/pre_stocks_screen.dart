@@ -61,50 +61,24 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           quoteList.add(item);
           historyList.add(result);
 
-          var candles = item.historyFiveMin ?? [];
-          if (candles.isNotEmpty) {
-            var groupedByDate = CandleUtils.groupByDate(candles);
-            var sortedDates = groupedByDate.keys.toList()..sort();
-            if (sortedDates.isNotEmpty) {
-              var todayDate = sortedDates.last;
-              var todayCandles = groupedByDate[todayDate]!;
+          final accResult =
+              FilterUtils.calculateBuyAlertAccuracy(item.historyFiveMin ?? []);
 
-              var signal = result.first;
-              tSignals++;
-              String tradeState = "Neutral";
-              var signalDateTime = signal.dateTime ?? todayDate;
-              var subsequentCandles = todayCandles
-                  .where((c) => c.timestamp.isAfter(signalDateTime))
-                  .toList();
-
-              double signalPrice = signal.price?.toDouble() ?? 0.0;
-
-              if (signalPrice > 0) {
-                for (var candle in subsequentCandles) {
-                  double highChange =
-                      ((candle.high - signalPrice) / signalPrice) * 100;
-                  double lowChange =
-                      ((candle.low - signalPrice) / signalPrice) * 100;
-
-                  if (lowChange <= -1.0) {
-                    tradeState = "SL Hit";
-                    break;
-                  } else if (highChange >= 2.0) {
-                    tradeState = "Target Hit";
-                    break;
-                  }
-                }
-              }
-
-              if (tradeState == "Target Hit")
-                targetHits++;
-              else if (tradeState == "SL Hit")
-                slHits++;
-              else
-                neutralHits++;
-
-              stockTradeResult[item.symbol ?? ''] = tradeState;
+          if (accResult != null) {
+            tSignals++;
+            String status = accResult['status'];
+            if (status == "Win") {
+              targetHits++;
+              stockTradeResult[item.symbol ?? ''] = "Target Hit";
+            } else if (status == "Loss") {
+              slHits++;
+              stockTradeResult[item.symbol ?? ''] = "SL Hit";
+            } else {
+              neutralHits++;
+              stockTradeResult[item.symbol ?? ''] = "Neutral";
             }
+          } else {
+            stockTradeResult[item.symbol ?? ''] = "Neutral";
           }
         }
       }
@@ -250,13 +224,23 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                               return;
                             }
 
-                            final signal = stockHistory.first;
-                            final signalTime = signal.dateTime;
-                            final signalPrice = signal.price ?? 0.0;
+                            final accResult =
+                                FilterUtils.calculateBuyAlertAccuracy(
+                                    stock.historyFiveMin ?? []);
+
+                            double signalPrice = accResult != null
+                                ? accResult['entryPrice']
+                                : 0.0;
+                            double targetPrice =
+                                accResult != null ? accResult['target'] : 0.0;
+                            double stoplossPrice =
+                                accResult != null ? accResult['stoploss'] : 0.0;
 
                             final historySoFar = stock.historyFiveMin
-                                    ?.where((c) =>
-                                        !c.timestamp.isAfter(signalTime!))
+                                    ?.where((c) => !c.timestamp.isAfter(
+                                        accResult != null
+                                            ? accResult['alertTime']
+                                            : DateTime.now()))
                                     .toList() ??
                                 [];
                             int score = FilterUtils.getSmartPriceActionScore(
@@ -264,34 +248,6 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                             double volMult =
                                 FilterUtils.getVolumeMultiplication(
                                     historySoFar);
-
-                            final todayCandles = stock.historyFiveMin
-                                    ?.where((c) =>
-                                        c.timestamp.year == signalTime!.year &&
-                                        c.timestamp.month == signalTime.month &&
-                                        c.timestamp.day == signalTime.day)
-                                    .toList() ??
-                                [];
-                            final subsequentCandles = todayCandles
-                                .where((c) => c.timestamp.isAfter(signalTime!))
-                                .toList();
-
-                            double maxHigh = subsequentCandles.isNotEmpty
-                                ? subsequentCandles
-                                    .map((c) => c.high)
-                                    .reduce((a, b) => max(a, b))
-                                : signalPrice;
-                            double closePrice = todayCandles.isNotEmpty
-                                ? todayCandles.last.close
-                                : signalPrice;
-
-                            double highPercent = signalPrice > 0
-                                ? ((maxHigh - signalPrice) / signalPrice) * 100
-                                : 0.0;
-                            double closePercent = signalPrice > 0
-                                ? ((closePrice - signalPrice) / signalPrice) *
-                                    100
-                                : 0.0;
 
                             showDialog(
                               context: context,
@@ -301,7 +257,8 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Signal Price: $signalPrice',
+                                    Text(
+                                        'Signal Price: ${signalPrice.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 8),
@@ -315,24 +272,22 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                         'Volume Mult: ${volMult.toStringAsFixed(2)}x'),
                                     const SizedBox(height: 8),
                                     Text(
-                                        'High: $maxHigh (${highPercent > 0 ? '+' : ''}${highPercent.toStringAsFixed(2)}%)',
-                                        style: TextStyle(
-                                            color: highPercent >= 0
-                                                ? Colors.green
-                                                : Colors.red)),
+                                        'Target (2%): ${targetPrice.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                            color: Colors.green)),
                                     Text(
-                                        'Close: $closePrice (${closePercent > 0 ? '+' : ''}${closePercent.toStringAsFixed(2)}%)',
-                                        style: TextStyle(
-                                            color: closePercent >= 0
-                                                ? Colors.green
-                                                : Colors.red)),
+                                        'Stoploss: ${stoplossPrice.toStringAsFixed(2)}',
+                                        style:
+                                            const TextStyle(color: Colors.red)),
                                   ],
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () {
                                       Navigator.pop(context);
-                                      final radarHits = stockHistory.where((h) => h.isPassed == true).toList();
+                                      final radarHits = stockHistory
+                                          .where((h) => h.isPassed == true)
+                                          .toList();
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -348,12 +303,15 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                   TextButton(
                                     onPressed: () {
                                       Navigator.pop(context);
-                                      final buyAlerts = stockHistory.where((h) => h.isBuyAlert == true).toList();
+                                      final buyAlerts = stockHistory
+                                          .where((h) => h.isBuyAlert == true)
+                                          .toList();
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) => HistoryScreen(
-                                            stockName: (stock.symbol ?? '') + ' (Buy Alerts)',
+                                            stockName: (stock.symbol ?? '') +
+                                                ' (Buy Alerts)',
                                             historyModel: buyAlerts,
                                           ),
                                         ),

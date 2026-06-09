@@ -398,4 +398,16 @@ class SharedPreferenceHelper {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getString(lastTelegramAlertDateKey + symbol);
   }
+
+  String lastRunDateKey = "lastRunDate";
+
+  Future<void> setLastRunDate(String dateStr) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(lastRunDateKey, dateStr);
+  }
+
+  Future<String?> getLastRunDate() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(lastRunDateKey);
+  }
 }

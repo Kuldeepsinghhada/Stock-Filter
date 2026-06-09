@@ -22,6 +22,18 @@ class DashboardService {
   /// Fetch live quotes, apply filters and historical data checks
   Future<List<FinalStockModel>> fetchQuotes(
       {List<String>? symbolsToFilter, DateTime? selectedDate}) async {
+    
+    // Daily clearing logic
+    final todayStr = "${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}";
+    final lastRunStr = await SharedPreferenceHelper.instance.getLastRunDate();
+    if (lastRunStr != todayStr) {
+      await SharedPreferenceHelper.instance.clearNotifications();
+      await SharedPreferenceHelper.instance.setBuyAlertList([]);
+      DataManager.instance.passedTodayPlanA.clear();
+      DataManager.instance.passedTodayPlanB.clear();
+      await SharedPreferenceHelper.instance.setLastRunDate(todayStr);
+    }
+
     await FilterUtils.cacheFilterSettings();
     await Utilities.loadStocksList();
     _finalList.clear();
@@ -56,9 +68,17 @@ class DashboardService {
     final allQuotes =
         await _fetchLiveDataInBatches(symbolsToFetch, batchSize: 500);
 
+    final notificationList = await SharedPreferenceHelper.instance.getNotificationList();
+
     // Filter tradable stocks (only for today's live mode)
-    final quoteList =
-        isToday ? allQuotes.where(FilterUtils.isTradable).toList() : allQuotes;
+    final quoteList = isToday 
+        ? allQuotes.where((stock) {
+            bool isTrad = FilterUtils.isTradable(stock);
+            bool isNotif = notificationList.any((n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ?? false);
+            return isTrad || isNotif;
+          }).toList() 
+        : allQuotes;
+
     log("First Filter Count: ${quoteList.length}");
 
     // Fetch historical data in throttled batches
@@ -181,11 +201,12 @@ class DashboardService {
                       .add(stock.token.toString());
                 }
 
-                // If it EVER passed today, check for Buy Alert (pullback to EMA/Supertrend)
+                // If it EVER passed today, or was manually added, check for Buy Alert
                 if (DataManager.instance.passedTodayPlanA
-                    .contains(stock.token.toString())) {
-                  bool isNear = FilterUtils.isNearBuyingZone5Min(history);
-                  if (isNear) {
+                        .contains(stock.token.toString()) ||
+                    isAlreadyNotified) {
+                  String? isNearReason = FilterUtils.isNearBuyingZone5Min(history);
+                  if (isNearReason != null) {
                     double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
                     double initialAvgVol = currentAvgVol;
                     
@@ -198,8 +219,9 @@ class DashboardService {
                     bool meetsVolumeCriteria = currentAvgVol > (initialAvgVol / 2);
 
                     if (meetsVolumeCriteria) {
-                      String timestampStr = history.last.timestamp.toIso8601String();
-                      String dateStr = "${history.last.timestamp.year}-${history.last.timestamp.month.toString().padLeft(2,'0')}-${history.last.timestamp.day.toString().padLeft(2,'0')}";
+                      HistoricalDataModel targetCandle = FilterUtils.getLastClosed5MinCandle(history);
+                      String timestampStr = targetCandle.timestamp.toIso8601String();
+                      String dateStr = "${targetCandle.timestamp.year}-${targetCandle.timestamp.month.toString().padLeft(2,'0')}-${targetCandle.timestamp.day.toString().padLeft(2,'0')}";
                       
                       String? lastAlertTime = await SharedPreferenceHelper.instance.getLastControlledAlertTime(symbol ?? "");
                       if (lastAlertTime != timestampStr) {
@@ -217,6 +239,7 @@ class DashboardService {
 
 📈 Stock : $cleanSymbol
 💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+🎯 Near : $isNearReason
 
 ⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
 
@@ -230,7 +253,7 @@ class DashboardService {
                   }
                 }
 
-                if (isPattern == true && isPassedCurrent) {
+                if ((isPattern == true && isPassedCurrent) || isAlreadyNotified) {
                   return stock.copyWith(
                     symbol: stock.symbol?.replaceAll("NSE:", ""),
                     historyFiveMin: history,
@@ -241,8 +264,13 @@ class DashboardService {
                 if (isPassed) {
                   DataManager.instance.passedTodayPlanB
                       .add(stock.token.toString());
-                  bool isNear = FilterUtils.isNearBuyingZone5Min(history);
-                  if (isNear) {
+                }
+                
+                if (DataManager.instance.passedTodayPlanB
+                        .contains(stock.token.toString()) ||
+                    isAlreadyNotified) {
+                  String? isNearReason = FilterUtils.isNearBuyingZone5Min(history);
+                  if (isNearReason != null) {
                     double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
                     double initialAvgVol = currentAvgVol;
                     
@@ -255,8 +283,9 @@ class DashboardService {
                     bool meetsVolumeCriteria = currentAvgVol > (initialAvgVol / 2);
 
                     if (meetsVolumeCriteria) {
-                      String timestampStr = history.last.timestamp.toIso8601String();
-                      String dateStr = "${history.last.timestamp.year}-${history.last.timestamp.month.toString().padLeft(2,'0')}-${history.last.timestamp.day.toString().padLeft(2,'0')}";
+                      HistoricalDataModel targetCandle = FilterUtils.getLastClosed5MinCandle(history);
+                      String timestampStr = targetCandle.timestamp.toIso8601String();
+                      String dateStr = "${targetCandle.timestamp.year}-${targetCandle.timestamp.month.toString().padLeft(2,'0')}-${targetCandle.timestamp.day.toString().padLeft(2,'0')}";
                       
                       String? lastAlertTime = await SharedPreferenceHelper.instance.getLastPlanBAlertTime(symbol ?? "");
                       if (lastAlertTime != timestampStr) {
@@ -274,6 +303,7 @@ class DashboardService {
 
 📈 Stock : $cleanSymbol
 💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+🎯 Near : $isNearReason
 
 ⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
 
@@ -285,6 +315,9 @@ class DashboardService {
                       }
                     }
                   }
+                }
+
+                if (isPassed || isAlreadyNotified) {
                   return stock.copyWith(
                     symbol: stock.symbol?.replaceAll("NSE:", ""),
                     historyFiveMin: history,

@@ -543,7 +543,7 @@ class Utilities {
             hasPassedToday = true;
           }
           if (hasPassedToday) {
-            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar);
+            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar) != null;
           }
         } else if (selectedPlan == "Volume TRADE") {
           bool passesPlan = FilterUtils.passesPlanB(historySoFar, model);
@@ -551,7 +551,7 @@ class Utilities {
             hasPassedToday = true;
           }
           if (hasPassedToday) {
-            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar);
+            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar) != null;
           }
           isRadarHit = passesPlan;
         }

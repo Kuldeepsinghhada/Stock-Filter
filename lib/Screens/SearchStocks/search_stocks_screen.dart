@@ -4,6 +4,7 @@ import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'stock_candle_check_screen.dart';
 
 class SearchStocksScreen extends StatefulWidget {
@@ -188,7 +189,7 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                               notificationList.add(
                                 NotificationModel(
                                   stocksNameList: obj.symbol,
-                                  time: DateTime.now().toIso8601String(),
+                                  time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
                                 ),
                               );
                             }
