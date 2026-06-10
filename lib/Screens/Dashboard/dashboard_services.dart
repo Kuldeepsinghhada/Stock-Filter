@@ -202,9 +202,8 @@ class DashboardService {
                 }
 
                 // If it EVER passed today, or was manually added, check for Buy Alert
-                if (DataManager.instance.passedTodayPlanA
-                        .contains(stock.token.toString()) ||
-                    isAlreadyNotified) {
+                bool isEligibleForRadarA = (isPattern == true && isPassedCurrent);
+                if (isEligibleForRadarA || isAlreadyNotified) {
                   String? isNearReason = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNearReason != null) {
                     double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
@@ -234,12 +233,18 @@ class DashboardService {
                         bool isTelegramEnabled = await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
                         if (isTelegramEnabled) {
                           final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
+                          final String rawName = (stock.name != null && stock.name!.isNotEmpty) ? stock.name! : cleanSymbol;
+                          final String nameForUrl = rawName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'-+$'), '');
+                          final growwLink = "https://groww.in/stocks/$nameForUrl";
+                          
                           final message = '''
 🔥 BUY ALERT (Plan A) 🔥
 
 📈 Stock : $cleanSymbol
 💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
 🎯 Near : $isNearReason
+
+🔗 Link : $growwLink
 
 ⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
 
@@ -265,10 +270,7 @@ class DashboardService {
                   DataManager.instance.passedTodayPlanB
                       .add(stock.token.toString());
                 }
-                
-                if (DataManager.instance.passedTodayPlanB
-                        .contains(stock.token.toString()) ||
-                    isAlreadyNotified) {
+                if (isPassed || isAlreadyNotified) {
                   String? isNearReason = FilterUtils.isNearBuyingZone5Min(history);
                   if (isNearReason != null) {
                     double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
@@ -298,12 +300,18 @@ class DashboardService {
                         bool isTelegramEnabled = await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
                         if (isTelegramEnabled) {
                           final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
+                          final String rawName = (stock.name != null && stock.name!.isNotEmpty) ? stock.name! : cleanSymbol;
+                          final String nameForUrl = rawName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'-+$'), '');
+                          final growwLink = "https://groww.in/stocks/$nameForUrl";
+
                           final message = '''
 🔥 BUY ALERT (Plan B) 🔥
 
 📈 Stock : $cleanSymbol
 💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
 🎯 Near : $isNearReason
+
+🔗 Link : $growwLink
 
 ⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
 

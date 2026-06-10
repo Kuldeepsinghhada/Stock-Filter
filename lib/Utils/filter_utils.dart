@@ -80,11 +80,11 @@ class FilterUtils {
     // }
 
     // 5. ATR Check
-    // bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
-    // if (!atrOk) {
-    //   debugPrint("Failed: $token at $timeStr - Reason: Low ATR");
-    //   return false;
-    // }
+    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
+    if (!atrOk) {
+      debugPrint("Failed: $token at $timeStr - Reason: Low ATR");
+      return false;
+    }
 
     // 6. ADX Check
     bool adxRes = IndicatorUtils.isAdxBullish(candles);

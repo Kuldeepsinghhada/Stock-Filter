@@ -110,8 +110,10 @@ class Utilities {
         newStockSymbols.add("${stock.symbol!} - ${stock.lastPrice ?? ''}");
       } else {
         notificationsList[existingIndex].volumeX = volX;
-        notificationsList[existingIndex].stocksNameList = "${stock.symbol!} - ${stock.lastPrice ?? ''}";
-        if (notificationsList[existingIndex].initialAvgVolume == null && todayAvgVol > 0) {
+        notificationsList[existingIndex].stocksNameList =
+            "${stock.symbol!} - ${stock.lastPrice ?? ''}";
+        if (notificationsList[existingIndex].initialAvgVolume == null &&
+            todayAvgVol > 0) {
           notificationsList[existingIndex].initialAvgVolume = todayAvgVol;
         }
       }
@@ -522,7 +524,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      // if (totalMinutes < 560 || totalMinutes > 660) continue;
+      // if (totalMinutes < 565 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [
