@@ -181,49 +181,6 @@ class Utilities {
     await SharedPreferenceHelper.instance.setBuyAlertList(notificationsList);
   }
 
-  static Future<void> addAndShowPlanBNotification(StockModel stockModel) async {
-    // Show notification for Plan B (allows multiple alerts over time, but throttled by candle time elsewhere)
-    if (Platform.isAndroid) {
-      await NotificationService.showNotification(
-        title: "Plan B Buy Alert",
-        body:
-            "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''} \n ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
-      );
-    }
-    log("Plan B Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}");
-
-    List<NotificationModel> notificationsList =
-        await SharedPreferenceHelper.instance.getBuyAlertLists();
-
-    final symbolText = "${stockModel.symbol!} - ${stockModel.lastPrice ?? ''}";
-    final timeStr = Utilities.formatDDMMMHHMMDateTime(DateTime.now());
-
-    bool found = false;
-    for (var n in notificationsList) {
-      if (n.stocksNameList != null &&
-          n.stocksNameList!
-              .toUpperCase()
-              .contains(stockModel.symbol!.toUpperCase())) {
-        if (n.time != null && !n.time!.contains(timeStr)) {
-          n.time = "${n.time}, $timeStr";
-        }
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      notificationsList.add(
-        NotificationModel(
-          stocksNameList: symbolText,
-          time: timeStr,
-        ),
-      );
-    }
-
-    await SharedPreferenceHelper.instance.setBuyAlertList(notificationsList);
-  }
-
   static Future<void> addAndShowControlledTradeNotification(
       StockModel stockModel) async {
     // Show notification for Controlled Trade (allows multiple alerts over time, but throttled by candle time elsewhere)
@@ -533,29 +490,16 @@ class Utilities {
       ];
 
       try {
-        String selectedPlan =
-            await SharedPreferenceHelper.instance.getSelectedPlan();
         bool isRadarHit = false;
         bool buyAlert = false;
 
-        if (selectedPlan == "Controlled Trade") {
-          isRadarHit =
-              FilterUtils.passesFilter(historySoFar, model.token.toString());
-          if (isRadarHit) {
-            hasPassedToday = true;
-          }
-          if (hasPassedToday) {
-            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar) != null;
-          }
-        } else if (selectedPlan == "Volume TRADE") {
-          bool passesPlan = FilterUtils.passesPlanB(historySoFar, model);
-          if (passesPlan) {
-            hasPassedToday = true;
-          }
-          if (hasPassedToday) {
-            buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar) != null;
-          }
-          isRadarHit = passesPlan;
+        isRadarHit =
+            FilterUtils.passesFilter(historySoFar, model.token.toString());
+        if (isRadarHit) {
+          hasPassedToday = true;
+        }
+        if (hasPassedToday) {
+          buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar) != null;
         }
 
         if (isRadarHit || buyAlert) {

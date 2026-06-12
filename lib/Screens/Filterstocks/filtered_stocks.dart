@@ -271,7 +271,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
           // If currently not running (we're trying to START) and time is before allowed time, block it.
           if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-            Fluttertoast.showToast(msg: "Start allowed after 9:28 AM");
+            Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
             return;
           }
 

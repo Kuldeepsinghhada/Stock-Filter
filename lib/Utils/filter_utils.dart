@@ -35,12 +35,6 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
-    // bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
-    //     candles, 0,
-    //     lastMultiplier: 10, otherMultiplier: 5);
-    //
-    // return isVolumeAverageOK;
-
     // 1. Not above 5% check (very fast)
     // bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
     // if (!isNotAbove5Percent) {
@@ -79,6 +73,12 @@ class FilterUtils {
     //   }
     // }
 
+    bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
+    if (!isVolumeOk) {
+      debugPrint("Failed: $token at $timeStr - Reason: Volume Not OK");
+      return false;
+    }
+
     // 5. ATR Check
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
     if (!atrOk) {
@@ -94,7 +94,7 @@ class FilterUtils {
     }
 
     // 7. Score Check (getSmartPriceActionScore)
-    int score = getSmartPriceActionScore(candles);
+    int score = getIntradayMomentumScore(candles);
     if (score < 70) {
       debugPrint(
           "Failed: $token at $timeStr - Reason: Low Smart Score ($score)");
@@ -132,82 +132,6 @@ class FilterUtils {
     //   }
     // }
     print("Passed : $token");
-    return true;
-  }
-
-  /// 🔹 Plan B logic
-  static bool passesPlanB(List<HistoricalDataModel> candles, StockModel stock) {
-    if (candles.isEmpty || stock.lastPrice == null) {
-      debugPrint(
-          "PlanB Failed: ${stock.symbol} - No candles or lastPrice is null");
-      return false;
-    }
-
-    // Last candle volume check
-    // if (candles.last.volume < 5000) {
-    //   debugPrint(
-    //       "PlanB Failed: ${stock.symbol} - Last candle volume (${candles.last.volume}) < 10000");
-    //   return false;
-    // }
-
-    // 1. Price > 30
-    if (stock.lastPrice! <= 30) {
-      debugPrint(
-          "PlanB Failed: ${stock.symbol} - Price (${stock.lastPrice}) <= 30");
-      return false;
-    }
-
-    // 2. 5-min timeframe check: Today any candle volume is 50x yesterday's avg and > 50000
-    final groupedByDate = CandleUtils.groupByDate(candles);
-    final sortedDates = groupedByDate.keys.toList()..sort();
-    if (sortedDates.length < 2) {
-      return false;
-    }
-
-    final todayDate = sortedDates.last;
-    final todayCandles = groupedByDate[todayDate]!;
-
-    final yesterdayDate = sortedDates[sortedDates.length - 2];
-    final yesterdayCandles = groupedByDate[yesterdayDate]!;
-
-    if (yesterdayCandles.isEmpty) {
-      return false;
-    }
-
-    final prevAvg =
-        yesterdayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            yesterdayCandles.length;
-
-    bool volumeSpikeMet = false;
-    for (int i = 0; i < todayCandles.length; i++) {
-      var currentCandle = todayCandles[i];
-      if (currentCandle.volume >= 50000 &&
-          currentCandle.volume >= (prevAvg * 30)) {
-        volumeSpikeMet = true;
-        break;
-      }
-    }
-    if (!volumeSpikeMet) {
-      return false;
-    }
-
-    // 3. Daily Timeframe check (Heavy, so done last): Stock close above 20 EMA and Above Supertrend
-    final dailyCandles = Utilities.convertToDaily(candles);
-    if (dailyCandles.length < 20) {
-      return false;
-    }
-
-    bool aboveEma20Daily =
-        IndicatorUtils.isCloseAboveEMA(dailyCandles, 20).isPassed;
-    if (!aboveEma20Daily) return false;
-
-    bool aboveSupertrendDaily = IndicatorUtils.isCloseAboveSupertrend(
-      dailyCandles,
-      atrPeriod: 10,
-      multiplier: 3,
-    ).isPassed;
-    if (!aboveSupertrendDaily) return false;
-
     return true;
   }
 
@@ -380,16 +304,13 @@ class FilterUtils {
     final rangePercent = ((high - low) / open) * 100;
 
     // ✅ Price range filter
-    if (lastPrice < 30 || lastPrice > 5000) return false;
-
-    // ✅ Avoid circuit stocks
-    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
+    if (lastPrice < 30 || lastPrice > 1500) return false;
 
     // ✅ Must be green today
     if (lastPrice <= open) return false;
 
     // ✅ Momentum required
-    if (percentChange < 1.2) return false;
+    if (percentChange < 2) return false;
 
     // ✅ Must have movement
     if (rangePercent < 1) return false;
@@ -408,66 +329,6 @@ class FilterUtils {
     if (isWorkingDay) {
       if (volume < 15000) return false;
     }
-    return true;
-  }
-
-  static bool isBreakDownTradable(StockModel stock) {
-    final lastPrice = stock.lastPrice;
-    final lowerLimit = stock.lowerCircuitLimit;
-    final upperLimit = stock.upperCircuitLimit;
-    final ohlc = stock.ohlc;
-    final open = ohlc?.open;
-    final close = ohlc?.close;
-    final volume = stock.volume;
-
-    if (lastPrice == null ||
-        open == null ||
-        close == null ||
-        lowerLimit == null ||
-        upperLimit == null ||
-        volume == null) {
-      return false;
-    }
-
-    // Price range filter
-    if (lastPrice <= 20 || lastPrice >= 500) return false;
-
-    // Avoid circuit stocks
-    if (lastPrice <= lowerLimit || lastPrice >= upperLimit) return false;
-
-    // 🔴 Breakdown condition: price below previous close
-    if (lastPrice >= close) return false;
-
-    // % change calculation (negative expected)
-    final percentChange = ((lastPrice - open) / open) * 100;
-
-    // Strong red candle only
-    if (percentChange >= -1.5) return false;
-
-    // Volume check – only on working day
-    final now = DateTime.now();
-    final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay = lastWorking.year == now.year &&
-        lastWorking.month == now.month &&
-        lastWorking.day == now.day;
-
-    if (isWorkingDay) {
-      if (volume <= 15000) return false;
-    }
-
-    return true;
-  }
-
-  static bool passedDayFilter(List<HistoricalDataModel> candles, String token) {
-    if (!IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed) return false;
-    if (!IndicatorUtils.isRsiBetween(candles, 14, min: 55, max: 95))
-      return false;
-    if (!IndicatorUtils.isCloseAboveSupertrend(candles,
-            atrPeriod: 10, multiplier: 3)
-        .isPassed) return false;
-    if (!IndicatorUtils.isAdxBullish(candles)) return false;
-    if (!IndicatorUtils.isAtrGreaterThanAdaptive(candles)) return false;
-    if (!IndicatorUtils.isVolumeBreakoutStrong(candles)) return false;
     return true;
   }
 
@@ -513,211 +374,6 @@ class FilterUtils {
     return true;
   }
 
-  /// 🔥 DAILY INSTITUTIONAL TREND FILTER
-  ///
-  /// Purpose:
-  /// Find strong trending stocks
-  /// with healthy pullback structure
-  /// before intraday entry.
-  ///
-  /// Use this FIRST.
-  /// Then run 5min strategy only
-  /// on shortlisted symbols.
-
-  static bool isStrongDailyTrendSetup(
-    List<HistoricalDataModel> candles,
-  ) {
-    if (candles.length < 200) {
-      return false;
-    }
-
-    CandleUtils.sortByTime(candles);
-
-    final daily = Utilities.convertToDaily(candles);
-
-    final closes = daily.map((e) => e.close).toList();
-
-    final ema20List = MathUtils.emaAligned(
-      closes,
-      20,
-    );
-
-    if (ema20List.isEmpty) {
-      return false;
-    }
-
-    final ema20 = ema20List.last!;
-
-    /// =========================================
-    /// DAILY SUPERTREND
-    /// =========================================
-
-    /// =========================================
-    /// DAILY RSI HEALTHY
-    /// =========================================
-
-    final rsiOk = IndicatorUtils.isRsiBetween(
-      daily,
-      14,
-      min: 52,
-      max: 75,
-    );
-
-    if (!rsiOk) {
-      return false;
-    }
-
-    /// =========================================
-    /// DAILY VOLUME PARTICIPATION
-    /// =========================================
-
-    final dailyVolumes = daily.map((e) => e.volume.toDouble()).toList();
-
-    final avg10Volume = dailyVolumes
-            .sublist(
-              dailyVolumes.length - 10,
-            )
-            .reduce((a, b) => a + b) /
-        10;
-
-    final currentVolume = dailyVolumes.last;
-
-    if (currentVolume < avg10Volume * 0.8) {
-      return false;
-    }
-
-    /// =========================================
-    /// RECENT MOMENTUM
-    /// =========================================
-
-    final currentClose = daily.last.close;
-
-    final oldClose = daily[daily.length - 10].close;
-
-    final movePct = ((currentClose - oldClose) / oldClose) * 100;
-
-    if (movePct < 5) {
-      return false;
-    }
-
-    /// =========================================
-    /// NOT OVEREXTENDED
-    /// =========================================
-
-    final distanceFromEMA20 = ((currentClose - ema20) / ema20) * 100;
-
-    if (distanceFromEMA20 > 10) {
-      return false;
-    }
-
-    /// =========================================
-    /// DAILY GREEN CANDLE
-    /// =========================================
-
-    final lastDaily = daily.last;
-
-    if (lastDaily.close <= lastDaily.open) {
-      return false;
-    }
-
-    /// =========================================
-    /// CONTROLLED PULLBACK
-    /// =========================================
-
-    final recent = daily.sublist(
-      daily.length - 5,
-    );
-
-    int redCount = 0;
-
-    for (final c in recent) {
-      if (c.close < c.open) {
-        redCount++;
-      }
-    }
-
-    if (redCount > 4) {
-      return false;
-    }
-
-    /// =========================================
-    /// VOLUME DRY-UP
-    /// =========================================
-
-    final previousTrendCandles = daily.sublist(
-      daily.length - 15,
-      daily.length - 5,
-    );
-
-    final previousAvgVolume =
-        previousTrendCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            previousTrendCandles.length;
-
-    final recentAvgVolume =
-        recent.map((e) => e.volume).reduce((a, b) => a + b) / recent.length;
-
-    final dryUp = recentAvgVolume < previousAvgVolume * 0.8;
-
-    if (!dryUp) {
-      return false;
-    }
-
-    /// =========================================
-    /// HOLDING EMA20
-    /// =========================================
-
-    final nearEMA20 = currentClose >= ema20 * 0.97;
-
-    if (!nearEMA20) {
-      return false;
-    }
-
-    /// =========================================
-    /// RECLAIM CANDLE
-    /// =========================================
-
-    final last = daily.last;
-
-    final candleRange = last.high - last.low;
-
-    if (candleRange <= 0) {
-      return false;
-    }
-
-    final candleBody = (last.close - last.open).abs();
-
-    final bullish = last.close > last.open;
-
-    final closeNearHigh = ((last.high - last.close) / candleRange) < 0.35;
-
-    final upperWick = last.high -
-        max(
-          last.open,
-          last.close,
-        );
-
-    final lowUpperWick = upperWick < candleBody * 0.8;
-
-    if (!bullish || !closeNearHigh || !lowUpperWick) {
-      return false;
-    }
-
-    /// =========================================
-    /// AVOID PARABOLIC STOCKS
-    /// =========================================
-
-    if (movePct > 30) {
-      return false;
-    }
-
-    debugPrint(
-      "🔥 DAILY STRONG TREND SETUP => "
-      "${candles.last.timestamp}",
-    );
-
-    return true;
-  }
-
   static double getVolumeMultiplication(List<HistoricalDataModel> candles) {
     final daily = Utilities.convertToDaily(candles);
     if (daily.length < 10) return 0.0;
@@ -736,6 +392,137 @@ class FilterUtils {
 
     if (prevAvgVolume == 0) return 0.0;
     return recentAvgVolume / prevAvgVolume;
+  }
+
+  static int getIntradayMomentumScore(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.length < 50) return 0;
+
+    CandleUtils.sortByTime(candles);
+
+    int score = 0;
+
+    final last = candles.last;
+
+    // =====================================================
+    // HARD FILTERS
+    // =====================================================
+
+    if (last.close < 50) {
+      return 0;
+    }
+
+    // =====================================================
+    // VWAP
+    // =====================================================
+
+    final vwap = IndicatorUtils.isCloseAboveVWAP(candles);
+
+    if (vwap) {
+      score += 20;
+    } else {
+      return 0;
+    }
+
+    // =====================================================
+    // STRONG CANDLE
+    // =====================================================
+
+    final candlePct = ((last.close - last.open) / last.open) * 100;
+
+    if (last.close > last.open && candlePct >= 0.8) {
+      score += 15;
+    }
+
+    // =====================================================
+    // LOW UPPER WICK
+    // =====================================================
+
+    final body = (last.close - last.open).abs();
+
+    final upperWick = last.high - max(last.close, last.open);
+
+    if (body > 0 && upperWick <= body * 0.5) {
+      score += 10;
+    }
+
+    // =====================================================
+    // VOLUME SPIKE
+    // =====================================================
+
+    final recent20 = candles.sublist(candles.length - 21, candles.length - 1);
+
+    final avgVolume =
+        recent20.map((e) => e.volume).reduce((a, b) => a + b) / recent20.length;
+
+    if (last.volume > avgVolume * 2) {
+      score += 20;
+    }
+
+    // =====================================================
+    // HH HL STRUCTURE
+    // =====================================================
+
+    bool hhhl = true;
+
+    for (int i = candles.length - 5; i < candles.length - 1; i++) {
+      if (candles[i + 1].high < candles[i].high ||
+          candles[i + 1].low < candles[i].low) {
+        hhhl = false;
+        break;
+      }
+    }
+
+    if (hhhl) {
+      score += 15;
+    }
+
+    // =====================================================
+    // ORB BREAKOUT
+    // =====================================================
+
+    if (candles.length >= 4) {
+      double orbHigh = 0;
+
+      for (int i = 0; i < 3; i++) {
+        orbHigh = max(orbHigh, candles[i].high);
+      }
+
+      if (last.close > orbHigh) {
+        score += 20;
+      }
+    }
+
+    // =====================================================
+    // ADX
+    // =====================================================
+
+    final adx = IndicatorUtils.isAdxBullish(
+      candles,
+      diPeriod: 14,
+    );
+    if (adx) {
+      score += 20;
+    }
+
+    // =====================================================
+    // NO BIG RED CANDLE
+    // =====================================================
+
+    int redCount = 0;
+
+    for (final c in candles.sublist(candles.length - 10)) {
+      if (c.close < c.open) {
+        redCount++;
+      }
+    }
+
+    if (redCount <= 2) {
+      score += 10;
+    }
+
+    return score;
   }
 
   static int getSmartPriceActionScore(

@@ -610,8 +610,6 @@ class IndicatorUtils {
         todayCandles.length;
   }
 
-
-
   static bool has200KVolumeInLast3Candles(
     List<HistoricalDataModel> candles,
   ) {
@@ -1172,7 +1170,8 @@ class IndicatorUtils {
         volumeToCheck = lastWorkDayCandle.volume;
       }
     }
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 10000) : false;
+    bool isVolumeOk =
+        (volumeToCheck != null) ? (volumeToCheck > 100000) : false;
     return isVolumeOk;
   }
 

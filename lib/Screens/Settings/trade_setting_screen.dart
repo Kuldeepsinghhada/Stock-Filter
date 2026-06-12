@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../Utils/sharepreference_helper.dart';
-import 'package:stock_demo/Screens/Settings/strategy_selection_screen.dart';
 
 class TradeSettingPage extends StatefulWidget {
   const TradeSettingPage({super.key});
@@ -98,24 +97,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              leading:
-                  const Icon(Icons.compare_arrows, color: Colors.blueAccent),
-              title: const Text('Strategy Selection',
-                  style: TextStyle(color: Colors.white)),
-              subtitle: const Text(
-                  'Toggle between Controlled Trade and Volume TRADE',
-                  style: TextStyle(color: Colors.white70)),
-              trailing: const Icon(Icons.arrow_forward_ios,
-                  size: 16, color: Colors.white54),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const StrategySelectionScreen()),
-                );
-              },
-            ),
             const Divider(color: Colors.white10, height: 40),
             const Text("Filter Conditions",
                 style: TextStyle(

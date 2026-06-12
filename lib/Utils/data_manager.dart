@@ -18,6 +18,5 @@ class DataManager {
   List<StockModel> preFilteredStocksList = [];
   List<StockModel> stocksList = [];
 
-  Set<String> passedTodayPlanA = {};
-  Set<String> passedTodayPlanB = {};
+  Set<String> passedToday = {};
 }

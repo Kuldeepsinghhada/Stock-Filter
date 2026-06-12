@@ -22,15 +22,14 @@ class DashboardService {
   /// Fetch live quotes, apply filters and historical data checks
   Future<List<FinalStockModel>> fetchQuotes(
       {List<String>? symbolsToFilter, DateTime? selectedDate}) async {
-    
     // Daily clearing logic
-    final todayStr = "${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}";
+    final todayStr =
+        "${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}";
     final lastRunStr = await SharedPreferenceHelper.instance.getLastRunDate();
     if (lastRunStr != todayStr) {
       await SharedPreferenceHelper.instance.clearNotifications();
       await SharedPreferenceHelper.instance.setBuyAlertList([]);
-      DataManager.instance.passedTodayPlanA.clear();
-      DataManager.instance.passedTodayPlanB.clear();
+      DataManager.instance.passedToday.clear();
       await SharedPreferenceHelper.instance.setLastRunDate(todayStr);
     }
 
@@ -66,17 +65,21 @@ class DashboardService {
             selectedDate.day == DateTime.now().day);
 
     final allQuotes =
-        await _fetchLiveDataInBatches(symbolsToFetch, batchSize: 500);
+        await fetchLiveDataInBatches(symbolsToFetch, batchSize: 90);
 
-    final notificationList = await SharedPreferenceHelper.instance.getNotificationList();
+    final notificationList =
+        await SharedPreferenceHelper.instance.getNotificationList();
 
     // Filter tradable stocks (only for today's live mode)
-    final quoteList = isToday 
+    final quoteList = isToday
         ? allQuotes.where((stock) {
             bool isTrad = FilterUtils.isTradable(stock);
-            bool isNotif = notificationList.any((n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ?? false);
+            bool isNotif = notificationList.any((n) =>
+                n.stocksNameList?.toUpperCase().contains(
+                    stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ??
+                false);
             return isTrad || isNotif;
-          }).toList() 
+          }).toList()
         : allQuotes;
 
     log("First Filter Count: ${quoteList.length}");
@@ -111,7 +114,7 @@ class DashboardService {
   }
 
   /// Fetch live data in batches to reduce API calls
-  Future<List<StockModel>> _fetchLiveDataInBatches(
+  Future<List<StockModel>> fetchLiveDataInBatches(
     List<String> symbols, {
     int batchSize = 500,
   }) async {
@@ -119,29 +122,44 @@ class DashboardService {
 
     for (var i = 0; i < symbols.length; i += batchSize) {
       final batch = symbols.skip(i).take(batchSize).toList();
-      final batchSymbols = batch.map((s) => 'NSE:$s').join('&i=');
 
-      final response = await ApiService.instance.apiCall(
-        APIEndPoint.getLiveStocksData + batchSymbols,
-        HttpRequestType.get,
-        null,
-      );
+      final queryParams = batch
+          .map((symbol) => 'i=${Uri.encodeQueryComponent("NSE:$symbol")}')
+          .join('&');
 
-      if (response.status) {
-        final data = response.data;
-        if (data is Map && data.containsKey('data')) {
-          allQuotes.addAll(
-            Utilities.convertDataToStockModel(
-              data['data'] as Map<String, dynamic>,
-            ),
-          );
+      final url = '${APIEndPoint.getLiveStocksData}$queryParams';
+
+      try {
+        final response = await ApiService.instance.apiCall(
+          url,
+          HttpRequestType.get,
+          null,
+        );
+
+        if (response.status) {
+          final data = response.data;
+
+          if (data is Map && data.containsKey('data')) {
+            allQuotes.addAll(
+              Utilities.convertDataToStockModel(
+                Map<String, dynamic>.from(data['data']),
+              ),
+            );
+          }
+        } else {
+          log("Batch Failed => ${response.error}");
         }
-      } else {
-        log('Error fetching batch: ${response.error}');
+      } catch (e) {
+        log("Exception => $e");
       }
+
+      // await Future.delayed(
+      //   const Duration(milliseconds: 300),
+      // );
     }
 
     log("All Quotes Count: ${allQuotes.length}");
+
     return allQuotes;
   }
 
@@ -186,59 +204,83 @@ class DashboardService {
                 ),
               );
               // Apply final filter check
-              String selectedPlan =
-                  await SharedPreferenceHelper.instance.getSelectedPlan();
 
-              if (selectedPlan == "Controlled Trade") {
-                final isPattern = BullishPatternDetector.detectTop3Patterns85(
-                    Utilities.convertToDaily(history));
-                var isPassedCurrent =
-                    FilterUtils.passesFilter(history, stock.token.toString());
+              final isPattern = BullishPatternDetector.detectTop3Patterns85(
+                  Utilities.convertToDaily(history));
+              var isPassedCurrent =
+                  FilterUtils.passesFilter(history, stock.token.toString());
 
-                // Save locally if it passes right now
-                if (isPassedCurrent) {
-                  DataManager.instance.passedTodayPlanA
-                      .add(stock.token.toString());
-                }
+              // Save locally if it passes right now
+              if (isPassedCurrent && isPattern == true) {
+                DataManager.instance.passedToday.add(stock.token.toString());
+              }
 
-                // If it EVER passed today, or was manually added, check for Buy Alert
-                bool isEligibleForRadarA = (isPattern == true && isPassedCurrent);
-                if (isEligibleForRadarA || isAlreadyNotified) {
-                  String? isNearReason = FilterUtils.isNearBuyingZone5Min(history);
-                  if (isNearReason != null) {
-                    double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
-                    double initialAvgVol = currentAvgVol;
-                    
-                    List<NotificationModel> notifList = await SharedPreferenceHelper.instance.getNotificationList();
-                    int idx = notifList.indexWhere((n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.toUpperCase()) ?? false);
-                    if (idx >= 0 && notifList[idx].initialAvgVolume != null) {
-                      initialAvgVol = notifList[idx].initialAvgVolume!;
+              // If it EVER passed today, or was manually added, check for Buy Alert
+              bool isEligibleForRadarA = (isPattern == true && isPassedCurrent);
+              if (isEligibleForRadarA || isAlreadyNotified) {
+                String? isNearReason =
+                    FilterUtils.isNearBuyingZone5Min(history);
+                if (isNearReason != null) {
+                  double currentAvgVol =
+                      IndicatorUtils.getTodayAvgVolume(history);
+                  double initialAvgVol = currentAvgVol;
+
+                  List<NotificationModel> notifList =
+                      await SharedPreferenceHelper.instance
+                          .getNotificationList();
+                  int idx = notifList.indexWhere((n) =>
+                      n.stocksNameList
+                          ?.toUpperCase()
+                          .contains(stock.symbol!.toUpperCase()) ??
+                      false);
+                  if (idx >= 0 && notifList[idx].initialAvgVolume != null) {
+                    initialAvgVol = notifList[idx].initialAvgVolume!;
+                  }
+
+                  bool meetsVolumeCriteria =
+                      currentAvgVol > (initialAvgVol / 2);
+
+                  if (meetsVolumeCriteria) {
+                    HistoricalDataModel targetCandle =
+                        FilterUtils.getLastClosed5MinCandle(history);
+
+                    String timestampStr =
+                        targetCandle.timestamp.toIso8601String();
+                    String dateStr =
+                        "${targetCandle.timestamp.year}-${targetCandle.timestamp.month.toString().padLeft(2, '0')}-${targetCandle.timestamp.day.toString().padLeft(2, '0')}";
+
+                    String? lastAlertTime = await SharedPreferenceHelper
+                        .instance
+                        .getLastControlledAlertTime(symbol ?? "");
+                    if (lastAlertTime != timestampStr) {
+                      Utilities.addAndShowControlledTradeNotification(stock);
+                      await SharedPreferenceHelper.instance
+                          .setLastControlledAlertTime(
+                              symbol ?? "", timestampStr);
                     }
 
-                    bool meetsVolumeCriteria = currentAvgVol > (initialAvgVol / 2);
+                    String? lastTelegramDate = await SharedPreferenceHelper
+                        .instance
+                        .getLastTelegramAlertDate(symbol ?? "");
+                    if (lastTelegramDate != dateStr) {
+                      bool isTelegramEnabled = await SharedPreferenceHelper
+                          .instance
+                          .getTelegramAlertsEnabled();
+                      if (isTelegramEnabled) {
+                        final cleanSymbol =
+                            stock.symbol?.replaceAll("NSE:", "") ?? "";
+                        final String rawName =
+                            (stock.name != null && stock.name!.isNotEmpty)
+                                ? stock.name!
+                                : cleanSymbol;
+                        final String nameForUrl = rawName
+                            .toLowerCase()
+                            .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+                            .replaceAll(RegExp(r'-+$'), '');
+                        final growwLink = "https://groww.in/stocks/$nameForUrl";
 
-                    if (meetsVolumeCriteria) {
-                      HistoricalDataModel targetCandle = FilterUtils.getLastClosed5MinCandle(history);
-                      String timestampStr = targetCandle.timestamp.toIso8601String();
-                      String dateStr = "${targetCandle.timestamp.year}-${targetCandle.timestamp.month.toString().padLeft(2,'0')}-${targetCandle.timestamp.day.toString().padLeft(2,'0')}";
-                      
-                      String? lastAlertTime = await SharedPreferenceHelper.instance.getLastControlledAlertTime(symbol ?? "");
-                      if (lastAlertTime != timestampStr) {
-                        Utilities.addAndShowControlledTradeNotification(stock);
-                        await SharedPreferenceHelper.instance.setLastControlledAlertTime(symbol ?? "", timestampStr);
-                      }
-
-                      String? lastTelegramDate = await SharedPreferenceHelper.instance.getLastTelegramAlertDate(symbol ?? "");
-                      if (lastTelegramDate != dateStr) {
-                        bool isTelegramEnabled = await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
-                        if (isTelegramEnabled) {
-                          final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
-                          final String rawName = (stock.name != null && stock.name!.isNotEmpty) ? stock.name! : cleanSymbol;
-                          final String nameForUrl = rawName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'-+$'), '');
-                          final growwLink = "https://groww.in/stocks/$nameForUrl";
-                          
-                          final message = '''
-🔥 BUY ALERT (Plan A) 🔥
+                        final message = '''
+🔥 BUY ALERT 🔥
 
 📈 Stock : $cleanSymbol
 💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
@@ -250,87 +292,20 @@ class DashboardService {
 
 ⚠️ Educational Purpose Only
 ''';
-                          Utilities.sendTelegramAlert(message);
-                          await SharedPreferenceHelper.instance.setLastTelegramAlertDate(symbol ?? "", dateStr);
-                        }
+                        Utilities.sendTelegramAlert(message);
+                        await SharedPreferenceHelper.instance
+                            .setLastTelegramAlertDate(symbol ?? "", dateStr);
                       }
                     }
                   }
                 }
+              }
 
-                if ((isPattern == true && isPassedCurrent) || isAlreadyNotified) {
-                  return stock.copyWith(
-                    symbol: stock.symbol?.replaceAll("NSE:", ""),
-                    historyFiveMin: history,
-                  );
-                }
-              } else if (selectedPlan == "Volume TRADE") {
-                bool isPassed = FilterUtils.passesPlanB(history, stock);
-                if (isPassed) {
-                  DataManager.instance.passedTodayPlanB
-                      .add(stock.token.toString());
-                }
-                if (isPassed || isAlreadyNotified) {
-                  String? isNearReason = FilterUtils.isNearBuyingZone5Min(history);
-                  if (isNearReason != null) {
-                    double currentAvgVol = IndicatorUtils.getTodayAvgVolume(history);
-                    double initialAvgVol = currentAvgVol;
-                    
-                    List<NotificationModel> notifList = await SharedPreferenceHelper.instance.getNotificationList();
-                    int idx = notifList.indexWhere((n) => n.stocksNameList?.toUpperCase().contains(stock.symbol!.toUpperCase()) ?? false);
-                    if (idx >= 0 && notifList[idx].initialAvgVolume != null) {
-                      initialAvgVol = notifList[idx].initialAvgVolume!;
-                    }
-
-                    bool meetsVolumeCriteria = currentAvgVol > (initialAvgVol / 2);
-
-                    if (meetsVolumeCriteria) {
-                      HistoricalDataModel targetCandle = FilterUtils.getLastClosed5MinCandle(history);
-                      String timestampStr = targetCandle.timestamp.toIso8601String();
-                      String dateStr = "${targetCandle.timestamp.year}-${targetCandle.timestamp.month.toString().padLeft(2,'0')}-${targetCandle.timestamp.day.toString().padLeft(2,'0')}";
-                      
-                      String? lastAlertTime = await SharedPreferenceHelper.instance.getLastPlanBAlertTime(symbol ?? "");
-                      if (lastAlertTime != timestampStr) {
-                        Utilities.addAndShowPlanBNotification(stock);
-                        await SharedPreferenceHelper.instance.setLastPlanBAlertTime(symbol ?? "", timestampStr);
-                      }
-
-                      String? lastTelegramDate = await SharedPreferenceHelper.instance.getLastTelegramAlertDate(symbol ?? "");
-                      if (lastTelegramDate != dateStr) {
-                        bool isTelegramEnabled = await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
-                        if (isTelegramEnabled) {
-                          final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
-                          final String rawName = (stock.name != null && stock.name!.isNotEmpty) ? stock.name! : cleanSymbol;
-                          final String nameForUrl = rawName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'-+$'), '');
-                          final growwLink = "https://groww.in/stocks/$nameForUrl";
-
-                          final message = '''
-🔥 BUY ALERT (Plan B) 🔥
-
-📈 Stock : $cleanSymbol
-💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
-🎯 Near : $isNearReason
-
-🔗 Link : $growwLink
-
-⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
-
-⚠️ Educational Purpose Only
-''';
-                          Utilities.sendTelegramAlert(message);
-                          await SharedPreferenceHelper.instance.setLastTelegramAlertDate(symbol ?? "", dateStr);
-                        }
-                      }
-                    }
-                  }
-                }
-
-                if (isPassed || isAlreadyNotified) {
-                  return stock.copyWith(
-                    symbol: stock.symbol?.replaceAll("NSE:", ""),
-                    historyFiveMin: history,
-                  );
-                }
+              if ((isPattern == true && isPassedCurrent) || isAlreadyNotified) {
+                return stock.copyWith(
+                  symbol: stock.symbol?.replaceAll("NSE:", ""),
+                  historyFiveMin: history,
+                );
               }
             }
           } catch (e) {
@@ -416,6 +391,7 @@ extension StockModelCopy on StockModel {
   StockModel copyWith({
     String? symbol,
     List<HistoricalDataModel>? historyFiveMin,
+    double? lastPrice,
   }) =>
       StockModel(
         symbol: symbol ?? this.symbol,
@@ -424,7 +400,7 @@ extension StockModelCopy on StockModel {
         sector: sector,
         timestamp: timestamp,
         lastTradeTime: lastTradeTime,
-        lastPrice: lastPrice,
+        lastPrice: lastPrice ?? this.lastPrice,
         lastQuantity: lastQuantity,
         buyQuantity: buyQuantity,
         sellQuantity: sellQuantity,

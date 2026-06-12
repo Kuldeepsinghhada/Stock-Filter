@@ -243,7 +243,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                             : DateTime.now()))
                                     .toList() ??
                                 [];
-                            int score = FilterUtils.getSmartPriceActionScore(
+                            int score = FilterUtils.getIntradayMomentumScore(
                                 historySoFar);
                             double volMult =
                                 FilterUtils.getVolumeMultiplication(

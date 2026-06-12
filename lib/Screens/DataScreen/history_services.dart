@@ -35,7 +35,7 @@ class HistoryServices {
     symbols.removeWhere((item) => (item.contains("ETF") ||
         item.contains("SILVER") ||
         item.contains("BEES")));
-    final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 500);
+    final allQuotes = await _fetchLiveDataInBatches(symbols, batchSize: 90);
 
     final quoteList = allQuotes.where(FilterUtils.isDayTradable).toList();
     await _fetchHistoricalDataWithFilter(
@@ -53,15 +53,20 @@ class HistoryServices {
   /// Fetch live data in batches to reduce API calls
   Future<List<StockModel>> _fetchLiveDataInBatches(
     List<String> symbols, {
-    int batchSize = 500,
+    int batchSize = 400,
   }) async {
     final allQuotes = <StockModel>[];
 
     for (var i = 0; i < symbols.length; i += batchSize) {
       final batch = symbols.skip(i).take(batchSize).toList();
-      final batchSymbols = batch.map((s) => 'i=NSE:$s').join('&');
-      final response = await ApiService.instance.apiCall(
-        APIEndPoint.getLiveStocksData + batchSymbols,
+      final instruments = batch.map((s) => 'NSE:$s').toList();
+      final uri = Uri.https(
+        "api.kite.trade",
+        "/quote",
+        {"i": instruments},
+      );
+      final response = await ApiService.instance.apiCallUri(
+        uri,
         HttpRequestType.get,
         null,
       );

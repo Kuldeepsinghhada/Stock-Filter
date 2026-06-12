@@ -20,7 +20,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _screens = [
       FilteredStockScreen(),
       BulkAnalysisScreen(selectedDate: DateTime.now()),
-      // const IntradayScreen(),
     ];
   }
 
@@ -43,8 +42,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           BottomNavigationBarItem(
               icon: Icon(Icons.data_usage), label: "INVESTMENT"),
-          // BottomNavigationBarItem(
-          //     icon: Icon(Icons.trending_up), label: "INTRADAY"),
         ],
       ),
     );

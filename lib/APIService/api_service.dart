@@ -59,7 +59,60 @@ class ApiService {
         errorMsg = decoded['response']['error_message'].toString();
       } else if (decoded['error'] != null) {
         errorMsg = decoded['error'].toString();
-      }else if(decoded['message'] != null){
+      } else if (decoded['message'] != null) {
+        errorMsg = decoded['message'];
+      }
+      log("[API ERROR] $errorMsg");
+      return APIResponse(false, null, errorMsg);
+    }
+  }
+
+  /// Rebuilt: Common function to handle API requests using Uri directly
+  Future<APIResponse> apiCallUri(
+    Uri uri,
+    HttpRequestType method, // GET, POST, PUT, DELETE
+    dynamic body,
+  ) async {
+    // Check internet connectivity
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      log("[API ERROR] No internet connection");
+      return APIResponse(false, null, "No internet connection");
+    }
+
+    final headers = await _buildHeaders();
+    final encodedBody = _encodeBody(body);
+
+    http.Response response;
+    try {
+      log(uri.toString());
+      response = await _makeRequestUri(uri, method, headers, encodedBody);
+    } catch (e) {
+      log("[API ERROR] Network error: $e");
+      return APIResponse(false, null, "Network error: $e");
+    }
+
+    final decoded = _decodeResponse(response.body);
+    if (decoded == null) {
+      return APIResponse(false, null, "Invalid response from server");
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return APIResponse(true, decoded, "");
+    } else if (response.statusCode == 401 || response.statusCode == 403) {
+      // Token expired or invalid
+      await SharedPreferenceHelper.instance.clearData();
+      return APIResponse(false, null, "Token has expired or is invalid");
+    } else {
+      // Try to extract error message
+      String errorMsg = "Unknown error";
+      if (decoded is Map &&
+          decoded['response'] != null &&
+          decoded['response']['error_message'] != null) {
+        errorMsg = decoded['response']['error_message'].toString();
+      } else if (decoded['error'] != null) {
+        errorMsg = decoded['error'].toString();
+      } else if (decoded['message'] != null) {
         errorMsg = decoded['message'];
       }
       log("[API ERROR] $errorMsg");
@@ -106,6 +159,25 @@ class ApiService {
         return await http.put(Uri.parse(url), headers: headers, body: body);
       case HttpRequestType.delete:
         return await http.delete(Uri.parse(url), headers: headers);
+    }
+  }
+
+  // Helper to make the HTTP call with Uri
+  Future<http.Response> _makeRequestUri(
+    Uri uri,
+    HttpRequestType method,
+    Map<String, String> headers,
+    String? body,
+  ) async {
+    switch (method) {
+      case HttpRequestType.get:
+        return await http.get(uri, headers: headers);
+      case HttpRequestType.post:
+        return await http.post(uri, headers: headers, body: body);
+      case HttpRequestType.put:
+        return await http.put(uri, headers: headers, body: body);
+      case HttpRequestType.delete:
+        return await http.delete(uri, headers: headers);
     }
   }
 
