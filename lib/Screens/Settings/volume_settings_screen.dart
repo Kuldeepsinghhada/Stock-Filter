@@ -69,13 +69,13 @@ class _VolumeSettingsScreenState extends State<VolumeSettingsScreen> {
             _buildMultiplierInput(
               label: "Last Candle Volume Multiplier",
               controller: _lastMultiplierController,
-              helperText: "e.g., 10, 15",
+              helperText: "e.g., 5, 10",
             ),
             const SizedBox(height: 24),
             _buildMultiplierInput(
               label: "Other Candles Volume Multiplier",
               controller: _otherMultiplierController,
-              helperText: "e.g., 5, 7, 10",
+              helperText: "e.g., 2, 5",
             ),
             const SizedBox(height: 40),
             SizedBox(

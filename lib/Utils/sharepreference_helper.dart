@@ -268,7 +268,7 @@ class SharedPreferenceHelper {
 
   Future<double> getLastCandleMultiplier() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getDouble(lastCandleMultiplierKey) ?? 15.0;
+    return prefs.getDouble(lastCandleMultiplierKey) ?? 5.0;
   }
 
   Future<void> setOtherCandlesMultiplier(double value) async {
@@ -278,7 +278,7 @@ class SharedPreferenceHelper {
 
   Future<double> getOtherCandlesMultiplier() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getDouble(otherCandlesMultiplierKey) ?? 10.0;
+    return prefs.getDouble(otherCandlesMultiplierKey) ?? 2.0;
   }
 
   Future<void> setVolumeAverageEnabled(bool value) async {

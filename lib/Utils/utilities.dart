@@ -450,12 +450,12 @@ class Utilities {
     final todayCandles = groupedByDate[todayDate] ?? [];
     if (todayCandles.isEmpty) return [];
 
-    // 3️⃣ Get last 20 trading days (including today)
-    final last20Dates = tradingDates
+    // 3️⃣ Get last 60 trading days (including today)
+    final last60Dates = tradingDates
         .where((d) => !d.isAfter(todayDate))
         .toList()
         .reversed
-        .take(20)
+        .take(60)
         .toList()
         .reversed
         .toList();
@@ -463,7 +463,7 @@ class Utilities {
     // 4️⃣ Collect base history (excluding today)
     final baseHistory = <HistoricalDataModel>[];
 
-    for (final d in last20Dates) {
+    for (final d in last60Dates) {
       if (d.isBefore(todayDate)) {
         baseHistory.addAll(groupedByDate[d]!);
       }
@@ -481,7 +481,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      // if (totalMinutes < 565 || totalMinutes > 660) continue;
+      if (totalMinutes < 570 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [

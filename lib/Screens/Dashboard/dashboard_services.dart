@@ -71,16 +71,33 @@ class DashboardService {
         await SharedPreferenceHelper.instance.getNotificationList();
 
     // Filter tradable stocks (only for today's live mode)
-    final quoteList = isToday
-        ? allQuotes.where((stock) {
-            bool isTrad = FilterUtils.isTradable(stock);
-            bool isNotif = notificationList.any((n) =>
-                n.stocksNameList?.toUpperCase().contains(
-                    stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ??
-                false);
-            return isTrad || isNotif;
-          }).toList()
-        : allQuotes;
+    var quoteList = allQuotes;
+    if (isToday) {
+      quoteList = allQuotes.where((stock) {
+        bool isTrad = FilterUtils.isTradable(stock);
+        bool isNotif = notificationList.any((n) =>
+            n.stocksNameList?.toUpperCase().contains(
+                stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ??
+            false);
+        return isTrad || isNotif;
+      }).toList();
+
+      quoteList.sort((a, b) {
+        final aOpen = a.ohlc?.open ?? 1.0;
+        final aPrice = a.lastPrice ?? 0.0;
+        final aPercent = aOpen > 0 ? ((aPrice - aOpen) / aOpen) * 100 : 0.0;
+
+        final bOpen = b.ohlc?.open ?? 1.0;
+        final bPrice = b.lastPrice ?? 0.0;
+        final bPercent = bOpen > 0 ? ((bPrice - bOpen) / bOpen) * 100 : 0.0;
+
+        return bPercent.compareTo(aPercent);
+      });
+
+      if (quoteList.length > 100) {
+        quoteList = quoteList.sublist(0, 100);
+      }
+    }
 
     log("First Filter Count: ${quoteList.length}");
 
@@ -205,18 +222,18 @@ class DashboardService {
               );
               // Apply final filter check
 
-              final isPattern = BullishPatternDetector.detectTop3Patterns85(
-                  Utilities.convertToDaily(history));
+              // final isPattern = BullishPatternDetector.detectTop3Patterns85(
+              //     Utilities.convertToDaily(history));
               var isPassedCurrent =
                   FilterUtils.passesFilter(history, stock.token.toString());
 
               // Save locally if it passes right now
-              if (isPassedCurrent && isPattern == true) {
+              if (isPassedCurrent) {
                 DataManager.instance.passedToday.add(stock.token.toString());
               }
 
               // If it EVER passed today, or was manually added, check for Buy Alert
-              bool isEligibleForRadarA = (isPattern == true && isPassedCurrent);
+              bool isEligibleForRadarA = (isPassedCurrent);
               if (isEligibleForRadarA || isAlreadyNotified) {
                 String? isNearReason =
                     FilterUtils.isNearBuyingZone5Min(history);
@@ -301,7 +318,7 @@ class DashboardService {
                 }
               }
 
-              if ((isPattern == true && isPassedCurrent) || isAlreadyNotified) {
+              if ((isPassedCurrent) || isAlreadyNotified) {
                 return stock.copyWith(
                   symbol: stock.symbol?.replaceAll("NSE:", ""),
                   historyFiveMin: history,

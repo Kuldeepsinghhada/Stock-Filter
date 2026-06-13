@@ -267,13 +267,12 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         onPressed: () async {
           // Only allow starting the task after 9:28 AM local time.
           final now = DateTime.now();
-          final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
-
+          // final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
           // If currently not running (we're trying to START) and time is before allowed time, block it.
-          if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-            Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
-            return;
-          }
+          // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+          //   Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
+          //   return;
+          // }
 
           await WakelockPlus.enable();
           if (!isTaskRunning) {

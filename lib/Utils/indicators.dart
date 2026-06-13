@@ -452,8 +452,8 @@ class IndicatorUtils {
   static bool isEveryCandleVolumeStrong(
     List<HistoricalDataModel> candles,
     int failureCount, {
-    double lastMultiplier = 15.0,
-    double otherMultiplier = 10.0,
+    double lastMultiplier = 5.0,
+    double otherMultiplier = 2.0,
   }) {
     if (candles.length < 100) return false;
 

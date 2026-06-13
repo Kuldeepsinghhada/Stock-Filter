@@ -11,8 +11,8 @@ import 'math_utils.dart';
 
 class FilterUtils {
   // Static cached variables to avoid querying SharedPreferences repetitively
-  static double cachedLastMultiplier = 15.0;
-  static double cachedOtherMultiplier = 10.0;
+  static double cachedLastMultiplier = 3.0;
+  static double cachedOtherMultiplier = 2.0;
   static bool cachedIsVolAvgEnabled = true;
   static bool cachedIsPatternEnabled = true;
   static bool cachedIsSupertrendEnabled = true;
@@ -36,11 +36,11 @@ class FilterUtils {
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
     // 1. Not above 5% check (very fast)
-    // bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
-    // if (!isNotAbove5Percent) {
-    //   debugPrint("Failed: $token at $timeStr - Reason: Above 5% Change");
-    //   return false;
-    // }
+    bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
+    if (!isNotAbove5Percent) {
+      debugPrint("Failed: $token at $timeStr - Reason: Above 5% Change");
+      return false;
+    }
 
     // 2. EMA20 Check
     if (cachedIsEma20Enabled) {
@@ -105,8 +105,7 @@ class FilterUtils {
     if (cachedIsVolAvgEnabled) {
       bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
           candles, 0,
-          lastMultiplier: cachedLastMultiplier,
-          otherMultiplier: cachedOtherMultiplier);
+          lastMultiplier: 3, otherMultiplier: 2);
       if (!isVolumeAverageOK) {
         debugPrint(
             "Failed: $token at $timeStr - Reason: Volume Average Not OK");
