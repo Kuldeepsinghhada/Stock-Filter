@@ -35,14 +35,26 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
-    // 1. Not above 5% check (very fast)
-    bool isNotAbove5Percent = IndicatorUtils.isNotAbove5Percent(candles);
-    if (!isNotAbove5Percent) {
-      debugPrint("Failed: $token at $timeStr - Reason: Above 5% Change");
+    var isAbove10Days = IndicatorUtils.isAboveLast10DayHigh(candles);
+    if (!isAbove10Days) {
+      debugPrint(
+          "Failed: $token at $timeStr - Reason: Not Above Last 10 Days High");
       return false;
     }
 
-    // 2. EMA20 Check
+    // 2. Volume Avg Check
+    if (cachedIsVolAvgEnabled) {
+      bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
+          candles, 0,
+          lastMultiplier: 10, otherMultiplier: 2);
+      if (!isVolumeAverageOK) {
+        debugPrint(
+            "Failed: $token at $timeStr - Reason: Volume Average Not OK");
+        return false;
+      }
+    }
+
+    // 3. EMA20 Check
     if (cachedIsEma20Enabled) {
       bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
       if (!aboveEma20) {
@@ -51,7 +63,7 @@ class FilterUtils {
       }
     }
 
-    // 3. Supertrend Check
+    // 4. Supertrend Check
     if (cachedIsSupertrendEnabled) {
       bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
         candles,
@@ -73,11 +85,11 @@ class FilterUtils {
     //   }
     // }
 
-    bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-    if (!isVolumeOk) {
-      debugPrint("Failed: $token at $timeStr - Reason: Volume Not OK");
-      return false;
-    }
+    // bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
+    // if (!isVolumeOk) {
+    //   debugPrint("Failed: $token at $timeStr - Reason: Volume Not OK");
+    //   return false;
+    // }
 
     // 5. ATR Check
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
@@ -95,22 +107,10 @@ class FilterUtils {
 
     // 7. Score Check (getSmartPriceActionScore)
     int score = getIntradayMomentumScore(candles);
-    if (score < 70) {
+    if (score < 80) {
       debugPrint(
           "Failed: $token at $timeStr - Reason: Low Smart Score ($score)");
       return false;
-    }
-
-    // 8. Volume Avg Check
-    if (cachedIsVolAvgEnabled) {
-      bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
-          candles, 0,
-          lastMultiplier: 3, otherMultiplier: 2);
-      if (!isVolumeAverageOK) {
-        debugPrint(
-            "Failed: $token at $timeStr - Reason: Volume Average Not OK");
-        return false;
-      }
     }
 
     // 9. Day Pass Check (requires converting to daily, slightly heavier)
@@ -303,7 +303,7 @@ class FilterUtils {
     final rangePercent = ((high - low) / open) * 100;
 
     // ✅ Price range filter
-    if (lastPrice < 30 || lastPrice > 1500) return false;
+    if (lastPrice < 30 || lastPrice > 1000) return false;
 
     // ✅ Must be green today
     if (lastPrice <= open) return false;

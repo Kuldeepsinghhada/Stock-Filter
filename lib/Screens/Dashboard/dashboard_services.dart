@@ -76,11 +76,20 @@ class DashboardService {
       quoteList = allQuotes.where((stock) {
         bool isTrad = FilterUtils.isTradable(stock);
         bool isNotif = notificationList.any((n) =>
-            n.stocksNameList?.toUpperCase().contains(
-                stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ??
+            n.stocksNameList
+                ?.toUpperCase()
+                .contains(stock.symbol!.replaceAll("NSE:", "").toUpperCase()) ??
             false);
         return isTrad || isNotif;
       }).toList();
+
+      // Remove stocks that are up by more than 10%
+      // quoteList.removeWhere((stock) {
+      //   final open = stock.ohlc?.open ?? 1.0;
+      //   final price = stock.lastPrice ?? 0.0;
+      //   final percent = open > 0 ? ((price - open) / open) * 100 : 0.0;
+      //   return percent > 12.0;
+      // });
 
       quoteList.sort((a, b) {
         final aOpen = a.ohlc?.open ?? 1.0;
@@ -94,8 +103,8 @@ class DashboardService {
         return bPercent.compareTo(aPercent);
       });
 
-      if (quoteList.length > 100) {
-        quoteList = quoteList.sublist(0, 100);
+      if (quoteList.length > 150) {
+        quoteList = quoteList.sublist(0, 150);
       }
     }
 

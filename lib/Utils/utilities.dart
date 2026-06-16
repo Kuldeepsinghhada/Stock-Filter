@@ -82,6 +82,7 @@ class Utilities {
         await SharedPreferenceHelper.instance.getNotificationList();
 
     List<String> newStockSymbols = [];
+    List<StockModel> newStocksForTelegram = [];
     for (var stock in finalList) {
       int existingIndex = notificationsList.indexWhere(
         (n) =>
@@ -108,6 +109,7 @@ class Utilities {
           ),
         );
         newStockSymbols.add("${stock.symbol!} - ${stock.lastPrice ?? ''}");
+        newStocksForTelegram.add(stock);
       } else {
         notificationsList[existingIndex].volumeX = volX;
         notificationsList[existingIndex].stocksNameList =
@@ -132,6 +134,36 @@ class Utilities {
       log(
         "Notification triggered at ${Utilities.formatDDMMMHHMMDateTime(DateTime.now())}",
       );
+
+      bool isTelegramEnabled =
+          await SharedPreferenceHelper.instance.getTelegramAlertsEnabled();
+      if (isTelegramEnabled) {
+        for (var stock in newStocksForTelegram) {
+          final cleanSymbol = stock.symbol?.replaceAll("NSE:", "") ?? "";
+          final String rawName = (stock.name != null && stock.name!.isNotEmpty)
+              ? stock.name!
+              : cleanSymbol;
+          final String nameForUrl = rawName
+              .toLowerCase()
+              .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+              .replaceAll(RegExp(r'-+$'), '');
+          final growwLink = "https://groww.in/stocks/$nameForUrl";
+
+          final message = '''
+👀 RADAR ALERT 👀
+
+📈 Stock : $cleanSymbol
+💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+
+🔗 Link : $growwLink
+
+⏰ Time : ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}
+
+⚠️ Educational Purpose Only
+''';
+          Utilities.sendTelegramAlert(message);
+        }
+      }
     }
 
     await SharedPreferenceHelper.instance.saveNotificationList(
@@ -481,7 +513,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      if (totalMinutes < 570 || totalMinutes > 660) continue;
+      // if (totalMinutes < 570 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [

@@ -8,6 +8,31 @@ import 'math_utils.dart';
 
 /// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
+  static bool isAboveLast10DayHigh(
+    List<HistoricalDataModel> candles,
+  ) {
+    final dailyCandles = Utilities.convertToDaily(candles);
+
+    if (dailyCandles.length < 11) {
+      return false;
+    }
+
+    CandleUtils.sortByTime(dailyCandles);
+
+    final currentPrice = candles.last.close;
+
+    double highestHigh = 0;
+
+    // Last 10 completed days
+    for (int i = dailyCandles.length - 11; i < dailyCandles.length - 1; i++) {
+      if (dailyCandles[i].high > highestHigh) {
+        highestHigh = dailyCandles[i].close;
+      }
+    }
+
+    return currentPrice > highestHigh;
+  }
+
   /// ---------- EMA / SMA ----------
   static IndicatorResult isCloseAboveEMA(
     List<HistoricalDataModel> candles,
@@ -619,7 +644,7 @@ class IndicatorUtils {
 
     final last3Candles = candles.sublist(candles.length - 3);
 
-    return last3Candles.any((c) => c.volume >= 100000);
+    return last3Candles.any((c) => c.volume >= 50000);
   }
 
   static bool isVolumeBreakoutStrongV2(
