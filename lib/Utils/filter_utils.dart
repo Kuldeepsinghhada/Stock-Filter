@@ -42,18 +42,6 @@ class FilterUtils {
       return false;
     }
 
-    // 2. Volume Avg Check
-    if (cachedIsVolAvgEnabled) {
-      bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
-          candles, 0,
-          lastMultiplier: 10, otherMultiplier: 2);
-      if (!isVolumeAverageOK) {
-        debugPrint(
-            "Failed: $token at $timeStr - Reason: Volume Average Not OK");
-        return false;
-      }
-    }
-
     // 3. EMA20 Check
     if (cachedIsEma20Enabled) {
       bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
@@ -121,7 +109,6 @@ class FilterUtils {
           "Failed: $token at $timeStr - Reason: Day History Chart Failed");
       return false;
     }
-
     // 10. Pattern Check (requires daily candles)
     // if (cachedIsPatternEnabled) {
     //   var isPattern = BullishPatternDetector.detect(dailyCandles);
@@ -130,6 +117,19 @@ class FilterUtils {
     //     return false;
     //   }
     // }
+
+    // 2. Volume Avg Check
+    if (cachedIsVolAvgEnabled) {
+      bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
+          candles, 0,
+          lastMultiplier: 10, otherMultiplier: 2);
+      if (!isVolumeAverageOK) {
+        debugPrint(
+            "Failed: $token at $timeStr - Reason: Volume Average Not OK");
+        return false;
+      }
+    }
+
     print("Passed : $token");
     return true;
   }
@@ -162,15 +162,49 @@ class FilterUtils {
     // Must be a green candle
     if (candles.last.close <= candles.last.open) return null;
 
+    // Green candle's close must be above the last red candle's close
+    HistoricalDataModel? lastRedCandle;
+    for (int i = candles.length - 2; i >= 0; i--) {
+      if (candles[i].close < candles[i].open) {
+        lastRedCandle = candles[i];
+        break;
+      }
+    }
+    if (lastRedCandle != null && candles.last.close <= lastRedCandle.close) {
+      return null;
+    }
+
     final currentLow = candles.last.low;
 
     // EMA 20 calculation
     final closes = candles.map((e) => e.close).toList();
     final ema20List = MathUtils.emaAligned(closes, 20);
-    if (ema20List.isNotEmpty) {
+
+    bool nearEmaCurrent = false;
+    if (ema20List.isNotEmpty && ema20List.last != null) {
       final ema20 = ema20List.last!;
       final distanceToEma = ((currentLow - ema20).abs() / ema20);
-      if (distanceToEma <= threshold) return "20EMA";
+      if (distanceToEma <= threshold) {
+        nearEmaCurrent = true;
+      }
+    }
+
+    if (nearEmaCurrent) {
+      int nearEmaCount = 0;
+      int startIndex = candles.length > 6 ? candles.length - 6 : 0;
+      for (int i = startIndex; i < candles.length; i++) {
+        if (ema20List[i] != null) {
+          final emaVal = ema20List[i]!;
+          final dist = ((candles[i].low - emaVal).abs() / emaVal);
+          if (dist <= threshold) {
+            nearEmaCount++;
+          }
+        }
+      }
+
+      if (nearEmaCount >= 2) {
+        return "20EMA";
+      }
     }
 
     // Supertrend calculation
