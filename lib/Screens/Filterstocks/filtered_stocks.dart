@@ -30,6 +30,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   DateTime selectedDate = DateTime.now();
 
   List<NotificationModel> notificationsList = [];
+  List<NotificationModel> notificationsListByVolume = [];
+  List<NotificationModel> notificationsListByRecent = [];
 
   @override
   void initState() {
@@ -112,12 +114,16 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
 
+    notificationsListByVolume = List<NotificationModel>.from(notificationsList);
     // Sort by volumeX descending, placing nulls at the end
-    notificationsList.sort((a, b) {
+    notificationsListByVolume.sort((a, b) {
       double volA = a.volumeX ?? 0.0;
       double volB = b.volumeX ?? 0.0;
       return volB.compareTo(volA);
     });
+
+    notificationsListByRecent =
+        List<NotificationModel>.from(notificationsList).reversed.toList();
 
     setState(() {});
     return true;
@@ -125,166 +131,181 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          // Search button
-          if (isLoading && quoteList.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => PreFilteredStock()),
-            ),
-            icon: const Icon(Icons.filter_center_focus),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Dashboard'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: "Sorted by Volume"),
+              Tab(text: "Most Recent"),
+            ],
           ),
+          actions: [
+            // Search button
+            if (isLoading && quoteList.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => PreFilteredStock()),
+              ),
+              icon: const Icon(Icons.filter_center_focus),
+            ),
 
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => SearchStocksScreen()),
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SearchStocksScreen()),
+              ),
+              icon: const Icon(Icons.search),
             ),
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => TradeSettingPage()),
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => TradeSettingPage()),
+              ),
+              icon: const Icon(Icons.settings),
             ),
-            icon: const Icon(Icons.settings),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Till Date: ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}",
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final DateTime? picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                    );
-                    if (picked != null && picked != selectedDate) {
-                      setState(() {
-                        selectedDate = picked;
-                      });
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_today),
-                  label: const Text("Select Date"),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _symbolsController,
-              decoration: const InputDecoration(
-                labelText: 'Enter symbols (comma separated)',
-                hintText: 'e.g. RELIANCE,TCS,INFY',
-                border: OutlineInputBorder(),
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Till Date: ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}",
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null && picked != selectedDate) {
+                        setState(() {
+                          selectedDate = picked;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_today),
+                    label: const Text("Select Date"),
+                  ),
+                ],
               ),
             ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: getNotifications,
-              child: ListView.builder(
-                itemCount: notificationsList.length,
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    title: Text(notificationsList[index].stocksNameList ?? ''),
-                    subtitle: Text("${notificationsList[index].time ?? ''}" +
-                        (notificationsList[index].volumeX != null &&
-                                notificationsList[index].volumeX! > 0
-                            ? " | Vol: ${notificationsList[index].volumeX!.toStringAsFixed(2)}x"
-                            : "")),
-                    leading: const Icon(Icons.notifications),
-                    trailing: IconButton(
-                      onPressed: () async {
-                        bool? confirmDelete = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Confirm Delete'),
-                            content: const Text(
-                              'Are you sure you want to delete this stock?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                child: const Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmDelete == true) {
-                          notificationsList.remove(notificationsList[index]);
-                          await SharedPreferenceHelper.instance
-                              .saveNotificationList(notificationsList);
-                          setState(() {});
-                        }
-                      },
-                      icon: const Icon(Icons.delete),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: _symbolsController,
+                decoration: const InputDecoration(
+                  labelText: 'Enter symbols (comma separated)',
+                  hintText: 'e.g. RELIANCE,TCS,INFY',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildList(notificationsListByVolume),
+                  _buildList(notificationsListByRecent),
+                ],
+              ),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          heroTag: 'filtered_stocks_fab',
+          child: Text(isTaskRunning ? "STOP" : "START"),
+          onPressed: () async {
+            // Only allow starting the task after 9:28 AM local time.
+            final now = DateTime.now();
+            // final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
+            // If currently not running (we're trying to START) and time is before allowed time, block it.
+            // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+            //   Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
+            //   return;
+            // }
+
+            await WakelockPlus.enable();
+            if (!isTaskRunning) {
+              await FilterUtils.cacheFilterSettings();
+              isTaskRunning = true;
+              await fetchQuotesFromService();
+            } else {
+              isTaskRunning = false;
+              await WakelockPlus.disable();
+            }
+            setState(() {});
+            // }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(List<NotificationModel> list) {
+    return RefreshIndicator(
+      onRefresh: getNotifications,
+      child: ListView.builder(
+        itemCount: list.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text(list[index].stocksNameList ?? ''),
+            subtitle: Text("${list[index].time ?? ''}" +
+                (list[index].volumeX != null && list[index].volumeX! > 0
+                    ? " | Vol: ${list[index].volumeX!.toStringAsFixed(2)}x"
+                    : "")),
+            leading: const Icon(Icons.notifications),
+            trailing: IconButton(
+              onPressed: () async {
+                bool? confirmDelete = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Confirm Delete'),
+                    content: const Text(
+                      'Are you sure you want to delete this stock?',
                     ),
-                    onTap: () {},
-                  );
-                },
-              ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmDelete == true) {
+                  notificationsList.remove(list[index]);
+                  await SharedPreferenceHelper.instance
+                      .saveNotificationList(notificationsList);
+                  getNotifications();
+                }
+              },
+              icon: const Icon(Icons.delete),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'filtered_stocks_fab',
-        child: Text(isTaskRunning ? "STOP" : "START"),
-        onPressed: () async {
-          // Only allow starting the task after 9:28 AM local time.
-          final now = DateTime.now();
-          // final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
-          // If currently not running (we're trying to START) and time is before allowed time, block it.
-          // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-          //   Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
-          //   return;
-          // }
-
-          await WakelockPlus.enable();
-          if (!isTaskRunning) {
-            await FilterUtils.cacheFilterSettings();
-            isTaskRunning = true;
-            await fetchQuotesFromService();
-          } else {
-            isTaskRunning = false;
-            await WakelockPlus.disable();
-          }
-          setState(() {});
-          // }
+            onTap: () {},
+          );
         },
       ),
     );

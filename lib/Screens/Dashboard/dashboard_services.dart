@@ -229,12 +229,10 @@ class DashboardService {
                   historyFiveMin: history,
                 ),
               );
-              // Apply final filter check
 
-              // final isPattern = BullishPatternDetector.detectTop3Patterns85(
-              //     Utilities.convertToDaily(history));
+              // Apply final filter check
               var isPassedCurrent =
-                  FilterUtils.passesFilter(history, stock.token.toString());
+                  await FilterUtils.isPassAllTimeFrame(history, stock);
 
               // Save locally if it passes right now
               if (isPassedCurrent) {
@@ -373,6 +371,7 @@ class DashboardService {
     if (response.status) {
       final candles =
           (response.data["data"]["candles"] as List<dynamic>?) ?? [];
+      log(candles.toString());
       return candles
           .map((e) => HistoricalDataModel.fromList(e as List<dynamic>))
           .toList();

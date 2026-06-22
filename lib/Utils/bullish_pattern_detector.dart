@@ -284,4 +284,79 @@ class BullishPatternDetector {
       score: cond ? 9.1 : 0,
     );
   }
+
+  static StructureResult isBullishStructure(List<HistoricalDataModel> candles) {
+    candles.removeLast();
+    if (candles.length < 50) {
+      return StructureResult(
+        bullish: false,
+        score: 0,
+        reason: "Insufficient Data",
+      );
+    }
+
+    int score = 0;
+    final recent = candles.sublist(candles.length - 20);
+
+    // 1. Higher highs
+    int higherHighs = 0;
+    for (int i = 1; i < recent.length; i++) {
+      if (recent[i].high > recent[i - 1].high) {
+        higherHighs++;
+      }
+    }
+
+    if (higherHighs >= 12) {
+      score += 30;
+    }
+
+    // 2. Higher lows
+    int higherLows = 0;
+    for (int i = 1; i < recent.length; i++) {
+      if (recent[i].low > recent[i - 1].low) {
+        higherLows++;
+      }
+    }
+
+    if (higherLows >= 12) {
+      score += 30;
+    }
+
+    // 3. Price location
+    final close = candles.last.close;
+
+    final highest20 = recent.map((e) => e.high).reduce((a, b) => a > b ? a : b);
+
+    if (close >= highest20 * 0.99) {
+      score += 20;
+    }
+
+    // 4. Last candle strength
+    final last = candles[candles.length - 2];
+
+    double bodyPercent = ((last.close - last.open) / last.open) * 100;
+
+    if (bodyPercent > 0.5) {
+      score += 20;
+    }
+
+    print("SCORE: $score");
+    return StructureResult(
+      bullish: score >= 20,
+      score: score,
+      reason: "Bullish score = $score",
+    );
+  }
+}
+
+class StructureResult {
+  final bool bullish;
+  final int score;
+  final String reason;
+
+  StructureResult({
+    required this.bullish,
+    required this.score,
+    required this.reason,
+  });
 }

@@ -8,6 +8,110 @@ import 'math_utils.dart';
 
 /// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
+  static bool isNearResistance(List<HistoricalDataModel> candles) {
+    final dailyCandles = Utilities.convertToDaily(candles);
+
+    if (dailyCandles.length < 21) return false;
+
+    // Ignore today's candle
+    final history = dailyCandles.sublist(0, dailyCandles.length - 1);
+
+    final currentPrice = candles.last.close;
+
+    // Highest high of last 20 days excluding yesterday
+    final resistance = history
+        .sublist(history.length - 21, history.length - 1)
+        .map((e) => e.high)
+        .reduce((a, b) => a > b ? a : b);
+
+    final distanceToResistance =
+        ((resistance - currentPrice) / currentPrice) * 100;
+    // Within 2% of resistance
+    return distanceToResistance <= 3 && distanceToResistance > -2;
+  }
+
+  static bool isAlreadyMoved(List<HistoricalDataModel> candles) {
+    final dailyCandles = Utilities.convertToDaily(candles);
+
+    // Need at least 21 days because today's candle is ignored
+    if (dailyCandles.length < 21) return false;
+
+    // Ignore today's partial candle
+    final history = dailyCandles.sublist(0, dailyCandles.length - 1);
+
+    final currentPrice = history.last.close;
+
+    // EMA20
+    final ema20 = IndicatorUtils.isCloseAboveEMA(
+      history,
+      20,
+    ).value;
+
+    // Distance from EMA20
+    final emaDistance = ((currentPrice - ema20) / ema20) * 100;
+
+    // Last 2-day move
+    final close2DaysAgo = history[history.length - 3].close;
+    final move2Days = ((currentPrice - close2DaysAgo) / close2DaysAgo) * 100;
+
+    // Average volume of last 20 days
+    final avgVolume20 = history
+            .sublist(history.length - 20)
+            .map((e) => e.volume)
+            .reduce((a, b) => a + b) /
+        20;
+
+    final yesterdayVolume = history.last.volume;
+
+    // Already stretched
+    if (emaDistance > 8) return true;
+
+    // Sharp move in last 2 days
+    if (move2Days > 15) return true;
+
+    // Volume climax yesterday
+    if (yesterdayVolume > avgVolume20 * 5) return true;
+
+    return false;
+  }
+
+  static bool hasSmoothTrend(
+    List<HistoricalDataModel> candles, {
+    int lookback = 20,
+    double minEfficiency = 0.6,
+  }) {
+    if (candles.length < lookback + 1) {
+      return false;
+    }
+
+    CandleUtils.sortByTime(candles);
+
+    final recent = candles.sublist(candles.length - lookback);
+
+    final firstClose = recent.first.close;
+    final lastClose = recent.last.close;
+
+    // Net movement
+    final netMove = (lastClose - firstClose).abs();
+
+    // Total movement
+    double totalMove = 0;
+
+    for (int i = 1; i < recent.length; i++) {
+      totalMove += (recent[i].close - recent[i - 1].close).abs();
+    }
+
+    if (totalMove == 0) return false;
+
+    final efficiencyRatio = netMove / totalMove;
+
+    debugPrint(
+      "Efficiency Ratio = ${efficiencyRatio.toStringAsFixed(2)}",
+    );
+
+    return efficiencyRatio >= minEfficiency;
+  }
+
   static bool isAboveLast10DayHigh(
     List<HistoricalDataModel> candles,
   ) {
@@ -474,13 +578,11 @@ class IndicatorUtils {
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
 
-  static bool isEveryCandleVolumeStrong(
-    List<HistoricalDataModel> candles,
-    int failureCount, {
-    double lastMultiplier = 5.0,
-    double otherMultiplier = 2.0,
+  static ({bool baseVolumeOk, bool isVolumeSpike40x}) checkDualVolumeStrength(
+    List<HistoricalDataModel> candles, {
+    int skipCandles = 3,
   }) {
-    if (candles.length < 100) return false;
+    if (candles.length < 100) return (baseVolumeOk: false, isVolumeSpike40x: false);
 
     CandleUtils.sortByTime(candles);
 
@@ -492,37 +594,25 @@ class IndicatorUtils {
       dayMap.putIfAbsent(key, () => []).add(c);
     }
 
-    /// Need at least today + previous day
-    if (dayMap.length < 2) return false;
+    if (dayMap.length < 2) return (baseVolumeOk: false, isVolumeSpike40x: false);
 
     final keys = dayMap.keys.toList()..sort();
-
-    final todayKey = keys.last;
-    final todayCandles = dayMap[todayKey]!;
-
-    if (todayCandles.length < 3) return false;
-
-    /// ===============================
-    /// Previous Day Avg Volume
-    /// ===============================
+    final todayCandles = dayMap[keys.last]!;
     final prevDayCandles = dayMap[keys[keys.length - 2]]!;
+
+    if (todayCandles.length <= skipCandles + 1) {
+      return (baseVolumeOk: false, isVolumeSpike40x: false);
+    }
 
     final prevAvg =
         prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
             prevDayCandles.length;
 
-    /// ===============================
-    /// 🔥 CONDITIONS
-    /// Last candle > lastMultiplierX
-    /// Other today's candles > otherMultiplierX
-    /// ===============================
-
     final lastCandle = todayCandles.last;
-
-    final lastCandleAboveX = lastCandle.volume > (prevAvg * lastMultiplier);
+    final lastCandleX = lastCandle.volume / prevAvg;
 
     final otherCandles = todayCandles.sublist(
-      1,
+      skipCandles,
       todayCandles.length - 1,
     );
 
@@ -532,32 +622,12 @@ class IndicatorUtils {
 
     final otherCandlesAvgX = otherAvgVolume / prevAvg;
 
-    final otherCandlesAboveX = otherCandlesAvgX >= otherMultiplier;
+    final has200k = has200KVolumeInLast3Candles(candles);
 
-    final todayAvg = todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-        todayCandles.length;
+    bool basePassed = has200k && (lastCandleX >= 5.0) && (otherCandlesAvgX >= 2.0);
+    bool spikePassed = has200k && (lastCandleX >= 40.0) && (otherCandlesAvgX >= 10.0);
 
-    debugPrint("--------------${lastCandle.timestamp}----------------");
-    final lastCandleX = lastCandle.volume / prevAvg;
-    debugPrint(
-      "Last Candle => ${lastCandleX.toStringAsFixed(2)}X"
-      " | Need: ${lastMultiplier}X"
-      " | Result: $lastCandleAboveX",
-    );
-    debugPrint(
-      "Other Candles Avg => "
-      "${otherCandlesAvgX.toStringAsFixed(2)}X"
-      " | Need: ${otherMultiplier}X"
-      " | Result: $otherCandlesAboveX",
-    );
-
-    var result = has200KVolumeInLast3Candles(candles) &&
-        lastCandleAboveX &&
-        otherCandlesAboveX;
-    if (result) {
-      print("RESULT PASSED : ${candles.last.timestamp}");
-    }
-    return result;
+    return (baseVolumeOk: basePassed, isVolumeSpike40x: spikePassed);
   }
 
   static double getOtherCandlesAvgX(List<HistoricalDataModel> candles) {
@@ -1164,6 +1234,22 @@ class IndicatorUtils {
     return nearEMA20 || nearSupertrend;
   }
 
+  /// Checks if the average volume of the previous `period` candles is > `minAvgVolume`
+  static bool hasHighAverageVolume(List<HistoricalDataModel> candles,
+      {int period = 5, double minAvgVolume = 50000}) {
+    if (candles.length < period) return false;
+
+    final lastCandles = candles.sublist(candles.length - period);
+
+    double totalVolume = 0;
+    for (var candle in lastCandles) {
+      totalVolume += candle.volume;
+    }
+
+    double avgVolume = totalVolume / period;
+    return avgVolume > minAvgVolume;
+  }
+
   static bool isVolumeOk(List<HistoricalDataModel> candles) {
     // Volume check
     List<int> volumes = candles.map((e) => e.volume).toList();
@@ -1171,7 +1257,7 @@ class IndicatorUtils {
     // ❌ NEW RULE:
     // If ANY of last 8 candles has volume <= 2000 → reject
     final last8 = volumes.sublist(volumes.length - 10);
-    if (last8.any((v) => v <= 2000)) {
+    if (last8.any((v) => v <= 1000)) {
       return false;
     }
 
@@ -1195,8 +1281,7 @@ class IndicatorUtils {
         volumeToCheck = lastWorkDayCandle.volume;
       }
     }
-    bool isVolumeOk =
-        (volumeToCheck != null) ? (volumeToCheck > 100000) : false;
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 30000) : false;
     return isVolumeOk;
   }
 

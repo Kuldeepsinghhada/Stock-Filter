@@ -35,6 +35,25 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
+    // if (candles.last.volume < 80000) {
+    //   debugPrint(
+    //       "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
+    //   return false;
+    // }
+
+    var isNearResistance = IndicatorUtils.isNearResistance(candles);
+    if (isNearResistance) {
+      debugPrint("Failed: $token at $timeStr - Reason: Near Resistance Level");
+      return false;
+    }
+
+    // var isAlreadyMoved = IndicatorUtils.isAlreadyMoved(candles);
+    // if (isAlreadyMoved) {
+    //   debugPrint(
+    //       "Failed: $token at $timeStr - Reason: Already Moved Significantly");
+    //   return false;
+    // }
+
     var isAbove10Days = IndicatorUtils.isAboveLast10DayHigh(candles);
     if (!isAbove10Days) {
       debugPrint(
@@ -111,21 +130,28 @@ class FilterUtils {
     }
     // 10. Pattern Check (requires daily candles)
     // if (cachedIsPatternEnabled) {
-    //   var isPattern = BullishPatternDetector.detect(dailyCandles);
-    //   if (!isPattern.found) {
+    //   var isPattern = BullishPatternDetector.isBullishStructure(dailyCandles);
+    //   if (!isPattern.bullish) {
     //     debugPrint("Failed: $token at $timeStr - Reason: No Bullish Pattern");
     //     return false;
     //   }
     // }
 
     // 2. Volume Avg Check
+    final volumeStrength = IndicatorUtils.checkDualVolumeStrength(candles);
+
     if (cachedIsVolAvgEnabled) {
-      bool isVolumeAverageOK = IndicatorUtils.isEveryCandleVolumeStrong(
-          candles, 0,
-          lastMultiplier: 10, otherMultiplier: 2);
-      if (!isVolumeAverageOK) {
+      if (!volumeStrength.baseVolumeOk) {
         debugPrint(
             "Failed: $token at $timeStr - Reason: Volume Average Not OK");
+        return false;
+      }
+    }
+
+    if (!volumeStrength.isVolumeSpike40x) {
+      var isVolumeOk = IndicatorUtils.isVolumeOk(candles);
+      if (!isVolumeOk) {
+        debugPrint("Failed: $token at $timeStr - Reason: Volume ka Chakkar");
         return false;
       }
     }
@@ -288,11 +314,10 @@ class FilterUtils {
         return isPass;
 
       case 15:
-      case 30:
       case 60:
-        bool isEma20 =
-            IndicatorUtils.isCloseAboveEMA(historyCandles, 20).isPassed;
-        return isEma20;
+        bool isAboveSupertrend =
+            IndicatorUtils.isCloseAboveSupertrend(historyCandles).isPassed;
+        return isAboveSupertrend;
 
       case 1:
         bool isEMA20 =
