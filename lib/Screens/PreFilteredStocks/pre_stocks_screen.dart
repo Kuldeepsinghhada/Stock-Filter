@@ -27,7 +27,8 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
   int profitableSignals = 0;
   int slSignals = 0;
   int neutralSignals = 0;
-  double accuracy = 0.0;
+  double totalPnL = 0.0;
+  bool isRadarMode = true;
   Map<String, String> stockTradeResult = {};
 
   @override
@@ -46,12 +47,13 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
         profitableSignals = 0;
         slSignals = 0;
         neutralSignals = 0;
-        accuracy = 0.0;
+        totalPnL = 0.0;
       });
       int tSignals = 0;
       int targetHits = 0;
       int slHits = 0;
       int neutralHits = 0;
+      double tPnL = 0.0;
       for (var item in DataManager.instance.preFilteredStocksList) {
         var result = await Utilities.buildTodayHistory(
           item.historyFiveMin ?? [],
@@ -61,11 +63,14 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           quoteList.add(item);
           historyList.add(result);
 
-          final accResult =
-              FilterUtils.calculateBuyAlertAccuracy(item.historyFiveMin ?? []);
+          final accResult = FilterUtils.calculateBuyAlertAccuracy(
+              item.historyFiveMin ?? [], item.token.toString(),
+              useRadarAlert: isRadarMode);
 
           if (accResult != null) {
             tSignals++;
+            double pnl = accResult['percentPnL'] ?? 0.0;
+            tPnL += pnl;
             String status = accResult['status'];
             if (status == "Win") {
               targetHits++;
@@ -89,7 +94,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
         profitableSignals = targetHits;
         slSignals = slHits;
         neutralSignals = neutralHits;
-        accuracy = tSignals > 0 ? (targetHits / tSignals) * 100 : 0.0;
+        totalPnL = tPnL;
       });
     });
   }
@@ -121,13 +126,31 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
             const Text('Pre Filtered Stocks', style: TextStyle(fontSize: 18)),
             if (!isLoading && totalSignals > 0)
               Text(
-                'Acc: ${accuracy.toStringAsFixed(1)}% | TGT: $profitableSignals | SL: $slSignals | NEU: $neutralSignals',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.normal),
+                'Total PnL: ${totalPnL > 0 ? '+' : ''}${totalPnL.toStringAsFixed(2)}% | TGT: $profitableSignals | SL: $slSignals | NEU: $neutralSignals',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                    color:
+                        totalPnL >= 0 ? Colors.greenAccent : Colors.redAccent),
               ),
           ],
         ),
         actions: [
+          Row(
+            children: [
+              const Text("Radar", style: TextStyle(fontSize: 12)),
+              Switch(
+                value: isRadarMode,
+                activeColor: Colors.blueAccent,
+                onChanged: (val) {
+                  setState(() {
+                    isRadarMode = val;
+                  });
+                  _initialize();
+                },
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.copy),
             onPressed: () {
@@ -211,22 +234,11 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                             stockHistory.length.toString(),
                           ),
                           onTap: () {
-                            if (stockHistory.isEmpty) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => HistoryScreen(
-                                    stockName: stock.symbol ?? '',
-                                    historyModel: stockHistory,
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-
                             final accResult =
                                 FilterUtils.calculateBuyAlertAccuracy(
-                                    stock.historyFiveMin ?? []);
+                                    stock.historyFiveMin ?? [],
+                                    stock.token.toString(),
+                                    useRadarAlert: isRadarMode);
 
                             double signalPrice = accResult != null
                                 ? accResult['entryPrice']
@@ -235,6 +247,9 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                 accResult != null ? accResult['target'] : 0.0;
                             double stoplossPrice =
                                 accResult != null ? accResult['stoploss'] : 0.0;
+                            double percentPnL = accResult != null
+                                ? accResult['percentPnL'] ?? 0.0
+                                : 0.0;
 
                             final historySoFar = stock.historyFiveMin
                                     ?.where((c) => !c.timestamp.isAfter(
@@ -266,6 +281,13 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: textColor)),
+                                    Text(
+                                        'Total PnL %: ${percentPnL > 0 ? '+' : ''}${percentPnL.toStringAsFixed(2)}%',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: percentPnL >= 0
+                                                ? Colors.green
+                                                : Colors.red)),
                                     const SizedBox(height: 8),
                                     Text('Score: $score'),
                                     Text(

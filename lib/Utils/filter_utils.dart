@@ -41,11 +41,11 @@ class FilterUtils {
     //   return false;
     // }
 
-    var isNearResistance = IndicatorUtils.isNearResistance(candles);
-    if (isNearResistance) {
-      debugPrint("Failed: $token at $timeStr - Reason: Near Resistance Level");
-      return false;
-    }
+    // var isNearResistance = IndicatorUtils.isNearResistance(candles);
+    // if (isNearResistance) {
+    //   debugPrint("Failed: $token at $timeStr - Reason: Near Resistance Level");
+    //   return false;
+    // }
 
     // var isAlreadyMoved = IndicatorUtils.isAlreadyMoved(candles);
     // if (isAlreadyMoved) {
@@ -140,20 +140,21 @@ class FilterUtils {
     // 2. Volume Avg Check
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(candles);
 
-    if (cachedIsVolAvgEnabled) {
-      if (!volumeStrength.baseVolumeOk) {
-        debugPrint(
-            "Failed: $token at $timeStr - Reason: Volume Average Not OK");
-        return false;
-      }
-    }
+    // if (cachedIsVolAvgEnabled) {
+    //   if (!volumeStrength.baseVolumeOk) {
+    //     debugPrint(
+    //         "Failed: $token at $timeStr - Reason: Volume Average Not OK");
+    //     return false;
+    //   }
+    // }
 
     if (!volumeStrength.isVolumeSpike40x) {
-      var isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-      if (!isVolumeOk) {
-        debugPrint("Failed: $token at $timeStr - Reason: Volume ka Chakkar");
-        return false;
-      }
+      return false;
+      // var isVolumeOk = IndicatorUtils.isVolumeOk(candles);
+      // if (!isVolumeOk) {
+      //   debugPrint("Failed: $token at $timeStr - Reason: Volume ka Chakkar");
+      //   return false;
+      // }
     }
 
     print("Passed : $token");
@@ -183,6 +184,13 @@ class FilterUtils {
     if (now.difference(candles.last.timestamp).inMinutes < 5 &&
         candles.length > 1) {
       candles.removeLast();
+    }
+
+    // Block Buy Alerts between 10:50 and 12:20
+    final ts = candles.last.timestamp.toLocal();
+    final timeInMinutes = ts.hour * 60 + ts.minute;
+    if (timeInMinutes >= 650 && timeInMinutes <= 740) {
+      return null; // Buy alert logic 10:50 se 12:20 ke bich me nhi aana chahiye.
     }
 
     // Must be a green candle
@@ -832,7 +840,8 @@ class FilterUtils {
 
   /// 🔹 Calculates accuracy of the 1st Buy Alert for the current day
   static Map<String, dynamic>? calculateBuyAlertAccuracy(
-      List<HistoricalDataModel> history) {
+      List<HistoricalDataModel> history, String token,
+      {bool useRadarAlert = false}) {
     if (history.isEmpty) return null;
 
     final targetDate = history.last.timestamp;
@@ -848,6 +857,7 @@ class FilterUtils {
     HistoricalDataModel? alertCandle;
     double? entryPrice;
     double? supertrendValue;
+    bool hasPassedRadar = false;
 
     // Simulate going through today's candles one by one
     // Start at least 20 candles in to allow EMA calculations if possible
@@ -858,20 +868,41 @@ class FilterUtils {
       List<HistoricalDataModel> historySoFar =
           history.sublist(0, globalIndex + 1);
 
-      String? isNearReason = isNearBuyingZone5Min(historySoFar);
-      if (isNearReason != null) {
-        HistoricalDataModel targetCandle =
-            getLastClosed5MinCandle(historySoFar);
+      if (!hasPassedRadar) {
+        hasPassedRadar = passesFilter(historySoFar, token);
+      }
 
-        if (targetCandle.timestamp.day == targetDate.day) {
-          alertCandle = targetCandle;
-          entryPrice = targetCandle.close;
+      if (hasPassedRadar) {
+        if (useRadarAlert) {
+          // Trigger entry on the exact candle that passed the radar
+          HistoricalDataModel targetCandle =
+              getLastClosed5MinCandle(historySoFar);
 
-          // Need supertrend value at this point
-          final stRes = IndicatorUtils.isCloseAboveSupertrend(historySoFar,
-              atrPeriod: 10, multiplier: 3);
-          supertrendValue = stRes.value;
-          break; // Check only 1st time buy alert
+          if (targetCandle.timestamp.day == targetDate.day) {
+            alertCandle = targetCandle;
+            entryPrice = targetCandle.close;
+            // Provide a dummy supertrend value so it passes the null check
+            // (Stoploss is now purely calculated from the candle's low)
+            supertrendValue = entryPrice;
+            break;
+          }
+        } else {
+          String? isNearReason = isNearBuyingZone5Min(historySoFar);
+          if (isNearReason != null) {
+            HistoricalDataModel targetCandle =
+                getLastClosed5MinCandle(historySoFar);
+
+            if (targetCandle.timestamp.day == targetDate.day) {
+              alertCandle = targetCandle;
+              entryPrice = targetCandle.close;
+
+              // Need supertrend value at this point
+              final stRes = IndicatorUtils.isCloseAboveSupertrend(historySoFar,
+                  atrPeriod: 10, multiplier: 3);
+              supertrendValue = stRes.value;
+              break; // Check only 1st time buy alert
+            }
+          }
         }
       }
     }
@@ -881,21 +912,35 @@ class FilterUtils {
     }
 
     double target = entryPrice * 1.02; // Up by 2%
-    double stoploss = supertrendValue * 0.99; // 1% below supertrend
+    double stoploss =
+        alertCandle.low * 0.9975; // 0.25% below the alert green candle's low
 
     String status = "Pending";
+    double percentPnL = 0.0;
+    bool tradeClosed = false;
 
     int globalAlertIndex = history.indexOf(alertCandle);
     for (int i = globalAlertIndex + 1; i < history.length; i++) {
       var c = history[i];
+      if (c.low <= stoploss) {
+        // Check stoploss first to be conservative
+        status = "Loss";
+        percentPnL = ((stoploss - entryPrice) / entryPrice) * 100;
+        tradeClosed = true;
+        break;
+      }
       if (c.high >= target) {
         status = "Win";
+        percentPnL = 2.0;
+        tradeClosed = true;
         break;
       }
-      if (c.low <= stoploss) {
-        status = "Loss";
-        break;
-      }
+    }
+
+    if (!tradeClosed) {
+      // Calculate Open PnL based on the last available candle
+      final lastClose = history.last.close;
+      percentPnL = ((lastClose - entryPrice) / entryPrice) * 100;
     }
 
     return {
@@ -903,6 +948,7 @@ class FilterUtils {
       "entryPrice": entryPrice,
       "target": target,
       "stoploss": stoploss,
+      "percentPnL": percentPnL,
       "alertTime": alertCandle.timestamp,
     };
   }

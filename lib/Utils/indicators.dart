@@ -626,7 +626,8 @@ class IndicatorUtils {
 
     bool basePassed = has200k && (lastCandleX >= 5.0) && (otherCandlesAvgX >= 2.0);
     bool spikePassed = has200k && (lastCandleX >= 40.0) && (otherCandlesAvgX >= 10.0);
-
+    debugPrint("LastCandle X: $lastCandleX");
+    debugPrint("OtherCandle X: $otherCandlesAvgX");
     return (baseVolumeOk: basePassed, isVolumeSpike40x: spikePassed);
   }
 
