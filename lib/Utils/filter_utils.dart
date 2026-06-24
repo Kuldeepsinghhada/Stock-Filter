@@ -35,6 +35,21 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
+    // Max 2 continuous green candles check
+    if (candles.length >= 3) {
+      final last2 = candles[candles.length - 2];
+      final last3 = candles[candles.length - 3];
+
+      bool isGreen(HistoricalDataModel c) => c.close > c.open;
+
+      var isOverExtend = isGreen(last2) && isGreen(last3);
+      if (isOverExtend) {
+        debugPrint(
+            "Failed: $token at $timeStr - Reason: 3 Continuous Green Candles");
+        return false;
+      }
+    }
+
     // if (candles.last.volume < 80000) {
     //   debugPrint(
     //       "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
@@ -913,7 +928,7 @@ class FilterUtils {
 
     double target = entryPrice * 1.02; // Up by 2%
     double stoploss =
-        alertCandle.low * 0.9975; // 0.25% below the alert green candle's low
+        alertCandle.low * 0.9950; // 0.50% below the alert green candle's low
 
     String status = "Pending";
     double percentPnL = 0.0;

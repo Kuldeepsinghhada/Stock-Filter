@@ -582,7 +582,8 @@ class IndicatorUtils {
     List<HistoricalDataModel> candles, {
     int skipCandles = 3,
   }) {
-    if (candles.length < 100) return (baseVolumeOk: false, isVolumeSpike40x: false);
+    if (candles.length < 100)
+      return (baseVolumeOk: false, isVolumeSpike40x: false);
 
     CandleUtils.sortByTime(candles);
 
@@ -594,7 +595,8 @@ class IndicatorUtils {
       dayMap.putIfAbsent(key, () => []).add(c);
     }
 
-    if (dayMap.length < 2) return (baseVolumeOk: false, isVolumeSpike40x: false);
+    if (dayMap.length < 2)
+      return (baseVolumeOk: false, isVolumeSpike40x: false);
 
     final keys = dayMap.keys.toList()..sort();
     final todayCandles = dayMap[keys.last]!;
@@ -624,10 +626,12 @@ class IndicatorUtils {
 
     final has200k = has200KVolumeInLast3Candles(candles);
 
-    bool basePassed = has200k && (lastCandleX >= 5.0) && (otherCandlesAvgX >= 2.0);
-    bool spikePassed = has200k && (lastCandleX >= 40.0) && (otherCandlesAvgX >= 10.0);
-    debugPrint("LastCandle X: $lastCandleX");
-    debugPrint("OtherCandle X: $otherCandlesAvgX");
+    bool basePassed =
+        has200k && (lastCandleX >= 5.0) && (otherCandlesAvgX >= 2.0);
+    bool spikePassed =
+        has200k && (lastCandleX >= 30.0) && (otherCandlesAvgX >= 2.0);
+    debugPrint(
+        "${candles.last.timestamp} -> LastCandle X: $lastCandleX, OtherCandle X:$otherCandlesAvgX");
     return (baseVolumeOk: basePassed, isVolumeSpike40x: spikePassed);
   }
 

@@ -149,11 +149,32 @@ class Utilities {
               .replaceAll(RegExp(r'-+$'), '');
           final growwLink = "https://groww.in/stocks/$nameForUrl";
 
+          final entryPrice = stock.lastPrice ?? 0.0;
+          final target = entryPrice * 1.02;
+
+          double stoploss = 0.0;
+          if (stock.historyFiveMin != null &&
+              stock.historyFiveMin!.isNotEmpty) {
+            final targetCandle =
+                FilterUtils.getLastClosed5MinCandle(stock.historyFiveMin!);
+            stoploss = targetCandle.low * 0.9950;
+          } else {
+            stoploss = entryPrice * 0.9950;
+          }
+
+          int quantity = 0;
+          if (entryPrice > 0) {
+            quantity = (60000 / entryPrice).floor();
+          }
+
           final message = '''
 👀 RADAR ALERT 👀
 
 📈 Stock : $cleanSymbol
-💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+💰 Price : ₹${entryPrice.toStringAsFixed(2)}
+⚖️ Quantity : $quantity
+🎯 Target : ₹${target.toStringAsFixed(2)},(2%)
+🛑 Stoploss : ₹${stoploss.toStringAsFixed(2)}
 
 🔗 Link : $growwLink
 

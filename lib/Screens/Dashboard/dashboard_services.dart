@@ -303,11 +303,29 @@ class DashboardService {
 //                             .replaceAll(RegExp(r'-+$'), '');
 //                         final growwLink = "https://groww.in/stocks/$nameForUrl";
 //
+//                         final entryPrice = stock.lastPrice ?? 0.0;
+//                         final target = entryPrice * 1.02;
+//                         double stoploss = 0.0;
+//                         if (history != null && history.isNotEmpty) {
+//                           final targetCandle = FilterUtils.getLastClosed5MinCandle(history);
+//                           stoploss = targetCandle.low * 0.9950;
+//                         } else {
+//                           stoploss = entryPrice * 0.9950;
+//                         }
+//
+//                         int quantity = 0;
+//                         if (entryPrice > 0) {
+//                           quantity = (50000 / entryPrice).floor();
+//                         }
+//
 //                         final message = '''
 // 🔥 BUY ALERT 🔥
 //
 // 📈 Stock : $cleanSymbol
-// 💰 Price : ₹${(stock.lastPrice ?? 0.0).toStringAsFixed(2)}
+// 💰 Price : ₹${entryPrice.toStringAsFixed(2)}
+// ⚖️ Quantity : $quantity
+// 🎯 Target : ₹${target.toStringAsFixed(2)}
+// 🛑 Stoploss : ₹${stoploss.toStringAsFixed(2)}
 // 🎯 Near : $isNearReason
 //
 // 🔗 Link : $growwLink
