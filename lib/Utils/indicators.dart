@@ -580,10 +580,11 @@ class IndicatorUtils {
 
   static ({bool baseVolumeOk, bool isVolumeSpike40x}) checkDualVolumeStrength(
     List<HistoricalDataModel> candles, {
-    int skipCandles = 3,
+    int skipCandles = 2,
   }) {
-    if (candles.length < 100)
+    if (candles.length < 100) {
       return (baseVolumeOk: false, isVolumeSpike40x: false);
+    }
 
     CandleUtils.sortByTime(candles);
 
@@ -595,8 +596,9 @@ class IndicatorUtils {
       dayMap.putIfAbsent(key, () => []).add(c);
     }
 
-    if (dayMap.length < 2)
+    if (dayMap.length < 2) {
       return (baseVolumeOk: false, isVolumeSpike40x: false);
+    }
 
     final keys = dayMap.keys.toList()..sort();
     final todayCandles = dayMap[keys.last]!;
@@ -628,8 +630,7 @@ class IndicatorUtils {
 
     bool basePassed =
         has200k && (lastCandleX >= 5.0) && (otherCandlesAvgX >= 2.0);
-    bool spikePassed =
-        has200k && (lastCandleX >= 30.0) && (otherCandlesAvgX >= 2.0);
+    bool spikePassed = (lastCandleX >= 30.0) && (otherCandlesAvgX >= 2.0);
     debugPrint(
         "${candles.last.timestamp} -> LastCandle X: $lastCandleX, OtherCandle X:$otherCandlesAvgX");
     return (baseVolumeOk: basePassed, isVolumeSpike40x: spikePassed);

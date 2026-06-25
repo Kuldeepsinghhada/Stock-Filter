@@ -36,19 +36,19 @@ class FilterUtils {
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
     // Max 2 continuous green candles check
-    if (candles.length >= 3) {
-      final last2 = candles[candles.length - 2];
-      final last3 = candles[candles.length - 3];
-
-      bool isGreen(HistoricalDataModel c) => c.close > c.open;
-
-      var isOverExtend = isGreen(last2) && isGreen(last3);
-      if (isOverExtend) {
-        debugPrint(
-            "Failed: $token at $timeStr - Reason: 3 Continuous Green Candles");
-        return false;
-      }
-    }
+    // if (candles.length >= 3) {
+    //   final last2 = candles[candles.length - 2];
+    //   final last3 = candles[candles.length - 3];
+    //
+    //   bool isGreen(HistoricalDataModel c) => c.close > c.open;
+    //
+    //   var isOverExtend = isGreen(last2) && isGreen(last3);
+    //   if (isOverExtend) {
+    //     debugPrint(
+    //         "Failed: $token at $timeStr - Reason: 3 Continuous Green Candles");
+    //     return false;
+    //   }
+    // }
 
     // if (candles.last.volume < 80000) {
     //   debugPrint(
@@ -69,12 +69,12 @@ class FilterUtils {
     //   return false;
     // }
 
-    var isAbove10Days = IndicatorUtils.isAboveLast10DayHigh(candles);
-    if (!isAbove10Days) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Not Above Last 10 Days High");
-      return false;
-    }
+    // var isAbove10Days = IndicatorUtils.isAboveLast10DayHigh(candles);
+    // if (!isAbove10Days) {
+    //   debugPrint(
+    //       "Failed: $token at $timeStr - Reason: Not Above Last 10 Days High");
+    //   return false;
+    // }
 
     // 3. EMA20 Check
     if (cachedIsEma20Enabled) {
@@ -128,12 +128,12 @@ class FilterUtils {
     }
 
     // 7. Score Check (getSmartPriceActionScore)
-    int score = getIntradayMomentumScore(candles);
-    if (score < 80) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Low Smart Score ($score)");
-      return false;
-    }
+    // int score = getIntradayMomentumScore(candles);
+    // if (score < 80) {
+    //   debugPrint(
+    //       "Failed: $token at $timeStr - Reason: Low Smart Score ($score)");
+    //   return false;
+    // }
 
     // 9. Day Pass Check (requires converting to daily, slightly heavier)
     final dailyCandles = Utilities.convertToDaily(candles);
@@ -165,11 +165,6 @@ class FilterUtils {
 
     if (!volumeStrength.isVolumeSpike40x) {
       return false;
-      // var isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-      // if (!isVolumeOk) {
-      //   debugPrint("Failed: $token at $timeStr - Reason: Volume ka Chakkar");
-      //   return false;
-      // }
     }
 
     print("Passed : $token");
