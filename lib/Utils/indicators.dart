@@ -30,6 +30,118 @@ class IndicatorUtils {
     return distanceToResistance <= 3 && distanceToResistance > -2;
   }
 
+  static double getRangeExpansion(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.length < 21) return 0;
+
+    final current = candles.last;
+
+    // Previous 20 candles
+    final previousCandles =
+        candles.sublist(candles.length - 21, candles.length - 1);
+
+    double avgRange = previousCandles.fold(
+          0.0,
+          (sum, c) => sum + (c.high - c.low),
+        ) /
+        previousCandles.length;
+
+    final currentRange = current.high - current.low;
+
+    if (avgRange == 0) return 0;
+
+    final expansion = currentRange / avgRange;
+
+    print(
+      'Current Range: ${currentRange.toStringAsFixed(2)}, '
+      'Avg Range(20): ${avgRange.toStringAsFixed(2)}, '
+      'Expansion: ${expansion.toStringAsFixed(2)}x',
+    );
+
+    return expansion;
+  }
+
+  static int probabilityScore(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.length < 20) return 0;
+
+    final current = candles.last;
+
+    int score = 0;
+
+    // 1. Relative Volume
+    final avgVol = candles
+            .sublist(candles.length - 11, candles.length - 1)
+            .fold<double>(0, (s, c) => s + c.volume) /
+        10;
+
+    final rv = current.volume / avgVol;
+
+    if (rv > 3) {
+      score += 20;
+    } else if (rv > 2) {
+      score += 15;
+    } else if (rv > 1.5) {
+      score += 10;
+    }
+
+    // 2. Strong Body
+    final range = current.high - current.low;
+    final body = (current.close - current.open).abs();
+
+    if (range > 0) {
+      final bodyPct = body / range;
+
+      if (bodyPct > 0.7) {
+        score += 15;
+      } else if (bodyPct > 0.5) {
+        score += 10;
+      }
+    }
+
+    // 3. Close Near High
+    if (range > 0) {
+      final closePosition = (current.close - current.low) / range;
+
+      if (closePosition > 0.8) {
+        score += 15;
+      } else if (closePosition > 0.7) {
+        score += 10;
+      }
+    }
+
+    // 4. Breakout
+    final prevHigh = candles
+        .sublist(candles.length - 6, candles.length - 1)
+        .map((e) => e.high)
+        .reduce((a, b) => a > b ? a : b);
+
+    if (current.close > prevHigh) {
+      score += 15;
+    }
+
+    // 5. ATR Expansion
+    final atrPct = ((current.high - current.low) / current.close) * 100;
+
+    if (atrPct > 2) {
+      score += 10;
+    }
+
+    // 6. Risk Reward Check
+    final stop = current.low * 0.995; // 0.5% below low
+
+    final risk = ((current.close - stop) / current.close) * 100;
+
+    if (risk <= 1) {
+      score += 15;
+    }
+
+    // Max 100
+    return score.clamp(0, 100);
+  }
+
   static bool isAlreadyMoved(List<HistoricalDataModel> candles) {
     final dailyCandles = Utilities.convertToDaily(candles);
 
@@ -577,7 +689,6 @@ class IndicatorUtils {
 
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
-
   static ({bool baseVolumeOk, bool isVolumeSpike40x}) checkDualVolumeStrength(
     List<HistoricalDataModel> candles, {
     int skipCandles = 2,
@@ -596,24 +707,44 @@ class IndicatorUtils {
       dayMap.putIfAbsent(key, () => []).add(c);
     }
 
-    if (dayMap.length < 2) {
+    // Need at least 3 completed days + today
+    if (dayMap.length < 4) {
       return (baseVolumeOk: false, isVolumeSpike40x: false);
     }
 
     final keys = dayMap.keys.toList()..sort();
+
     final todayCandles = dayMap[keys.last]!;
-    final prevDayCandles = dayMap[keys[keys.length - 2]]!;
 
     if (todayCandles.length <= skipCandles + 1) {
       return (baseVolumeOk: false, isVolumeSpike40x: false);
     }
 
-    final prevAvg =
-        prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            prevDayCandles.length;
+    // ===== Average 5-min volume of last completed 3 days =====
+
+    double totalAvg = 0;
+
+    for (int i = keys.length - 2; i >= keys.length - 4; i--) {
+      final dayCandles = dayMap[keys[i]]!;
+
+      final dayAvg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+          dayCandles.length;
+
+      totalAvg += dayAvg;
+    }
+
+    final prevAvg = totalAvg / 3;
+
+    if (prevAvg == 0) {
+      return (baseVolumeOk: false, isVolumeSpike40x: false);
+    }
+
+    // ===== Latest Candle =====
 
     final lastCandle = todayCandles.last;
     final lastCandleX = lastCandle.volume / prevAvg;
+
+    // ===== Other Candles =====
 
     final otherCandles = todayCandles.sublist(
       skipCandles,
@@ -626,14 +757,21 @@ class IndicatorUtils {
 
     final otherCandlesAvgX = otherAvgVolume / prevAvg;
 
-    final has200k = has200KVolumeInLast3Candles(candles);
+    // final has200k = has200KVolumeInLast3Candles(candles);
 
-    bool basePassed =
-        has200k && (lastCandleX >= 5.0) && (otherCandlesAvgX >= 2.0);
-    bool spikePassed = (lastCandleX >= 30.0) && (otherCandlesAvgX >= 2.0);
-    debugPrint(
-        "${candles.last.timestamp} -> LastCandle X: $lastCandleX, OtherCandle X:$otherCandlesAvgX");
-    return (baseVolumeOk: basePassed, isVolumeSpike40x: spikePassed);
+    final basePassed = lastCandleX >= 5.0 && otherCandlesAvgX >= 2.0;
+
+    final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
+
+    debugPrint("${candles.last.timestamp} -> "
+        "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
+        "LastX: ${lastCandleX.toStringAsFixed(2)}, "
+        "OtherX: ${otherCandlesAvgX.toStringAsFixed(2)}");
+
+    return (
+      baseVolumeOk: basePassed,
+      isVolumeSpike40x: spikePassed,
+    );
   }
 
   static double getOtherCandlesAvgX(List<HistoricalDataModel> candles) {
@@ -855,6 +993,100 @@ class IndicatorUtils {
         last > avg5 * 1.5 &&
         isSustain;
     return result;
+  }
+
+  static VolumeScoreResult getVolumeScore(
+    List<HistoricalDataModel> candles, {
+    int lookback = 20,
+  }) {
+    if (candles.length < lookback + 1) {
+      return const VolumeScoreResult(
+        score: 0,
+        multiplier: 0,
+        isHighestVolume: false,
+        avgVolume: 0,
+        highestVolume: 0,
+      );
+    }
+
+    final current = candles.last;
+
+    final history =
+        candles.sublist(candles.length - lookback - 1, candles.length - 1);
+
+    // Average Volume
+    final avgVolume =
+        history.fold<double>(0, (sum, c) => sum + c.volume) / history.length;
+
+    if (avgVolume == 0) {
+      return const VolumeScoreResult(
+        score: 0,
+        multiplier: 0,
+        isHighestVolume: false,
+        avgVolume: 0,
+        highestVolume: 0,
+      );
+    }
+
+    // Highest Volume
+    final highestVolume =
+        history.map((e) => e.volume).reduce((a, b) => max(a, b));
+
+    final isHighest = current.volume > highestVolume;
+
+    final multiplier = current.volume / avgVolume;
+
+    //----------------------------------------------------
+    // Base Score
+    //----------------------------------------------------
+
+    int score = 0;
+
+    if (multiplier >= 1.2) score = 20;
+    if (multiplier >= 1.5) score = 40;
+    if (multiplier >= 2.0) score = 60;
+    if (multiplier >= 2.5) score = 75;
+    if (multiplier >= 3.0) score = 90;
+    if (multiplier >= 4.0) score = 100;
+
+    //----------------------------------------------------
+    // Bonus
+    //----------------------------------------------------
+
+    if (isHighest) {
+      score += 10;
+    }
+
+    //----------------------------------------------------
+    // Penalty
+    //----------------------------------------------------
+
+    // If not highest volume, reduce confidence.
+    if (!isHighest) {
+      score -= 15;
+    }
+
+    // Cap
+    score = score.clamp(0, 100);
+
+    print('''
+=========== Volume Score ===========
+Current Volume : ${current.volume.toStringAsFixed(0)}
+Average Volume : ${avgVolume.toStringAsFixed(0)}
+Highest Volume : ${highestVolume.toStringAsFixed(0)}
+Multiplier     : ${multiplier.toStringAsFixed(2)}x
+Highest?       : $isHighest
+Final Score    : $score / 100
+====================================
+''');
+
+    return VolumeScoreResult(
+      score: score,
+      multiplier: multiplier,
+      isHighestVolume: isHighest,
+      avgVolume: avgVolume,
+      highestVolume: highestVolume.toDouble(),
+    );
   }
 
   static bool isVolumeBreakoutStrongV3(
@@ -1494,4 +1726,20 @@ class IndicatorUtils {
 class RetestEntryState {
   bool waitingForRetest = false;
   bool buyTriggered = false;
+}
+
+class VolumeScoreResult {
+  final int score;
+  final double multiplier;
+  final bool isHighestVolume;
+  final double avgVolume;
+  final double highestVolume;
+
+  const VolumeScoreResult({
+    required this.score,
+    required this.multiplier,
+    required this.isHighestVolume,
+    required this.avgVolume,
+    required this.highestVolume,
+  });
 }

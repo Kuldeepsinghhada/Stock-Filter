@@ -35,6 +35,19 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
+    if (candles.last.volume < 15000) {
+      print(
+          "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
+      return false;
+    }
+
+    var rangeExpansion = IndicatorUtils.getRangeExpansion(candles);
+    if (rangeExpansion > 6) {
+      print(
+          "Failed: $token at $timeStr - Reason: Range Expansion ($rangeExpansion)");
+      return false;
+    }
+
     // Max 2 continuous green candles check
     // if (candles.length >= 3) {
     //   final last2 = candles[candles.length - 2];
@@ -66,6 +79,13 @@ class FilterUtils {
     // if (isAlreadyMoved) {
     //   debugPrint(
     //       "Failed: $token at $timeStr - Reason: Already Moved Significantly");
+    //   return false;
+    // }
+    //
+    // var isProbabilityScore = IndicatorUtils.probabilityScore(candles);
+    // if(isProbabilityScore > 70){
+    //   debugPrint(
+    //       "Failed: $token at $timeStr - Reason: Low Probability Score");
     //   return false;
     // }
 
@@ -100,8 +120,8 @@ class FilterUtils {
 
     // // 4. Volume Breakout Check
     // if (cachedIsVolBreakoutEnabled) {
-    //   bool isVolumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(candles);
-    //   if (!isVolumeBreakout) {
+    //   int isVolumeBreakout = IndicatorUtils.getVolumeScore(candles).score;
+    //   if (isVolumeBreakout > 50) {
     //     debugPrint("Failed: $token at $timeStr - Reason: Weak Volume Breakout");
     //     return false;
     //   }
@@ -154,19 +174,9 @@ class FilterUtils {
 
     // 2. Volume Avg Check
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(candles);
-
-    // if (cachedIsVolAvgEnabled) {
-    //   if (!volumeStrength.baseVolumeOk) {
-    //     debugPrint(
-    //         "Failed: $token at $timeStr - Reason: Volume Average Not OK");
-    //     return false;
-    //   }
-    // }
-
     if (!volumeStrength.isVolumeSpike40x) {
       return false;
     }
-
     print("Passed : $token");
     return true;
   }
@@ -332,7 +342,6 @@ class FilterUtils {
         return isPass;
 
       case 15:
-      case 60:
         bool isAboveSupertrend =
             IndicatorUtils.isCloseAboveSupertrend(historyCandles).isPassed;
         return isAboveSupertrend;
@@ -924,6 +933,10 @@ class FilterUtils {
     double target = entryPrice * 1.02; // Up by 2%
     double stoploss =
         alertCandle.low * 0.9950; // 0.50% below the alert green candle's low
+    double maxStoploss = entryPrice * 0.98; // Max 2% loss
+    if (stoploss < maxStoploss) {
+      stoploss = maxStoploss;
+    }
 
     String status = "Pending";
     double percentPnL = 0.0;

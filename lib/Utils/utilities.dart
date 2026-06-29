@@ -162,6 +162,11 @@ class Utilities {
             stoploss = entryPrice * 0.9950;
           }
 
+          double maxStoploss = entryPrice * 0.98;
+          if (stoploss < maxStoploss) {
+            stoploss = maxStoploss;
+          }
+
           int quantity = 0;
           if (entryPrice > 0) {
             quantity = (60000 / entryPrice).floor();
