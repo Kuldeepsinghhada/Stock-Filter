@@ -183,12 +183,6 @@ class _BulkAnalysisScreenState extends State<BulkAnalysisScreen> {
             : "Fetching local/historical data (${symbols.length} symbols)...";
       });
 
-      final enableSwingScannerLoose =
-          await SharedPreferenceHelper.instance.getEnableSwingScannerLoose();
-
-      // Read boolean preference: if true, show only symbols whose last candle closed green
-      final closedInGreenEnabled =
-          await SharedPreferenceHelper.instance.getClosedInGreenEnabled();
 
       // Call the batch fetching logic in HistoryServices to get StockModel objects
       List<StockModel> fetched = await HistoryServices.instance.fetchQuotes(

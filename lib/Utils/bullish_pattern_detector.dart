@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 
 class PatternResult {
@@ -340,7 +341,7 @@ class BullishPatternDetector {
       score += 20;
     }
 
-    print("SCORE: $score");
+    debugPrint("SCORE: $score");
     return StructureResult(
       bullish: score >= 20,
       score: score,

@@ -14,6 +14,9 @@ import 'package:stock_demo/model/stock_model.dart';
 import 'filter_utils.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:http/http.dart' as http;
+import 'package:stock_demo/APIService/api_service.dart';
+import 'package:stock_demo/APIService/end_point.dart';
+import 'enums.dart';
 
 class Utilities {
   static String formatIndianNumber(num value) {
@@ -77,6 +80,63 @@ class Utilities {
   }
 
   // ------------Notification Process---------------
+  static Future<Map<String, double>> calculateTargetAndStoploss(
+      StockModel stock) async {
+    final entryPrice = stock.lastPrice ?? 0.0;
+    final target = entryPrice * 1.02;
+
+    double stoploss = 0.0;
+    try {
+      final interval = "minute";
+      final today = DateTime.now();
+      final from = Utilities.getBusinessDaysAgo(today, 5);
+      final to =
+          "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+      final response = await ApiService.instance.apiCall(
+        "${APIEndPoint.getHistoricalData}${stock.token}/$interval?from=$from&to=$to",
+        HttpRequestType.get,
+        null,
+      );
+
+      if (response.status) {
+        final candlesList =
+            (response.data["data"]["candles"] as List<dynamic>?) ?? [];
+        final historyOneMin = candlesList
+            .map((e) => HistoricalDataModel.fromList(e as List<dynamic>))
+            .toList();
+
+        if (historyOneMin.isNotEmpty) {
+          final supertrendVals = IndicatorUtils.supertrendSeries(historyOneMin);
+          if (supertrendVals.isNotEmpty) {
+            final currentSupertrend = supertrendVals.last;
+            stoploss =
+                currentSupertrend * 0.9975; // Calculate 0.25% below supertrend
+          }
+        }
+      }
+    } catch (e) {
+      log("Error fetching 1 min historical data for stoploss: $e");
+    }
+
+    if (stoploss == 0.0) {
+      if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
+        final targetCandle =
+            FilterUtils.getLastClosed5MinCandle(stock.historyFiveMin!);
+        stoploss = targetCandle.low * 0.9950;
+      } else {
+        stoploss = entryPrice * 0.9950;
+      }
+    }
+
+    double maxStoploss = entryPrice * 0.97; // Max 3% loss
+    if (stoploss < maxStoploss) {
+      stoploss = maxStoploss;
+    }
+
+    return {"target": target, "stoploss": stoploss, "price": entryPrice};
+  }
+
   static Future<void> addAndShowNotification(List<StockModel> finalList) async {
     List<NotificationModel> notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
@@ -100,20 +160,28 @@ class Utilities {
       }
 
       if (existingIndex == -1) {
+        final calc = await calculateTargetAndStoploss(stock);
+        final target = calc["target"] ?? 0.0;
+        final stoploss = calc["stoploss"] ?? 0.0;
+        final price = calc["price"] ?? (stock.lastPrice ?? 0.0);
+
         notificationsList.add(
           NotificationModel(
-            stocksNameList: "${stock.symbol!} - ${stock.lastPrice ?? ''}",
+            stocksNameList:
+                "${stock.symbol!} - ${Utilities.formatIndianNumber(price)}",
             time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
             volumeX: volX,
             initialAvgVolume: todayAvgVol,
+            target: target,
+            stoploss: stoploss,
+            price: price,
           ),
         );
-        newStockSymbols.add("${stock.symbol!} - ${stock.lastPrice ?? ''}");
+        newStockSymbols
+            .add("${stock.symbol!} - ${Utilities.formatIndianNumber(price)}");
         newStocksForTelegram.add(stock);
       } else {
         notificationsList[existingIndex].volumeX = volX;
-        notificationsList[existingIndex].stocksNameList =
-            "${stock.symbol!} - ${stock.lastPrice ?? ''}";
         if (notificationsList[existingIndex].initialAvgVolume == null &&
             todayAvgVol > 0) {
           notificationsList[existingIndex].initialAvgVolume = todayAvgVol;
@@ -149,27 +217,26 @@ class Utilities {
               .replaceAll(RegExp(r'-+$'), '');
           final growwLink = "https://groww.in/stocks/$nameForUrl";
 
-          final entryPrice = stock.lastPrice ?? 0.0;
-          final target = entryPrice * 1.02;
-
-          double stoploss = 0.0;
-          if (stock.historyFiveMin != null &&
-              stock.historyFiveMin!.isNotEmpty) {
-            final targetCandle =
-                FilterUtils.getLastClosed5MinCandle(stock.historyFiveMin!);
-            stoploss = targetCandle.low * 0.9950;
-          } else {
-            stoploss = entryPrice * 0.9950;
-          }
-
-          double maxStoploss = entryPrice * 0.98;
-          if (stoploss < maxStoploss) {
-            stoploss = maxStoploss;
-          }
+          // Find the target and stoploss from notificationsList
+          final notif = notificationsList.firstWhere(
+              (n) =>
+                  n.stocksNameList
+                      ?.toUpperCase()
+                      .contains(cleanSymbol.toUpperCase()) ??
+                  false,
+              orElse: () => NotificationModel());
+          final target = notif.target ?? (stock.lastPrice ?? 0.0) * 1.02;
+          final stoploss = notif.stoploss ?? (stock.lastPrice ?? 0.0) * 0.98;
+          final entryPrice = notif.price ?? stock.lastPrice ?? 0.0;
 
           int quantity = 0;
           if (entryPrice > 0) {
             quantity = (60000 / entryPrice).floor();
+          }
+
+          double slPercent = 0.0;
+          if (entryPrice > 0) {
+            slPercent = ((entryPrice - stoploss) / entryPrice) * 100;
           }
 
           final message = '''
@@ -179,7 +246,7 @@ class Utilities {
 💰 Price : ₹${entryPrice.toStringAsFixed(2)}
 ⚖️ Quantity : $quantity
 🎯 Target : ₹${target.toStringAsFixed(2)},(2%)
-🛑 Stoploss : ₹${stoploss.toStringAsFixed(2)}
+🛑 Stoploss : ₹${stoploss.toStringAsFixed(2)} (${slPercent.toStringAsFixed(2)}%)
 
 🔗 Link : $growwLink
 
@@ -539,7 +606,7 @@ class Utilities {
       final minute = current.timestamp.minute;
       final totalMinutes = hour * 60 + minute;
       // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      // if (totalMinutes < 570 || totalMinutes > 660) continue;
+      //  if (totalMinutes < 575 || totalMinutes > 660) continue;
 
       // build history till current candle
       final historySoFar = [

@@ -1,17 +1,14 @@
 import 'dart:developer';
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
-import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/enums.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
-import 'package:stock_demo/model/notification_model.dart';
 
 class DashboardService {
   DashboardService._internal();
@@ -84,28 +81,28 @@ class DashboardService {
       }).toList();
 
       // Remove stocks that are up by more than 10%
-      // quoteList.removeWhere((stock) {
-      //   final open = stock.ohlc?.open ?? 1.0;
-      //   final price = stock.lastPrice ?? 0.0;
-      //   final percent = open > 0 ? ((price - open) / open) * 100 : 0.0;
-      //   return percent > 12.0;
-      // });
-
-      quoteList.sort((a, b) {
-        final aOpen = a.ohlc?.open ?? 1.0;
-        final aPrice = a.lastPrice ?? 0.0;
-        final aPercent = aOpen > 0 ? ((aPrice - aOpen) / aOpen) * 100 : 0.0;
-
-        final bOpen = b.ohlc?.open ?? 1.0;
-        final bPrice = b.lastPrice ?? 0.0;
-        final bPercent = bOpen > 0 ? ((bPrice - bOpen) / bOpen) * 100 : 0.0;
-
-        return bPercent.compareTo(aPercent);
+      quoteList.removeWhere((stock) {
+        final open = stock.ohlc?.open ?? 1.0;
+        final price = stock.lastPrice ?? 0.0;
+        final percent = open > 0 ? ((price - open) / open) * 100 : 0.0;
+        return percent > 10.0;
       });
 
-      if (quoteList.length > 150) {
-        quoteList = quoteList.sublist(0, 150);
-      }
+      //   quoteList.sort((a, b) {
+      //     final aOpen = a.ohlc?.open ?? 1.0;
+      //     final aPrice = a.lastPrice ?? 0.0;
+      //     final aPercent = aOpen > 0 ? ((aPrice - aOpen) / aOpen) * 100 : 0.0;
+      //
+      //     final bOpen = b.ohlc?.open ?? 1.0;
+      //     final bPrice = b.lastPrice ?? 0.0;
+      //     final bPercent = bOpen > 0 ? ((bPrice - bOpen) / bOpen) * 100 : 0.0;
+      //
+      //     return bPercent.compareTo(aPercent);
+      //   });
+      //
+      //   if (quoteList.length > 150) {
+      //     quoteList = quoteList.sublist(0, 150);
+      //   }
     }
 
     log("First Filter Count: ${quoteList.length}");

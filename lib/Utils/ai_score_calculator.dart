@@ -8,8 +8,6 @@ class AIScoreCalculator {
 
     List<String> patterns = [];
 
-    final opens = candles.map((c) => c.open).toList();
-    final closes = candles.map((c) => c.close).toList();
     final highs = candles.map((c) => c.high).toList();
     final lows = candles.map((c) => c.low).toList();
     final volumes = candles.map((c) => c.volume.toDouble()).toList();

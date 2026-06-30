@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:stock_demo/Utils/candle_utils.dart';
 import 'package:stock_demo/Screens/history/history_screen.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
-import 'package:stock_demo/Utils/math_utils.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
@@ -136,21 +133,6 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           ],
         ),
         actions: [
-          Row(
-            children: [
-              const Text("Radar", style: TextStyle(fontSize: 12)),
-              Switch(
-                value: isRadarMode,
-                activeColor: Colors.blueAccent,
-                onChanged: (val) {
-                  setState(() {
-                    isRadarMode = val;
-                  });
-                  _initialize();
-                },
-              ),
-            ],
-          ),
           IconButton(
             icon: const Icon(Icons.copy),
             onPressed: () {
@@ -298,7 +280,8 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                         style: const TextStyle(
                                             color: Colors.green)),
                                     Text(
-                                        'Stoploss: ${stoplossPrice.toStringAsFixed(2)}',
+                                        'Stoploss: ${stoplossPrice.toStringAsFixed(2)} '
+                                        '(${signalPrice > 0 ? (((signalPrice - stoplossPrice) / signalPrice) * 100).toStringAsFixed(2) : "0.00"}%)',
                                         style:
                                             const TextStyle(color: Colors.red)),
                                   ],

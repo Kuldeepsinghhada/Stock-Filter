@@ -53,7 +53,7 @@ class IndicatorUtils {
 
     final expansion = currentRange / avgRange;
 
-    print(
+    debugPrint(
       'Current Range: ${currentRange.toStringAsFixed(2)}, '
       'Avg Range(20): ${avgRange.toStringAsFixed(2)}, '
       'Expansion: ${expansion.toStringAsFixed(2)}x',
@@ -774,6 +774,33 @@ class IndicatorUtils {
     );
   }
 
+  static bool isTodayVolumeAbove1000(
+    List<HistoricalDataModel> candles,
+  ) {
+    if (candles.isEmpty) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final today = DateTime(
+      candles.last.timestamp.year,
+      candles.last.timestamp.month,
+      candles.last.timestamp.day,
+    );
+
+    for (final candle in candles) {
+      final d = DateTime(
+        candle.timestamp.year,
+        candle.timestamp.month,
+        candle.timestamp.day,
+      );
+
+      if (d == today && candle.volume < 100) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   static double getOtherCandlesAvgX(List<HistoricalDataModel> candles) {
     if (candles.length < 100) return 0.0;
     CandleUtils.sortByTime(candles);
@@ -981,7 +1008,6 @@ class IndicatorUtils {
     final avg5 =
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
 
-    final isVolumeSpike = last > avg20 * 1.3;
 
     final strongCount =
         volumes.sublist(volumes.length - 5).where((v) => v > avg20).length;
@@ -1069,7 +1095,7 @@ class IndicatorUtils {
     // Cap
     score = score.clamp(0, 100);
 
-    print('''
+    debugPrint('''
 =========== Volume Score ===========
 Current Volume : ${current.volume.toStringAsFixed(0)}
 Average Volume : ${avgVolume.toStringAsFixed(0)}
@@ -1268,13 +1294,12 @@ Final Score    : $score / 100
     return todayClose >= yHigh * (1.0 + pct);
   }
 
-  static bool isNotAbove5Percent(
+  static bool isNotAbove10Percent(
     List<HistoricalDataModel> candles,
   ) {
     CandleUtils.sortByTime(candles);
 
     final grouped = CandleUtils.groupByDate(candles);
-
     final dates = grouped.keys.toList()..sort();
 
     if (dates.length < 2) return false;
@@ -1285,7 +1310,8 @@ Final Score    : $score / 100
     final todayDate = dates.last;
     final todayCandles = grouped[todayDate]!;
 
-    final todayClose = todayCandles.last.close;
+    final todayHigh =
+        todayCandles.map((e) => e.high).reduce((a, b) => a > b ? a : b);
 
     /// =========================
     /// YESTERDAY
@@ -1295,14 +1321,13 @@ Final Score    : $score / 100
 
     final yesterdayClose = yesterdayCandles.last.close;
 
-    /// % change from yesterday close
-    final percentChange =
-        ((todayClose - yesterdayClose) / yesterdayClose) * 100;
+    /// % change from yesterday close using today's HIGH
+    final percentChange = ((todayHigh - yesterdayClose) / yesterdayClose) * 100;
 
-    /// Reject if already above 5%
-    if (percentChange > 10) {
+    /// Reject if today's high is above 10%
+    if (percentChange > 12) {
       debugPrint(
-        "Rejected: Up ${percentChange.toStringAsFixed(2)}% from yesterday close",
+        "Rejected: Today's High is ${percentChange.toStringAsFixed(2)}% above yesterday's close",
       );
       return false;
     }
@@ -1339,14 +1364,10 @@ Final Score    : $score / 100
 
     final yCandles = grouped[yesterday]!;
 
-    final yOpen = yCandles[1].open;
-    final yClose = yCandles.last.close;
-
     // 🔑 Yesterday HIGH
     final yHigh = yCandles.map((c) => c.high).reduce((a, b) => a > b ? a : b);
 
     // Yesterday bullish?
-    final isYesterdayBullish = yClose > yOpen;
 
     // Breakout condition
     final breakoutLevel = yHigh * (1.0 + pct);

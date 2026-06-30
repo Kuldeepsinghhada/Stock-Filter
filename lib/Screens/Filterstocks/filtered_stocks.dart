@@ -11,7 +11,6 @@ import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
-import 'package:stock_demo/model/notification_model.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class FilteredStockScreen extends StatefulWidget {
@@ -237,12 +236,13 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           onPressed: () async {
             // Only allow starting the task after 9:28 AM local time.
             final now = DateTime.now();
-            // final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
+            final startAllowedAt =
+                DateTime(now.year, now.month, now.day, 9, 30);
             // If currently not running (we're trying to START) and time is before allowed time, block it.
-            // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-            //   Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
-            //   return;
-            // }
+            if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+              Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
+              return;
+            }
 
             await WakelockPlus.enable();
             if (!isTaskRunning) {
@@ -269,10 +269,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
         itemBuilder: (context, index) {
           return ListTile(
             title: Text(list[index].stocksNameList ?? ''),
-            subtitle: Text("${list[index].time ?? ''}" +
-                (list[index].volumeX != null && list[index].volumeX! > 0
-                    ? " | Vol: ${list[index].volumeX!.toStringAsFixed(2)}x"
-                    : "")),
+            subtitle: Text(
+                "${list[index].time ?? ''}${list[index].volumeX != null && list[index].volumeX! > 0 ? " | Vol: ${list[index].volumeX!.toStringAsFixed(2)}x" : ""}${list[index].target != null ? "\nTarget: ₹${list[index].target?.toStringAsFixed(2)} | SL: ₹${list[index].stoploss?.toStringAsFixed(2)}${list[index].price != null && list[index].price! > 0 && list[index].stoploss != null ? " (${(((list[index].price! - list[index].stoploss!) / list[index].price!) * 100).toStringAsFixed(2)}%)" : ""}" : ""}"),
             leading: const Icon(Icons.notifications),
             trailing: IconButton(
               onPressed: () async {

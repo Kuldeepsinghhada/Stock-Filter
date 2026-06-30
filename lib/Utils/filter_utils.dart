@@ -35,15 +35,21 @@ class FilterUtils {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
-    if (candles.last.volume < 15000) {
-      print(
+    var isPercentChange = IndicatorUtils.isNotAbove10Percent(candles);
+    if (!isPercentChange) {
+      debugPrint("Failed: $token at $timeStr - Reason: Price Change > 13%");
+      return false;
+    }
+
+    if (candles.last.volume < 45000) {
+      debugPrint(
           "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
       return false;
     }
 
     var rangeExpansion = IndicatorUtils.getRangeExpansion(candles);
     if (rangeExpansion > 6) {
-      print(
+      debugPrint(
           "Failed: $token at $timeStr - Reason: Range Expansion ($rangeExpansion)");
       return false;
     }
@@ -118,21 +124,6 @@ class FilterUtils {
       }
     }
 
-    // // 4. Volume Breakout Check
-    // if (cachedIsVolBreakoutEnabled) {
-    //   int isVolumeBreakout = IndicatorUtils.getVolumeScore(candles).score;
-    //   if (isVolumeBreakout > 50) {
-    //     debugPrint("Failed: $token at $timeStr - Reason: Weak Volume Breakout");
-    //     return false;
-    //   }
-    // }
-
-    // bool isVolumeOk = IndicatorUtils.isVolumeOk(candles);
-    // if (!isVolumeOk) {
-    //   debugPrint("Failed: $token at $timeStr - Reason: Volume Not OK");
-    //   return false;
-    // }
-
     // 5. ATR Check
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
     if (!atrOk) {
@@ -177,7 +168,7 @@ class FilterUtils {
     if (!volumeStrength.isVolumeSpike40x) {
       return false;
     }
-    print("Passed : $token");
+    debugPrint("Passed : $token");
     return true;
   }
 
@@ -900,9 +891,9 @@ class FilterUtils {
           if (targetCandle.timestamp.day == targetDate.day) {
             alertCandle = targetCandle;
             entryPrice = targetCandle.close;
-            // Provide a dummy supertrend value so it passes the null check
-            // (Stoploss is now purely calculated from the candle's low)
-            supertrendValue = entryPrice;
+            final stRes = IndicatorUtils.isCloseAboveSupertrend(historySoFar,
+                atrPeriod: 10, multiplier: 3);
+            supertrendValue = stRes.value;
             break;
           }
         } else {
@@ -931,9 +922,8 @@ class FilterUtils {
     }
 
     double target = entryPrice * 1.02; // Up by 2%
-    double stoploss =
-        alertCandle.low * 0.9950; // 0.50% below the alert green candle's low
-    double maxStoploss = entryPrice * 0.98; // Max 2% loss
+    double stoploss = supertrendValue * 0.9975; // 0.25% below the supertrend
+    double maxStoploss = entryPrice * 0.97; // Max 3% loss
     if (stoploss < maxStoploss) {
       stoploss = maxStoploss;
     }
