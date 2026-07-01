@@ -41,7 +41,7 @@ class FilterUtils {
       return false;
     }
 
-    if (candles.last.volume < 45000) {
+    if (candles.last.volume < 15000) {
       debugPrint(
           "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
       return false;

@@ -130,17 +130,28 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
+    double totalPnlPercent = 0.0;
+    int validStocksCount = 0;
+
+    for (var stock in notificationsListByRecent) {
+      if (stock.price != null && stock.price! > 0) {
+        final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
+        final quote = quoteList.firstWhere(
+          (q) => q.stockSymbol != null && symbolUpper.contains(q.stockSymbol!.toUpperCase()),
+          orElse: () => FinalStockModel(),
+        );
+
+        if (quote.lastPrice != null && quote.lastPrice! > 0) {
+          double pnl = ((quote.lastPrice! - stock.price!) / stock.price!) * 100;
+          totalPnlPercent += pnl;
+          validStocksCount++;
+        }
+      }
+    }
+
+    return Scaffold(
         appBar: AppBar(
           title: const Text('Dashboard'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: "Sorted by Volume"),
-              Tab(text: "Most Recent"),
-            ],
-          ),
           actions: [
             // Search button
             if (isLoading && quoteList.isEmpty)
@@ -220,13 +231,28 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                 ),
               ),
             ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildList(notificationsListByVolume),
-                  _buildList(notificationsListByRecent),
-                ],
+            if (validStocksCount > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Card(
+                  color: Colors.blue.shade50,
+                  elevation: 2,
+                  child: ListTile(
+                    title: const Text("Today's Profit & Loss", style: TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Text(
+                      "${totalPnlPercent >= 0 ? '+' : ''}${totalPnlPercent.toStringAsFixed(2)}%",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: totalPnlPercent >= 0 ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    subtitle: Text("Based on $validStocksCount active alerts"),
+                  ),
+                ),
               ),
+            Expanded(
+              child: _buildList(notificationsListByRecent),
             ),
           ],
         ),
@@ -257,7 +283,6 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             // }
           },
         ),
-      ),
     );
   }
 
@@ -267,11 +292,31 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       child: ListView.builder(
         itemCount: list.length,
         itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(list[index].stocksNameList ?? ''),
-            subtitle: Text(
-                "${list[index].time ?? ''}${list[index].volumeX != null && list[index].volumeX! > 0 ? " | Vol: ${list[index].volumeX!.toStringAsFixed(2)}x" : ""}${list[index].target != null ? "\nTarget: ₹${list[index].target?.toStringAsFixed(2)} | SL: ₹${list[index].stoploss?.toStringAsFixed(2)}${list[index].price != null && list[index].price! > 0 && list[index].stoploss != null ? " (${(((list[index].price! - list[index].stoploss!) / list[index].price!) * 100).toStringAsFixed(2)}%)" : ""}" : ""}"),
-            leading: const Icon(Icons.notifications),
+          final stock = list[index];
+          final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
+          final quote = quoteList.firstWhere(
+            (q) => q.stockSymbol != null && symbolUpper.contains(q.stockSymbol!.toUpperCase()),
+            orElse: () => FinalStockModel(),
+          );
+
+          Color? tileColor;
+          if (quote.lastPrice != null && quote.lastPrice! > 0 && stock.target != null && stock.stoploss != null && stock.price != null) {
+            if (quote.lastPrice! >= stock.target!) {
+              tileColor = Colors.green.withOpacity(0.3);
+            } else if (quote.lastPrice! <= stock.stoploss!) {
+              tileColor = Colors.red.withOpacity(0.3);
+            } else {
+              tileColor = Colors.yellow.withOpacity(0.3);
+            }
+          }
+
+          return Container(
+            color: tileColor,
+            child: ListTile(
+              title: Text(stock.stocksNameList ?? ''),
+              subtitle: Text(
+                  "${stock.time ?? ''}${stock.volumeX != null && stock.volumeX! > 0 ? " | Vol: ${stock.volumeX!.toStringAsFixed(2)}x" : ""}${stock.target != null ? "\nTarget: ₹${stock.target?.toStringAsFixed(2)} | SL: ₹${stock.stoploss?.toStringAsFixed(2)}${stock.price != null && stock.price! > 0 && stock.stoploss != null ? " (${(((stock.price! - stock.stoploss!) / stock.price!) * 100).toStringAsFixed(2)}%)" : ""}" : ""}"),
+              leading: const Icon(Icons.notifications),
             trailing: IconButton(
               onPressed: () async {
                 bool? confirmDelete = await showDialog<bool>(
@@ -303,6 +348,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
               icon: const Icon(Icons.delete),
             ),
             onTap: () {},
+            ),
           );
         },
       ),
