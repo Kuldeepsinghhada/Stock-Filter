@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../Utils/sharepreference_helper.dart';
+import 'package:stock_demo/trading/trading_manager.dart';
 
 class TradeSettingPage extends StatefulWidget {
   const TradeSettingPage({super.key});
@@ -12,6 +13,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
   final TextEditingController _lastMultiplierController =
       TextEditingController();
   final TextEditingController _otherMultiplierController =
+      TextEditingController();
+  final TextEditingController _maxTradeAmountController =
       TextEditingController();
 
   bool _isVolumeAverageOK = true;
@@ -31,6 +34,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final prefs = SharedPreferenceHelper.instance;
     final lastMultiplier = await prefs.getLastCandleMultiplier();
     final otherMultiplier = await prefs.getOtherCandlesMultiplier();
+    final maxTradeAmount = await prefs.getMaxTradeAmount();
 
     final volAvg = await prefs.getVolumeAverageEnabled();
     final pattern = await prefs.getPatternEnabled();
@@ -42,6 +46,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     setState(() {
       _lastMultiplierController.text = lastMultiplier.toString();
       _otherMultiplierController.text = otherMultiplier.toString();
+      _maxTradeAmountController.text = maxTradeAmount.toString();
       _isVolumeAverageOK = volAvg;
       _isPattern = pattern;
       _aboveSupertrend = supertrend;
@@ -55,10 +60,12 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final prefs = SharedPreferenceHelper.instance;
     final last = double.tryParse(_lastMultiplierController.text);
     final other = double.tryParse(_otherMultiplierController.text);
+    final maxAmount = double.tryParse(_maxTradeAmountController.text);
 
-    if (last != null && other != null) {
+    if (last != null && other != null && maxAmount != null) {
       await prefs.setLastCandleMultiplier(last);
       await prefs.setOtherCandlesMultiplier(other);
+      await prefs.setMaxTradeAmount(maxAmount);
 
       await prefs.setVolumeAverageEnabled(_isVolumeAverageOK);
       await prefs.setPatternEnabled(_isPattern);
@@ -134,6 +141,26 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               value: _telegramAlerts,
               onChanged: (val) => setState(() => _telegramAlerts = val),
             ),
+            const Text("Auto Trading",
+                style: TextStyle(
+                    color: Colors.blueAccent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _buildToggleTile(
+              label: "Enable Auto Trading",
+              value: TradingManager.instance.isAutoTradingEnabled,
+              onChanged: (val) async {
+                await TradingManager.instance.setAutoTradingStatus(val);
+                setState(() {});
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildMultiplierInput(
+              label: "Max Trade Amount (₹)",
+              controller: _maxTradeAmountController,
+              helperText: "e.g., 5000",
+            ),
             const Divider(color: Colors.white10, height: 40),
             const Text("Volume Multipliers",
                 style: TextStyle(
@@ -167,9 +194,91 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
                     style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
             ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () => _showTestTradeDialog(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orangeAccent,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text("Run Test Trade (Qty 1)",
+                    style: TextStyle(color: Colors.white, fontSize: 16)),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showTestTradeDialog(BuildContext context) {
+    final TextEditingController symbolController =
+        TextEditingController(text: 'SAKSOFT');
+    final TextEditingController priceController =
+        TextEditingController(text: '100.0');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xff1e222d),
+          title:
+              const Text('Test Trade', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: symbolController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Stock Symbol',
+                  labelStyle: TextStyle(color: Colors.white54),
+                ),
+              ),
+              TextField(
+                controller: priceController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Current Price (Dummy)',
+                  labelStyle: TextStyle(color: Colors.white54),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child:
+                  const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final symbol = symbolController.text.trim().toUpperCase();
+                final price =
+                    double.tryParse(priceController.text.trim()) ?? 100.0;
+
+                TradingManager.instance.testTradeExecution(symbol, price);
+
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text(
+                          'Test trade initiated for $symbol! Check console logs.')),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orangeAccent),
+              child: const Text('Execute'),
+            ),
+          ],
+        );
+      },
     );
   }
 

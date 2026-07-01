@@ -17,6 +17,7 @@ import 'package:http/http.dart' as http;
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
 import 'enums.dart';
+import 'package:stock_demo/trading/trading_manager.dart';
 
 class Utilities {
   static String formatIndianNumber(num value) {
@@ -180,6 +181,14 @@ class Utilities {
         newStockSymbols
             .add("${stock.symbol!} - ${Utilities.formatIndianNumber(price)}");
         newStocksForTelegram.add(stock);
+
+        // Auto Trading Execution
+        TradingManager.instance.onStockRadarTrigger(
+          stock.symbol ?? '',
+          price,
+          target,
+          stoploss,
+        );
       } else {
         notificationsList[existingIndex].volumeX = volX;
         if (notificationsList[existingIndex].initialAvgVolume == null &&
@@ -619,7 +628,7 @@ class Utilities {
         bool buyAlert = false;
 
         isRadarHit =
-            FilterUtils.passesFilter(historySoFar, model.token.toString());
+            FilterUtils.passesFilter(historySoFar, model.token.toString(), isHistoryCheck: true);
         if (isRadarHit) {
           hasPassedToday = true;
         }

@@ -81,12 +81,12 @@ class DashboardService {
       }).toList();
 
       // Remove stocks that are up by more than 10%
-      quoteList.removeWhere((stock) {
-        final open = stock.ohlc?.open ?? 1.0;
-        final price = stock.lastPrice ?? 0.0;
-        final percent = open > 0 ? ((price - open) / open) * 100 : 0.0;
-        return percent > 10.0;
-      });
+      // quoteList.removeWhere((stock) {
+      //   final open = stock.ohlc?.open ?? 1.0;
+      //   final price = stock.lastPrice ?? 0.0;
+      //   final percent = open > 0 ? ((price - open) / open) * 100 : 0.0;
+      //   return percent > 15.0;
+      // });
 
       //   quoteList.sort((a, b) {
       //     final aOpen = a.ohlc?.open ?? 1.0;

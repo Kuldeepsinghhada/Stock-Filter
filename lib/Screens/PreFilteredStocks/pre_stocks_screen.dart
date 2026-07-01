@@ -84,7 +84,27 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           }
         }
       }
-      print(historyList.length);
+
+      // Sort the lists by the time they came into the radar (ascending - earliest first)
+      List<Map<String, dynamic>> combined = [];
+      for (int i = 0; i < quoteList.length; i++) {
+        final hl = historyList[i];
+        final radarTime = hl.isNotEmpty ? hl.first.dateTime : DateTime.now();
+        combined.add({
+          'quote': quoteList[i],
+          'history': hl,
+          'time': radarTime,
+        });
+      }
+
+      // a.compareTo(b) sorts ascending (oldest time first)
+      combined.sort(
+          (a, b) => (a['time'] as DateTime).compareTo(b['time'] as DateTime));
+
+      quoteList = combined.map((e) => e['quote'] as StockModel).toList();
+      historyList =
+          combined.map((e) => e['history'] as List<HistoryModel>).toList();
+
       setState(() {
         isLoading = false;
         totalSignals = tSignals;
@@ -152,193 +172,190 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _initialize,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Search by symbol',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) =>
-                          setState(() => searchQuery = value.trim()),
-                    ),
+          : Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Search by symbol',
+                    border: OutlineInputBorder(),
                   ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final stock = filtered[index];
-                        final symbol =
-                            stock.symbol?.replaceAll("NSE:", "") ?? '';
-                        String tradeState =
-                            stockTradeResult[stock.symbol ?? ''] ?? "Neutral";
-                        int originalIndex = quoteList.indexOf(stock);
-                        List<HistoryModel> stockHistory = originalIndex != -1
-                            ? historyList[originalIndex]
-                            : [];
+                  onChanged: (value) =>
+                      setState(() => searchQuery = value.trim()),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final stock = filtered[index];
+                    final symbol =
+                        stock.symbol?.replaceAll("NSE:", "") ?? '';
+                    String tradeState =
+                        stockTradeResult[stock.symbol ?? ''] ?? "Neutral";
+                    int originalIndex = quoteList.indexOf(stock);
+                    List<HistoryModel> stockHistory = originalIndex != -1
+                        ? historyList[originalIndex]
+                        : [];
 
-                        Color? tileColor;
-                        Color? textColor;
-                        if (tradeState == "Target Hit") {
-                          tileColor = Colors.green.withOpacity(0.1);
-                          textColor = Colors.green;
-                        } else if (tradeState == "SL Hit") {
-                          tileColor = Colors.red.withOpacity(0.1);
-                          textColor = Colors.red;
-                        } else {
-                          tileColor = Colors.grey.withOpacity(0.1);
-                          textColor = Colors.orange;
-                        }
+                    Color? tileColor;
+                    Color? textColor;
+                    if (tradeState == "Target Hit") {
+                      tileColor = Colors.green.withOpacity(0.1);
+                      textColor = Colors.green;
+                    } else if (tradeState == "SL Hit") {
+                      tileColor = Colors.red.withOpacity(0.1);
+                      textColor = Colors.red;
+                    } else {
+                      tileColor = Colors.grey.withOpacity(0.1);
+                      textColor = Colors.orange;
+                    }
 
-                        return ListTile(
-                          tileColor: tileColor,
-                          leading: Text(
-                            '${index + 1}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          title: Text(
-                            symbol,
-                            style: TextStyle(
-                              color: textColor,
-                              fontWeight: tradeState == "Neutral"
-                                  ? FontWeight.normal
-                                  : FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            'Token: ${stock.token}, Price: ${stock.lastPrice}',
-                          ),
-                          trailing: Text(
-                            stockHistory.length.toString(),
-                          ),
-                          onTap: () {
-                            final accResult =
-                                FilterUtils.calculateBuyAlertAccuracy(
-                                    stock.historyFiveMin ?? [],
-                                    stock.token.toString(),
-                                    useRadarAlert: isRadarMode);
+                    return ListTile(
+                      tileColor: tileColor,
+                      leading: Text(
+                        '${index + 1}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      title: Text(
+                        symbol,
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: tradeState == "Neutral"
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Token: ${stock.token}, Price: ${stock.lastPrice}',
+                      ),
+                      trailing: Text(
+                        stockHistory.length.toString(),
+                      ),
+                      onTap: () {
+                        final accResult =
+                            FilterUtils.calculateBuyAlertAccuracy(
+                                stock.historyFiveMin ?? [],
+                                stock.token.toString(),
+                                useRadarAlert: isRadarMode);
 
-                            double signalPrice = accResult != null
-                                ? accResult['entryPrice']
-                                : 0.0;
-                            double targetPrice =
-                                accResult != null ? accResult['target'] : 0.0;
-                            double stoplossPrice =
-                                accResult != null ? accResult['stoploss'] : 0.0;
-                            double percentPnL = accResult != null
-                                ? accResult['percentPnL'] ?? 0.0
-                                : 0.0;
+                        double signalPrice = accResult != null
+                            ? accResult['entryPrice']
+                            : 0.0;
+                        double targetPrice =
+                            accResult != null ? accResult['target'] : 0.0;
+                        double stoplossPrice =
+                            accResult != null ? accResult['stoploss'] : 0.0;
+                        double percentPnL = accResult != null
+                            ? accResult['percentPnL'] ?? 0.0
+                            : 0.0;
 
-                            final historySoFar = stock.historyFiveMin
-                                    ?.where((c) => !c.timestamp.isAfter(
-                                        accResult != null
-                                            ? accResult['alertTime']
-                                            : DateTime.now()))
-                                    .toList() ??
-                                [];
-                            int score = FilterUtils.getIntradayMomentumScore(
+                        final historySoFar = stock.historyFiveMin
+                                ?.where((c) => !c.timestamp.isAfter(
+                                    accResult != null
+                                        ? accResult['alertTime']
+                                        : DateTime.now()))
+                                .toList() ??
+                            [];
+                        int score = FilterUtils.getIntradayMomentumScore(
+                            historySoFar);
+                        double volMult =
+                            FilterUtils.getVolumeMultiplication(
                                 historySoFar);
-                            double volMult =
-                                FilterUtils.getVolumeMultiplication(
-                                    historySoFar);
 
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text(symbol),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                        'Signal Price: ${signalPrice.toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 8),
-                                    Text('Trade Result: $tradeState',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: textColor)),
-                                    Text(
-                                        'Total PnL %: ${percentPnL > 0 ? '+' : ''}${percentPnL.toStringAsFixed(2)}%',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: percentPnL >= 0
-                                                ? Colors.green
-                                                : Colors.red)),
-                                    const SizedBox(height: 8),
-                                    Text('Score: $score'),
-                                    Text(
-                                        'Volume Mult: ${volMult.toStringAsFixed(2)}x'),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                        'Target (2%): ${targetPrice.toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                            color: Colors.green)),
-                                    Text(
-                                        'Stoploss: ${stoplossPrice.toStringAsFixed(2)} '
-                                        '(${signalPrice > 0 ? (((signalPrice - stoplossPrice) / signalPrice) * 100).toStringAsFixed(2) : "0.00"}%)',
-                                        style:
-                                            const TextStyle(color: Colors.red)),
-                                  ],
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      final radarHits = stockHistory
-                                          .where((h) => h.isPassed == true)
-                                          .toList();
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => HistoryScreen(
-                                            stockName: stock.symbol ?? '',
-                                            historyModel: radarHits,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('Radar Hits'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      final buyAlerts = stockHistory
-                                          .where((h) => h.isBuyAlert == true)
-                                          .toList();
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => HistoryScreen(
-                                            stockName: (stock.symbol ?? '') +
-                                                ' (Buy Alerts)',
-                                            historyModel: buyAlerts,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('Buy Alerts'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Close'),
-                                  ),
-                                ],
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(symbol),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                    'Signal Price: ${signalPrice.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 8),
+                                Text('Trade Result: $tradeState',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: textColor)),
+                                Text(
+                                    'Total PnL %: ${percentPnL > 0 ? '+' : ''}${percentPnL.toStringAsFixed(2)}%',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: percentPnL >= 0
+                                            ? Colors.green
+                                            : Colors.red)),
+                                const SizedBox(height: 8),
+                                Text('Score: $score'),
+                                Text(
+                                    'Volume Mult: ${volMult.toStringAsFixed(2)}x'),
+                                const SizedBox(height: 8),
+                                Text(
+                                    'Target (2%): ${targetPrice.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                        color: Colors.green)),
+                                Text(
+                                    'Stoploss: ${stoplossPrice.toStringAsFixed(2)} '
+                                    '(${signalPrice > 0 ? (((signalPrice - stoplossPrice) / signalPrice) * 100).toStringAsFixed(2) : "0.00"}%)',
+                                    style:
+                                        const TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  final radarHits = stockHistory
+                                      .where((h) => h.isPassed == true)
+                                      .toList();
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => HistoryScreen(
+                                        stockName: stock.symbol ?? '',
+                                        historyModel: radarHits,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Radar Hits'),
                               ),
-                            );
-                          },
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  final buyAlerts = stockHistory
+                                      .where((h) => h.isBuyAlert == true)
+                                      .toList();
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => HistoryScreen(
+                                        stockName: (stock.symbol ?? '') +
+                                            ' (Buy Alerts)',
+                                        historyModel: buyAlerts,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Buy Alerts'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
                         );
                       },
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
-            ),
+            ],
+          ),
     );
   }
 }

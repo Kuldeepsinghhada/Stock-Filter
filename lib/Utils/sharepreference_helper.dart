@@ -29,6 +29,7 @@ class SharedPreferenceHelper {
   String isVolumeBreakoutKey = "isVolumeBreakout";
   String isNearEmaOrSupertrendKey = "isNearEmaOrSupertrend";
   String telegramAlertsKey = "telegramAlerts";
+  String maxTradeAmountKey = "maxTradeAmount";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -386,5 +387,15 @@ class SharedPreferenceHelper {
   Future<String?> getLastRunDate() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getString(lastRunDateKey);
+  }
+
+  Future<void> setMaxTradeAmount(double amount) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(maxTradeAmountKey, amount);
+  }
+
+  Future<double> getMaxTradeAmount() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(maxTradeAmountKey) ?? 5000.0;
   }
 }

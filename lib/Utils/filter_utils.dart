@@ -31,17 +31,28 @@ class FilterUtils {
     cachedIsVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
   }
 
-  static bool passesFilter(List<HistoricalDataModel> candles, String token) {
+  static bool passesFilter(List<HistoricalDataModel> candles, String token,
+      {bool isHistoryCheck = false}) {
     final timeStr =
         candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
 
-    var isPercentChange = IndicatorUtils.isNotAbove10Percent(candles);
-    if (!isPercentChange) {
-      debugPrint("Failed: $token at $timeStr - Reason: Price Change > 13%");
+    var isLaseChanged = IndicatorUtils.isNotAlreadyMoved(candles);
+    if (!isLaseChanged) {
+      debugPrint(
+          "Failed: $token at $timeStr - Reason: Last Candle Already Moved Significantly");
       return false;
     }
 
-    if (candles.last.volume < 15000) {
+    if (!isHistoryCheck) {
+      var isPercentChange = IndicatorUtils.isNotAbove10Percent(candles);
+      if (!isPercentChange) {
+        debugPrint("Failed: $token at $timeStr - Reason: Price Change > 13%");
+        return false;
+      }
+    }
+
+    int minVolume = isHistoryCheck ? 15000 : 15000;
+    if (candles.last.volume < minVolume) {
       debugPrint(
           "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
       return false;
@@ -329,7 +340,8 @@ class FilterUtils {
 
     switch (timeFrame) {
       case 5:
-        bool isPass = passesFilter(historyCandles, token.toString());
+        bool isPass = passesFilter(historyCandles, token.toString(),
+            isHistoryCheck: true);
         return isPass;
 
       case 15:
@@ -879,7 +891,8 @@ class FilterUtils {
           history.sublist(0, globalIndex + 1);
 
       if (!hasPassedRadar) {
-        hasPassedRadar = passesFilter(historySoFar, token);
+        hasPassedRadar =
+            passesFilter(historySoFar, token, isHistoryCheck: true);
       }
 
       if (hasPassedRadar) {

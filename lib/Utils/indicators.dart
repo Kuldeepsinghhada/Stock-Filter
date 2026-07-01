@@ -8,6 +8,37 @@ import 'math_utils.dart';
 
 /// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
+  /// Returns true if stock has NOT moved more than [maxMovePercent]
+  /// in the last [lookbackCandles] candles.
+  static bool isNotAlreadyMoved(
+    List<HistoricalDataModel> candles, {
+    int lookbackCandles = 3,
+    double maxMovePercent = 6.0,
+  }) {
+    if (candles.length < lookbackCandles) return false;
+
+    CandleUtils.sortByTime(candles);
+
+    final recent = candles.sublist(candles.length - lookbackCandles);
+
+    double lowestLow = recent.first.low;
+    double highestHigh = recent.first.high;
+
+    for (final candle in recent) {
+      if (candle.low < lowestLow) {
+        lowestLow = candle.low;
+      }
+
+      if (candle.high > highestHigh) {
+        highestHigh = candle.high;
+      }
+    }
+
+    final movePercent = ((highestHigh - lowestLow) / lowestLow) * 100;
+
+    return movePercent <= maxMovePercent;
+  }
+
   static bool isNearResistance(List<HistoricalDataModel> candles) {
     final dailyCandles = Utilities.convertToDaily(candles);
 
@@ -1007,7 +1038,6 @@ class IndicatorUtils {
     // Avg5
     final avg5 =
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
-
 
     final strongCount =
         volumes.sublist(volumes.length - 5).where((v) => v > avg20).length;

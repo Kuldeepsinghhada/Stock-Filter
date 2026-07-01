@@ -13,6 +13,8 @@ import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/utilities.dart';
 import 'Services/notification_service.dart';
 
+import 'package:stock_demo/trading/trading_manager.dart';
+
 Widget initialRoute = ZerodhaLoginPage();
 
 @pragma('vm:entry-point')
@@ -20,6 +22,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.initialize();
   await Utilities.loadStocksList();
+  await TradingManager.instance.init();
 
   var isLogin = await checkUserLoggedIn();
   if (isLogin) {
