@@ -36,6 +36,12 @@ class FilterUtils {
       {bool isHistoryCheck = false}) {
     if (candles.isEmpty) return false;
 
+    if (candles.last.timestamp.hour == 9 &&
+        candles.last.timestamp.minute < 35) {
+      // Skip filtering for the first 20 minutes of the trading day
+      return false;
+    }
+
     final timeStr = candles.last.timestamp.toString();
     final engine = IndicatorEngine(candles);
 
@@ -70,13 +76,25 @@ class FilterUtils {
     }
 
     // 4. PriceChange
-    // if (!isHistoryCheck) {
-    //   var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
-    //   if (!isPercentChange) {
-    //     logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
-    //     return false;
-    //   }
-    // }
+    if (!isHistoryCheck) {
+      var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
+      if (!isPercentChange) {
+        logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
+        return false;
+      }
+    }
+
+    final isVolumeOk = IndicatorUtils.isVolumeOk(engine);
+    if (!isVolumeOk) {
+      logMsg("Failed: $token at $timeStr - Reason: Volume Breakout Not Met");
+      return false;
+    }
+
+    final volumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(engine);
+    if (cachedIsVolBreakoutEnabled && !volumeBreakout) {
+      logMsg("Failed: $token at $timeStr - Reason: Volume Breakout Not Strong");
+      return false;
+    }
 
     // 5. VolumeSpike
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);

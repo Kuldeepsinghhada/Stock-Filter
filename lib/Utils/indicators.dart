@@ -20,7 +20,8 @@ class IndicatorUtils {
 
     // sorted by engine
 
-    final recent = engine.candles.sublist(engine.candles.length - lookbackCandles);
+    final recent =
+        engine.candles.sublist(engine.candles.length - lookbackCandles);
 
     double lowestLow = recent.first.low;
     double highestHigh = recent.first.high;
@@ -70,8 +71,8 @@ class IndicatorUtils {
     final current = engine.candles.last;
 
     // Previous 20 engine.candles
-    final previousCandles =
-        engine.candles.sublist(engine.candles.length - 21, engine.candles.length - 1);
+    final previousCandles = engine.candles
+        .sublist(engine.candles.length - 21, engine.candles.length - 1);
 
     double avgRange = previousCandles.fold(
           0.0,
@@ -379,13 +380,13 @@ class IndicatorUtils {
     int atrPeriod = 7,
     double lowPriceMinPct = 0.004,
     double lowPriceMaxPct = 0.04,
-    double highPriceMinPct = 0.004,
+    double highPriceMinPct = 0.006,
     double highPriceMaxPct = 0.03,
     double priceThreshold = 200.0,
   }) {
     if (engine.candles.length < atrPeriod + 2) return false;
     // sorted by engine
-    
+
     final highs = engine.highs;
     final lows = engine.lows;
     final closes = engine.closes;
@@ -463,7 +464,7 @@ class IndicatorUtils {
     if (engine.candles.length < diPeriod + adxSmoothing + 2) return false;
 
     // sorted by engine
-    
+
     final highs = engine.highs;
     final lows = engine.lows;
     final closes = engine.closes;
@@ -557,7 +558,7 @@ class IndicatorUtils {
     double multiplier = 3.0,
   }) {
     // sorted by engine
-    
+
     final highs = engine.highs;
     final lows = engine.lows;
     final closes = engine.closes;
@@ -645,7 +646,7 @@ class IndicatorUtils {
     if (engine.candles.isEmpty) return [];
 
     // sorted by engine
-    
+
     final highs = engine.highs;
     final lows = engine.lows;
     final closes = engine.closes;
@@ -793,7 +794,7 @@ class IndicatorUtils {
 
     final basePassed = lastCandleX >= 5.0 && otherCandlesAvgX >= 2.0;
 
-    final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
+    final spikePassed = lastCandleX >= 10.0 && otherCandlesAvgX >= 0.0;
 
     debugPrint("${engine.candles.last.timestamp} -> "
         "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
@@ -1021,7 +1022,8 @@ class IndicatorUtils {
 
     if (engine.candles.last.timestamp.hour == 10 &&
         engine.candles.last.timestamp.minute == 10) {
-      debugPrint("Checking Volume Breakout for ${engine.candles.last.timestamp}");
+      debugPrint(
+          "Checking Volume Breakout for ${engine.candles.last.timestamp}");
     }
 
     // sorted by engine
@@ -1068,8 +1070,8 @@ class IndicatorUtils {
 
     final current = engine.candles.last;
 
-    final history =
-        engine.candles.sublist(engine.candles.length - lookback - 1, engine.candles.length - 1);
+    final history = engine.candles.sublist(
+        engine.candles.length - lookback - 1, engine.candles.length - 1);
 
     // Average Volume
     final avgVolume =
@@ -1541,38 +1543,27 @@ Final Score    : $score / 100
   }
 
   static bool isVolumeOk(IndicatorEngine engine) {
-    // Volume check
-    List<int> volumes = engine.candles.map((e) => e.volume).toList();
+    final now = DateTime.now();
 
-    // ❌ NEW RULE:
-    // If ANY of last 8 engine.candles has volume <= 2000 → reject
-    final last8 = volumes.sublist(volumes.length - 10);
-    if (last8.any((v) => v <= 1000)) {
+    // Today's candles only
+    final todayCandles = engine.candles.where((c) {
+      final ts = c.timestamp.toLocal();
+      return ts.year == now.year && ts.month == now.month && ts.day == now.day;
+    }).toList();
+
+    if (todayCandles.isEmpty) {
       return false;
     }
 
-    final now = DateTime.now();
-    final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay = lastWorking.year == now.year &&
-        lastWorking.month == now.month &&
-        lastWorking.day == now.day;
+    // Every today's candle should have volume > 1000
+// Check only last 8 candles of today
+    final candlesToCheck = todayCandles;
 
-    int? volumeToCheck;
-    if (volumes.isNotEmpty) {
-      if (isWorkingDay) {
-        volumeToCheck = volumes.last;
-      } else {
-        final lastWorkDayCandle = engine.candles.lastWhere((c) {
-          final ts = c.timestamp.toLocal();
-          return ts.year == lastWorking.year &&
-              ts.month == lastWorking.month &&
-              ts.day == lastWorking.day;
-        }, orElse: () => engine.candles.last);
-        volumeToCheck = lastWorkDayCandle.volume;
-      }
+    if (candlesToCheck.any((c) => c.volume <= 1000)) {
+      return false;
     }
-    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 30000) : false;
-    return isVolumeOk;
+    // Last candle volume should be > 30000
+    return todayCandles.last.volume > 30000;
   }
 
   /// 🔹 Checks if the total volume of the previous day is > 1M
@@ -1610,7 +1601,6 @@ Final Score    : $score / 100
 
     // sorted by engine
 
-    
     final closes = engine.closes;
     final lows = engine.lows;
     final opens = engine.opens;
