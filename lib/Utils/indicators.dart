@@ -4,22 +4,23 @@ import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/indicator_result.dart';
 import 'candle_utils.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'math_utils.dart';
 
 /// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
   /// Returns true if stock has NOT moved more than [maxMovePercent]
-  /// in the last [lookbackCandles] candles.
+  /// in the last [lookbackCandles] engine.candles.
   static bool isNotAlreadyMoved(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int lookbackCandles = 3,
     double maxMovePercent = 6.0,
   }) {
-    if (candles.length < lookbackCandles) return false;
+    if (engine.candles.length < lookbackCandles) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
-    final recent = candles.sublist(candles.length - lookbackCandles);
+    final recent = engine.candles.sublist(engine.candles.length - lookbackCandles);
 
     double lowestLow = recent.first.low;
     double highestHigh = recent.first.high;
@@ -39,15 +40,15 @@ class IndicatorUtils {
     return movePercent <= maxMovePercent;
   }
 
-  static bool isNearResistance(List<HistoricalDataModel> candles) {
-    final dailyCandles = Utilities.convertToDaily(candles);
+  static bool isNearResistance(IndicatorEngine engine) {
+    final dailyCandles = engine.dailyCandles;
 
     if (dailyCandles.length < 21) return false;
 
     // Ignore today's candle
     final history = dailyCandles.sublist(0, dailyCandles.length - 1);
 
-    final currentPrice = candles.last.close;
+    final currentPrice = engine.candles.last.close;
 
     // Highest high of last 20 days excluding yesterday
     final resistance = history
@@ -62,15 +63,15 @@ class IndicatorUtils {
   }
 
   static double getRangeExpansion(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    if (candles.length < 21) return 0;
+    if (engine.candles.length < 21) return 0;
 
-    final current = candles.last;
+    final current = engine.candles.last;
 
-    // Previous 20 candles
+    // Previous 20 engine.candles
     final previousCandles =
-        candles.sublist(candles.length - 21, candles.length - 1);
+        engine.candles.sublist(engine.candles.length - 21, engine.candles.length - 1);
 
     double avgRange = previousCandles.fold(
           0.0,
@@ -84,27 +85,27 @@ class IndicatorUtils {
 
     final expansion = currentRange / avgRange;
 
-    debugPrint(
-      'Current Range: ${currentRange.toStringAsFixed(2)}, '
-      'Avg Range(20): ${avgRange.toStringAsFixed(2)}, '
-      'Expansion: ${expansion.toStringAsFixed(2)}x',
-    );
+    // debugPrint(
+    //   'Current Range: ${currentRange.toStringAsFixed(2)}, '
+    //   'Avg Range(20): ${avgRange.toStringAsFixed(2)}, '
+    //   'Expansion: ${expansion.toStringAsFixed(2)}x',
+    // );
 
     return expansion;
   }
 
   static int probabilityScore(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    if (candles.length < 20) return 0;
+    if (engine.candles.length < 20) return 0;
 
-    final current = candles.last;
+    final current = engine.candles.last;
 
     int score = 0;
 
     // 1. Relative Volume
-    final avgVol = candles
-            .sublist(candles.length - 11, candles.length - 1)
+    final avgVol = engine.candles
+            .sublist(engine.candles.length - 11, engine.candles.length - 1)
             .fold<double>(0, (s, c) => s + c.volume) /
         10;
 
@@ -144,8 +145,8 @@ class IndicatorUtils {
     }
 
     // 4. Breakout
-    final prevHigh = candles
-        .sublist(candles.length - 6, candles.length - 1)
+    final prevHigh = engine.candles
+        .sublist(engine.candles.length - 6, engine.candles.length - 1)
         .map((e) => e.high)
         .reduce((a, b) => a > b ? a : b);
 
@@ -173,8 +174,8 @@ class IndicatorUtils {
     return score.clamp(0, 100);
   }
 
-  static bool isAlreadyMoved(List<HistoricalDataModel> candles) {
-    final dailyCandles = Utilities.convertToDaily(candles);
+  static bool isAlreadyMoved(IndicatorEngine engine) {
+    final dailyCandles = engine.dailyCandles;
 
     // Need at least 21 days because today's candle is ignored
     if (dailyCandles.length < 21) return false;
@@ -186,7 +187,7 @@ class IndicatorUtils {
 
     // EMA20
     final ema20 = IndicatorUtils.isCloseAboveEMA(
-      history,
+      IndicatorEngine(history),
       20,
     ).value;
 
@@ -219,17 +220,17 @@ class IndicatorUtils {
   }
 
   static bool hasSmoothTrend(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int lookback = 20,
     double minEfficiency = 0.6,
   }) {
-    if (candles.length < lookback + 1) {
+    if (engine.candles.length < lookback + 1) {
       return false;
     }
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
-    final recent = candles.sublist(candles.length - lookback);
+    final recent = engine.candles.sublist(engine.candles.length - lookback);
 
     final firstClose = recent.first.close;
     final lastClose = recent.last.close;
@@ -256,9 +257,9 @@ class IndicatorUtils {
   }
 
   static bool isAboveLast10DayHigh(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    final dailyCandles = Utilities.convertToDaily(candles);
+    final dailyCandles = engine.dailyCandles;
 
     if (dailyCandles.length < 11) {
       return false;
@@ -266,7 +267,7 @@ class IndicatorUtils {
 
     CandleUtils.sortByTime(dailyCandles);
 
-    final currentPrice = candles.last.close;
+    final currentPrice = engine.candles.last.close;
 
     double highestHigh = 0;
 
@@ -282,14 +283,14 @@ class IndicatorUtils {
 
   /// ---------- EMA / SMA ----------
   static IndicatorResult isCloseAboveEMA(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
     int period,
   ) {
-    if (candles.length < period) {
+    if (engine.candles.length < period) {
       return IndicatorResult(isPassed: false, value: null);
     }
-    CandleUtils.sortByTime(candles);
-    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    // sorted by engine
+    final closes = engine.closes;
     final ema = MathUtils.emaAligned(closes, period);
     final lastEma = ema.isNotEmpty ? ema.last : null;
     if (lastEma == null) return IndicatorResult(isPassed: false, value: null);
@@ -299,12 +300,12 @@ class IndicatorUtils {
 
   /// ---------- RSI (Wilder's) ----------
   static bool isRsiBetween(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
     int period, {
     required double min,
     required double max,
   }) {
-    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final closes = engine.closes;
     if (closes.length < period + 1) return false;
 
     final deltas = <double>[];
@@ -374,7 +375,7 @@ class IndicatorUtils {
   /// ✅ Smart Adaptive ATR Check
   /// Combines price-based adaptive threshold + ATR rising trend detection.
   static bool isAtrGreaterThanAdaptive(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int atrPeriod = 7,
     double lowPriceMinPct = 0.004,
     double lowPriceMaxPct = 0.04,
@@ -382,12 +383,12 @@ class IndicatorUtils {
     double highPriceMaxPct = 0.03,
     double priceThreshold = 200.0,
   }) {
-    if (candles.length < atrPeriod + 2) return false;
-    CandleUtils.sortByTime(candles);
-    final arrs = CandleUtils.toArrays(candles);
-    final highs = arrs['high']!.cast<double>();
-    final lows = arrs['low']!.cast<double>();
-    final closes = arrs['close']!.cast<double>();
+    if (engine.candles.length < atrPeriod + 2) return false;
+    // sorted by engine
+    
+    final highs = engine.highs;
+    final lows = engine.lows;
+    final closes = engine.closes;
 
     final atrList = atrSeries(highs, lows, closes, period: atrPeriod);
     if (atrList.isEmpty) return false;
@@ -417,26 +418,26 @@ class IndicatorUtils {
   /// ---------- VWAP ----------
   /// If sessionBased = true, calculates VWAP for the session of the last candle only.
   static bool isCloseAboveVWAP(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     bool sessionBased = true,
   }) {
-    if (candles.isEmpty) return false;
-    CandleUtils.sortByTime(candles);
+    if (engine.candles.isEmpty) return false;
+    // sorted by engine
 
     if (!sessionBased) {
       // simple whole-list VWAP
       double tpVol = 0.0, volSum = 0.0;
-      for (var c in candles) {
+      for (var c in engine.candles) {
         final tp = (c.high + c.low + c.close) / 3.0;
         tpVol += tp * c.volume;
         volSum += c.volume;
       }
       if (volSum == 0) return false;
       final vwap = tpVol / volSum;
-      return candles.last.close >= vwap;
+      return engine.candles.last.close >= vwap;
     } else {
-      // session-based: find last trading day's candles and compute VWAP for them
-      final grouped = CandleUtils.groupByDate(candles);
+      // session-based: find last trading day's engine.candles and compute VWAP for them
+      final grouped = engine.groupedByDate;
       final dates = grouped.keys.toList()..sort();
       final lastDate = dates.last;
       final sessionCandles = grouped[lastDate]!;
@@ -454,18 +455,18 @@ class IndicatorUtils {
 
   /// ---------- ADX (14,14) ----------
   static bool isAdxBullish(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int diPeriod = 10,
     int adxSmoothing = 8,
     double minAdx = 20.0,
   }) {
-    if (candles.length < diPeriod + adxSmoothing + 2) return false;
+    if (engine.candles.length < diPeriod + adxSmoothing + 2) return false;
 
-    CandleUtils.sortByTime(candles);
-    final arrs = CandleUtils.toArrays(candles);
-    final highs = arrs['high']!.cast<double>();
-    final lows = arrs['low']!.cast<double>();
-    final closes = arrs['close']!.cast<double>();
+    // sorted by engine
+    
+    final highs = engine.highs;
+    final lows = engine.lows;
+    final closes = engine.closes;
     final n = highs.length;
 
     final tr = <double>[];
@@ -551,15 +552,15 @@ class IndicatorUtils {
   /// ---------- Supertrend ----------
   /// Returns true if last close >= supertrend (bullish)
   static IndicatorResult isCloseAboveSupertrend(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int atrPeriod = 10,
     double multiplier = 3.0,
   }) {
-    CandleUtils.sortByTime(candles);
-    final arrs = CandleUtils.toArrays(candles);
-    final highs = arrs['high']!.cast<double>();
-    final lows = arrs['low']!.cast<double>();
-    final closes = arrs['close']!.cast<double>();
+    // sorted by engine
+    
+    final highs = engine.highs;
+    final lows = engine.lows;
+    final closes = engine.closes;
 
     final n = closes.length;
     if (n < atrPeriod + 1) return IndicatorResult(isPassed: false, value: null);
@@ -637,17 +638,17 @@ class IndicatorUtils {
   /// ---------- Supertrend Series for Charting ----------
   /// Returns List of supertrend values matching candle indices
   static List<double> supertrendSeries(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int atrPeriod = 10,
     double multiplier = 3.0,
   }) {
-    if (candles.isEmpty) return [];
+    if (engine.candles.isEmpty) return [];
 
-    CandleUtils.sortByTime(candles);
-    final arrs = CandleUtils.toArrays(candles);
-    final highs = arrs['high']!.cast<double>();
-    final lows = arrs['low']!.cast<double>();
-    final closes = arrs['close']!.cast<double>();
+    // sorted by engine
+    
+    final highs = engine.highs;
+    final lows = engine.lows;
+    final closes = engine.closes;
 
     final n = closes.length;
     if (n < atrPeriod + 1) return List<double>.filled(n, 0.0);
@@ -721,18 +722,18 @@ class IndicatorUtils {
   /// ---------- Volume Breakout ----------
   /// checks latest volume > EMA(volume, period) * factor
   static ({bool baseVolumeOk, bool isVolumeSpike40x}) checkDualVolumeStrength(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int skipCandles = 2,
   }) {
-    if (candles.length < 100) {
+    if (engine.candles.length < 100) {
       return (baseVolumeOk: false, isVolumeSpike40x: false);
     }
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
 
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = c.timestamp;
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
@@ -788,13 +789,13 @@ class IndicatorUtils {
 
     final otherCandlesAvgX = otherAvgVolume / prevAvg;
 
-    // final has200k = has200KVolumeInLast3Candles(candles);
+    // final has200k = has200KVolumeInLast3Candles(engine.candles);
 
     final basePassed = lastCandleX >= 5.0 && otherCandlesAvgX >= 2.0;
 
     final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
 
-    debugPrint("${candles.last.timestamp} -> "
+    debugPrint("${engine.candles.last.timestamp} -> "
         "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
         "LastX: ${lastCandleX.toStringAsFixed(2)}, "
         "OtherX: ${otherCandlesAvgX.toStringAsFixed(2)}");
@@ -806,19 +807,19 @@ class IndicatorUtils {
   }
 
   static bool isTodayVolumeAbove1000(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    if (candles.isEmpty) return false;
+    if (engine.candles.isEmpty) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
     final today = DateTime(
-      candles.last.timestamp.year,
-      candles.last.timestamp.month,
-      candles.last.timestamp.day,
+      engine.candles.last.timestamp.year,
+      engine.candles.last.timestamp.month,
+      engine.candles.last.timestamp.day,
     );
 
-    for (final candle in candles) {
+    for (final candle in engine.candles) {
       final d = DateTime(
         candle.timestamp.year,
         candle.timestamp.month,
@@ -832,11 +833,11 @@ class IndicatorUtils {
     return true;
   }
 
-  static double getOtherCandlesAvgX(List<HistoricalDataModel> candles) {
-    if (candles.length < 100) return 0.0;
-    CandleUtils.sortByTime(candles);
+  static double getOtherCandlesAvgX(IndicatorEngine engine) {
+    if (engine.candles.length < 100) return 0.0;
+    // sorted by engine
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = c.timestamp;
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
@@ -862,11 +863,11 @@ class IndicatorUtils {
     return otherAvgVolume / prevAvg;
   }
 
-  static double getAllCandlesAvgX(List<HistoricalDataModel> candles) {
-    if (candles.length < 100) return 0.0;
-    CandleUtils.sortByTime(candles);
+  static double getAllCandlesAvgX(IndicatorEngine engine) {
+    if (engine.candles.length < 100) return 0.0;
+    // sorted by engine
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = c.timestamp;
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
@@ -890,11 +891,11 @@ class IndicatorUtils {
     return todayAvgVolume / prevAvg;
   }
 
-  static double getTodayAvgVolume(List<HistoricalDataModel> candles) {
-    if (candles.isEmpty) return 0.0;
-    CandleUtils.sortByTime(candles);
+  static double getTodayAvgVolume(IndicatorEngine engine) {
+    if (engine.candles.isEmpty) return 0.0;
+    // sorted by engine
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = c.timestamp;
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
@@ -908,28 +909,28 @@ class IndicatorUtils {
   }
 
   static bool has200KVolumeInLast3Candles(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    if (candles.length < 3) return false;
+    if (engine.candles.length < 3) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
-    final last3Candles = candles.sublist(candles.length - 3);
+    final last3Candles = engine.candles.sublist(engine.candles.length - 3);
 
     return last3Candles.any((c) => c.volume >= 50000);
   }
 
   static bool isVolumeBreakoutStrongV2(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
     int failureCount,
   ) {
-    if (candles.length < 100) return false;
+    if (engine.candles.length < 100) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
 
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = c.timestamp;
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
@@ -945,7 +946,7 @@ class IndicatorUtils {
 
     if (todayCandles.length < 3) return false;
 
-    /// today candles
+    /// today engine.candles
     final todayFiltered =
         todayCandles.length > 3 ? todayCandles.toList() : todayCandles;
 
@@ -998,12 +999,12 @@ class IndicatorUtils {
       }
     }
 
-    final currentPrice = candles.last.close;
+    final currentPrice = engine.candles.last.close;
     final isAbove5DayHigh = currentPrice > fiveDayHigh;
 
     /// Debug
     debugPrint("-------- Volume Debug --------");
-    debugPrint("Time : ${candles.last.timestamp}");
+    debugPrint("Time : ${engine.candles.last.timestamp}");
     debugPrint("Today Avg Volume : $todayAvg");
     debugPrint("Prev Avg Volume  : $prevAvg");
     debugPrint("Spike Ratio      : ${ratio.toStringAsFixed(2)}x");
@@ -1015,16 +1016,16 @@ class IndicatorUtils {
     return (todayAvg > prevAvg * 5) && todayAvg > 10000;
   }
 
-  static bool isVolumeBreakoutStrong(List<HistoricalDataModel> candles) {
-    if (candles.length < 30) return false;
+  static bool isVolumeBreakoutStrong(IndicatorEngine engine) {
+    if (engine.candles.length < 30) return false;
 
-    if (candles.last.timestamp.hour == 10 &&
-        candles.last.timestamp.minute == 10) {
-      debugPrint("Checking Volume Breakout for ${candles.last.timestamp}");
+    if (engine.candles.last.timestamp.hour == 10 &&
+        engine.candles.last.timestamp.minute == 10) {
+      debugPrint("Checking Volume Breakout for ${engine.candles.last.timestamp}");
     }
 
-    CandleUtils.sortByTime(candles);
-    final volumes = candles.map((e) => e.volume.toDouble()).toList();
+    // sorted by engine
+    final volumes = engine.candles.map((e) => e.volume.toDouble()).toList();
     final last = volumes.last;
 
     // EMA20
@@ -1052,10 +1053,10 @@ class IndicatorUtils {
   }
 
   static VolumeScoreResult getVolumeScore(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     int lookback = 20,
   }) {
-    if (candles.length < lookback + 1) {
+    if (engine.candles.length < lookback + 1) {
       return const VolumeScoreResult(
         score: 0,
         multiplier: 0,
@@ -1065,10 +1066,10 @@ class IndicatorUtils {
       );
     }
 
-    final current = candles.last;
+    final current = engine.candles.last;
 
     final history =
-        candles.sublist(candles.length - lookback - 1, candles.length - 1);
+        engine.candles.sublist(engine.candles.length - lookback - 1, engine.candles.length - 1);
 
     // Average Volume
     final avgVolume =
@@ -1146,16 +1147,16 @@ Final Score    : $score / 100
   }
 
   static bool isVolumeBreakoutStrongV3(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
     int failureCount,
   ) {
-    if (candles.length < 100) return false;
+    if (engine.candles.length < 100) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
     final Map<DateTime, List<HistoricalDataModel>> dayMap = {};
 
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = c.timestamp;
       final key = DateTime(d.year, d.month, d.day);
       dayMap.putIfAbsent(key, () => []).add(c);
@@ -1244,7 +1245,7 @@ Final Score    : $score / 100
 
     /// ===============================
     /// RISING VOLUME CHECK
-    /// first 4 candles vs last 4 candles
+    /// first 4 engine.candles vs last 4 engine.candles
     /// ===============================
     final firstPart = todayCandles.take(4).toList();
     final lastPart = todayCandles.skip(todayCandles.length - 4).toList();
@@ -1300,11 +1301,11 @@ Final Score    : $score / 100
 
   /// today close >= yesterday high * (1 + pct)
   static bool isCloseAboveYesterdayHighByPct(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     double pct = 0.02,
   }) {
-    CandleUtils.sortByTime(candles);
-    final grouped = CandleUtils.groupByDate(candles);
+    // sorted by engine
+    final grouped = engine.groupedByDate;
     final dates = grouped.keys.toList()..sort();
     if (dates.length < 2) return false;
     final lastDate = dates.last;
@@ -1325,11 +1326,11 @@ Final Score    : $score / 100
   }
 
   static bool isNotAbove10Percent(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
-    final grouped = CandleUtils.groupByDate(candles);
+    final grouped = engine.groupedByDate;
     final dates = grouped.keys.toList()..sort();
 
     if (dates.length < 2) return false;
@@ -1368,11 +1369,11 @@ Final Score    : $score / 100
   /// today close >= yesterday high * (1 + pct)
   /// AND yesterday was bullish (open < close)
   static bool isCloseAboveYesterdayHighByPctAndYesterdayBullish(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     double pct = 0.01, // 1%
   }) {
-    CandleUtils.sortByTime(candles);
-    final grouped = CandleUtils.groupByDate(candles);
+    // sorted by engine
+    final grouped = engine.groupedByDate;
     final dates = grouped.keys.toList()..sort();
     if (dates.length < 2) return false;
 
@@ -1455,7 +1456,7 @@ Final Score    : $score / 100
   }
 
   static bool isYesterdayAverageVolumeAbove(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
     String token, {
     int avgVolumeThreshold = 3000,
   }) {
@@ -1463,7 +1464,7 @@ Final Score    : $score / 100
     final now = DateTime.now();
     final yesterday = Utilities.getLastWorkingDay(now);
 
-    final yesterdayVolumes = candles
+    final yesterdayVolumes = engine.candles
         .where((c) {
           final ts = c.timestamp.toLocal();
           return ts.year == yesterday.year &&
@@ -1484,27 +1485,27 @@ Final Score    : $score / 100
   }
 
   static bool isNearEMA20OrSupertrendAuto(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     double tolerancePercent = 0.25, // ±0.10%
     int emaPeriod = 20,
     int atrPeriod = 10,
     double supertrendMultiplier = 3.0,
   }) {
-    if (candles.length < 30) return false;
+    if (engine.candles.length < 30) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
     final tolerance = tolerancePercent / 100;
 
     // -------- EMA 20 --------
-    final closes = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final closes = engine.closes;
     final emaList = MathUtils.emaAligned(closes, emaPeriod);
     final ema20 = emaList.isNotEmpty ? emaList.last : null;
     if (ema20 == null || ema20 == 0) return false;
 
     // -------- Supertrend --------
     final stResult = isCloseAboveSupertrend(
-      candles,
+      engine,
       atrPeriod: atrPeriod,
       multiplier: supertrendMultiplier,
     );
@@ -1523,12 +1524,12 @@ Final Score    : $score / 100
     return nearEMA20 || nearSupertrend;
   }
 
-  /// Checks if the average volume of the previous `period` candles is > `minAvgVolume`
-  static bool hasHighAverageVolume(List<HistoricalDataModel> candles,
+  /// Checks if the average volume of the previous `period` engine.candles is > `minAvgVolume`
+  static bool hasHighAverageVolume(IndicatorEngine engine,
       {int period = 5, double minAvgVolume = 50000}) {
-    if (candles.length < period) return false;
+    if (engine.candles.length < period) return false;
 
-    final lastCandles = candles.sublist(candles.length - period);
+    final lastCandles = engine.candles.sublist(engine.candles.length - period);
 
     double totalVolume = 0;
     for (var candle in lastCandles) {
@@ -1539,12 +1540,12 @@ Final Score    : $score / 100
     return avgVolume > minAvgVolume;
   }
 
-  static bool isVolumeOk(List<HistoricalDataModel> candles) {
+  static bool isVolumeOk(IndicatorEngine engine) {
     // Volume check
-    List<int> volumes = candles.map((e) => e.volume).toList();
+    List<int> volumes = engine.candles.map((e) => e.volume).toList();
 
     // ❌ NEW RULE:
-    // If ANY of last 8 candles has volume <= 2000 → reject
+    // If ANY of last 8 engine.candles has volume <= 2000 → reject
     final last8 = volumes.sublist(volumes.length - 10);
     if (last8.any((v) => v <= 1000)) {
       return false;
@@ -1561,12 +1562,12 @@ Final Score    : $score / 100
       if (isWorkingDay) {
         volumeToCheck = volumes.last;
       } else {
-        final lastWorkDayCandle = candles.lastWhere((c) {
+        final lastWorkDayCandle = engine.candles.lastWhere((c) {
           final ts = c.timestamp.toLocal();
           return ts.year == lastWorking.year &&
               ts.month == lastWorking.month &&
               ts.day == lastWorking.day;
-        }, orElse: () => candles.last);
+        }, orElse: () => engine.candles.last);
         volumeToCheck = lastWorkDayCandle.volume;
       }
     }
@@ -1575,11 +1576,11 @@ Final Score    : $score / 100
   }
 
   /// 🔹 Checks if the total volume of the previous day is > 1M
-  static bool isYesterdayTotalVolumeAbove1M(List<HistoricalDataModel> candles) {
-    if (candles.isEmpty) return false;
+  static bool isYesterdayTotalVolumeAbove1M(IndicatorEngine engine) {
+    if (engine.candles.isEmpty) return false;
 
     // 1. apply filter date wise
-    final grouped = CandleUtils.groupByDate(candles);
+    final grouped = engine.groupedByDate;
     final dates = grouped.keys.toList()..sort();
 
     if (dates.length < 2) return false;
@@ -1588,7 +1589,7 @@ Final Score    : $score / 100
     final secondLastDate = dates[dates.length - 2];
     final secondLastDayCandles = grouped[secondLastDate]!;
 
-    // 3. add all candles volume
+    // 3. add all engine.candles volume
     final totalVolume =
         secondLastDayCandles.fold<int>(0, (sum, c) => sum + c.volume);
 
@@ -1597,7 +1598,7 @@ Final Score    : $score / 100
   }
 
   static bool breakoutRetestBuyEntry({
-    required List<HistoricalDataModel> candles,
+    required IndicatorEngine engine,
     // Indicator params
     int emaPeriod = 20,
     int atrPeriod = 10,
@@ -1605,15 +1606,15 @@ Final Score    : $score / 100
     double rsiMin = 55,
     double tolerancePercent = 0.25, // EMA/ST proximity
   }) {
-    if (candles.length < 30) return false;
+    if (engine.candles.length < 30) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
-    final arrs = CandleUtils.toArrays(candles);
-    final closes = arrs['close']!.cast<double>();
-    final lows = arrs['low']!.cast<double>();
-    final opens = arrs['open']!.cast<double>();
-    final volumes = arrs['volume']!.cast<int>();
+    
+    final closes = engine.closes;
+    final lows = engine.lows;
+    final opens = engine.opens;
+    final volumes = engine.volumes;
 
     final lastClose = closes.last;
     final lastLow = lows.last;
@@ -1627,7 +1628,7 @@ Final Score    : $score / 100
 
     // ---------------- Supertrend ----------------
     final stResult = isCloseAboveSupertrend(
-      candles,
+      engine,
       atrPeriod: atrPeriod,
       multiplier: supertrendMultiplier,
     );
@@ -1646,7 +1647,7 @@ Final Score    : $score / 100
     if (!retest) return false;
 
     // ---------------- RSI ----------------
-    final rsiOk = isRsiBetween(candles, 14, min: rsiMin, max: 80);
+    final rsiOk = isRsiBetween(engine, 14, min: rsiMin, max: 80);
     if (!rsiOk) return false;
 
     // ---------------- Volume confirmation ----------------
@@ -1664,19 +1665,19 @@ Final Score    : $score / 100
   }
 
   static bool isNearEMA20OrSupertrendAutoForDay(
-    List<HistoricalDataModel> candles, {
+    IndicatorEngine engine, {
     double tolerancePercent = 2.0,
     int emaPeriod = 20,
     int atrPeriod = 10,
     double supertrendMultiplier = 3.0,
   }) {
-    if (candles.length < 60) return false;
+    if (engine.candles.length < 60) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
     final tolerance = tolerancePercent / 100;
 
-    final closeList = CandleUtils.toArrays(candles)['close']!.cast<double>();
+    final closeList = engine.closes;
 
     final emaList = MathUtils.emaAligned(closeList, emaPeriod);
     if (emaList.isEmpty) return false;
@@ -1685,7 +1686,7 @@ Final Score    : $score / 100
     if (ema20 == 0) return false;
 
     final stResult = isCloseAboveSupertrend(
-      candles,
+      engine,
       atrPeriod: atrPeriod,
       multiplier: supertrendMultiplier,
     );
@@ -1693,7 +1694,7 @@ Final Score    : $score / 100
     final supertrend = stResult.value;
     if (supertrend == null || supertrend == 0) return false;
 
-    final latest = candles.last;
+    final latest = engine.candles.last;
 
     final low = latest.low;
     final close = latest.close;
@@ -1717,19 +1718,19 @@ Final Score    : $score / 100
     return nearEMA20 || nearSupertrend;
   }
 
-  static bool wasYesterdayGreenFrom5Min(List<HistoricalDataModel> candles) {
-    if (candles.isEmpty) return false;
+  static bool wasYesterdayGreenFrom5Min(IndicatorEngine engine) {
+    if (engine.candles.isEmpty) return false;
 
-    CandleUtils.sortByTime(candles);
+    // sorted by engine
 
-    final now = candles.last.timestamp;
+    final now = engine.candles.last.timestamp;
     final yesterdayDate = DateTime(
       now.year,
       now.month,
       now.day,
     ).subtract(const Duration(days: 1));
 
-    final yCandles = candles.where((c) {
+    final yCandles = engine.candles.where((c) {
       final t = c.timestamp;
       return t.year == yesterdayDate.year &&
           t.month == yesterdayDate.month &&
@@ -1745,15 +1746,15 @@ Final Score    : $score / 100
   }
 
   static bool isPreviousTradingDayVolumeAbove1M(
-    List<HistoricalDataModel> candles,
+    IndicatorEngine engine,
   ) {
-    if (candles.isEmpty) return false;
+    if (engine.candles.isEmpty) return false;
 
-    candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    engine.candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     final Map<DateTime, double> dayVolume = {};
 
-    for (final c in candles) {
+    for (final c in engine.candles) {
       final d = DateTime(
         c.timestamp.year,
         c.timestamp.month,

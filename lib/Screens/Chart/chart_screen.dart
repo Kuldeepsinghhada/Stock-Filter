@@ -3,6 +3,7 @@ import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/chart_data.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:stock_demo/Utils/math_utils.dart';
 import 'package:stock_demo/Utils/candle_utils.dart';
 import '../../Widgets/custom_trading_chart.dart';
@@ -94,7 +95,7 @@ class _ChartScreenState extends State<ChartScreen> {
 
     final closes = candles.map((c) => c.close).toList();
     final ema20 = MathUtils.emaAligned(closes, 20);
-    final supertrend = IndicatorUtils.supertrendSeries(candles);
+    final supertrend = IndicatorUtils.supertrendSeries(IndicatorEngine(candles));
 
     setState(() {
       _chartData.clear();

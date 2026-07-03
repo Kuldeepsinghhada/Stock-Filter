@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -33,153 +34,109 @@ class FilterUtils {
 
   static bool passesFilter(List<HistoricalDataModel> candles, String token,
       {bool isHistoryCheck = false}) {
-    final timeStr =
-        candles.isNotEmpty ? candles.last.timestamp.toString() : "Unknown Time";
+    if (candles.isEmpty) return false;
 
-    var isLaseChanged = IndicatorUtils.isNotAlreadyMoved(candles);
+    final timeStr = candles.last.timestamp.toString();
+    final engine = IndicatorEngine(candles);
+
+    void logMsg(String msg) {
+      if (!isHistoryCheck) {
+        debugPrint(msg);
+      }
+    }
+
+    // 1. Volume
+    int minVolume = 15000;
+    if (engine.last.volume < minVolume) {
+      logMsg(
+          "Failed: $token at $timeStr - Reason: Low Volume (${engine.last.volume})");
+      return false;
+    }
+
+    // 2. AlreadyMoved
+    var isLaseChanged = IndicatorUtils.isNotAlreadyMoved(engine);
     if (!isLaseChanged) {
-      debugPrint(
+      logMsg(
           "Failed: $token at $timeStr - Reason: Last Candle Already Moved Significantly");
       return false;
     }
 
-    if (!isHistoryCheck) {
-      var isPercentChange = IndicatorUtils.isNotAbove10Percent(candles);
-      if (!isPercentChange) {
-        debugPrint("Failed: $token at $timeStr - Reason: Price Change > 13%");
-        return false;
-      }
-    }
-
-    int minVolume = isHistoryCheck ? 15000 : 15000;
-    if (candles.last.volume < minVolume) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
-      return false;
-    }
-
-    var rangeExpansion = IndicatorUtils.getRangeExpansion(candles);
+    // 3. RangeExpansion
+    var rangeExpansion = IndicatorUtils.getRangeExpansion(engine);
     if (rangeExpansion > 6) {
-      debugPrint(
+      logMsg(
           "Failed: $token at $timeStr - Reason: Range Expansion ($rangeExpansion)");
       return false;
     }
 
-    // Max 2 continuous green candles check
-    // if (candles.length >= 3) {
-    //   final last2 = candles[candles.length - 2];
-    //   final last3 = candles[candles.length - 3];
-    //
-    //   bool isGreen(HistoricalDataModel c) => c.close > c.open;
-    //
-    //   var isOverExtend = isGreen(last2) && isGreen(last3);
-    //   if (isOverExtend) {
-    //     debugPrint(
-    //         "Failed: $token at $timeStr - Reason: 3 Continuous Green Candles");
+    // 4. PriceChange
+    // if (!isHistoryCheck) {
+    //   var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
+    //   if (!isPercentChange) {
+    //     logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
     //     return false;
     //   }
     // }
 
-    // if (candles.last.volume < 80000) {
-    //   debugPrint(
-    //       "Failed: $token at $timeStr - Reason: Low Volume (${candles.last.volume})");
-    //   return false;
-    // }
+    // 5. VolumeSpike
+    final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
+    if (!volumeStrength.isVolumeSpike40x) {
+      return false;
+    }
 
-    // var isNearResistance = IndicatorUtils.isNearResistance(candles);
-    // if (isNearResistance) {
-    //   debugPrint("Failed: $token at $timeStr - Reason: Near Resistance Level");
-    //   return false;
-    // }
-
-    // var isAlreadyMoved = IndicatorUtils.isAlreadyMoved(candles);
-    // if (isAlreadyMoved) {
-    //   debugPrint(
-    //       "Failed: $token at $timeStr - Reason: Already Moved Significantly");
-    //   return false;
-    // }
-    //
-    // var isProbabilityScore = IndicatorUtils.probabilityScore(candles);
-    // if(isProbabilityScore > 70){
-    //   debugPrint(
-    //       "Failed: $token at $timeStr - Reason: Low Probability Score");
-    //   return false;
-    // }
-
-    // var isAbove10Days = IndicatorUtils.isAboveLast10DayHigh(candles);
-    // if (!isAbove10Days) {
-    //   debugPrint(
-    //       "Failed: $token at $timeStr - Reason: Not Above Last 10 Days High");
-    //   return false;
-    // }
-
-    // 3. EMA20 Check
+    // 6. EMA
     if (cachedIsEma20Enabled) {
-      bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(candles, 20).isPassed;
+      bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(engine, 20).isPassed;
       if (!aboveEma20) {
-        debugPrint("Failed: $token at $timeStr - Reason: Below EMA20");
+        logMsg("Failed: $token at $timeStr - Reason: Below EMA20");
         return false;
       }
     }
 
-    // 4. Supertrend Check
+    // 7. ATR
+    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(engine);
+    if (!atrOk) {
+      logMsg("Failed: $token at $timeStr - Reason: Low ATR");
+      return false;
+    }
+
+    // 8. Supertrend
     if (cachedIsSupertrendEnabled) {
       bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-        candles,
+        engine,
         atrPeriod: 10,
         multiplier: 3,
       ).isPassed;
       if (!aboveSupertrend) {
-        debugPrint("Failed: $token at $timeStr - Reason: Below Supertrend");
+        logMsg("Failed: $token at $timeStr - Reason: Below Supertrend");
         return false;
       }
     }
 
-    // 5. ATR Check
-    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(candles);
-    if (!atrOk) {
-      debugPrint("Failed: $token at $timeStr - Reason: Low ATR");
-      return false;
-    }
-
-    // 6. ADX Check
-    bool adxRes = IndicatorUtils.isAdxBullish(candles);
+    // 9. ADX
+    bool adxRes = IndicatorUtils.isAdxBullish(engine);
     if (!adxRes) {
-      debugPrint("Failed: $token at $timeStr - Reason: ADX Not Bullish");
+      logMsg("Failed: $token at $timeStr - Reason: ADX Not Bullish");
       return false;
     }
 
-    // 7. Score Check (getSmartPriceActionScore)
-    // int score = getIntradayMomentumScore(candles);
-    // if (score < 80) {
-    //   debugPrint(
-    //       "Failed: $token at $timeStr - Reason: Low Smart Score ($score)");
-    //   return false;
-    // }
-
-    // 9. Day Pass Check (requires converting to daily, slightly heavier)
-    final dailyCandles = Utilities.convertToDaily(candles);
-    final isDayPass = isPassHistoryChart(dailyCandles, token, 1);
+    // 10. History
+    final isDayPass = isPassHistoryChart(engine.dailyCandles, token, 1);
     if (!isDayPass) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Day History Chart Failed");
+      logMsg("Failed: $token at $timeStr - Reason: Day History Chart Failed");
       return false;
     }
-    // 10. Pattern Check (requires daily candles)
+
+    // 11. Pattern
     // if (cachedIsPatternEnabled) {
-    //   var isPattern = BullishPatternDetector.isBullishStructure(dailyCandles);
+    //   var isPattern = BullishPatternDetector.isBullishStructure(engine.dailyCandles);
     //   if (!isPattern.bullish) {
-    //     debugPrint("Failed: $token at $timeStr - Reason: No Bullish Pattern");
+    //     logMsg("Failed: $token at $timeStr - Reason: No Bullish Pattern");
     //     return false;
     //   }
     // }
 
-    // 2. Volume Avg Check
-    final volumeStrength = IndicatorUtils.checkDualVolumeStrength(candles);
-    if (!volumeStrength.isVolumeSpike40x) {
-      return false;
-    }
-    debugPrint("Passed : $token");
+    logMsg("Passed : $token");
     return true;
   }
 
@@ -264,8 +221,10 @@ class FilterUtils {
     }
 
     // Supertrend calculation
-    final stRes = IndicatorUtils.isCloseAboveSupertrend(candles,
-        atrPeriod: 10, multiplier: 3);
+    final stRes = IndicatorUtils.isCloseAboveSupertrend(
+        IndicatorEngine(candles),
+        atrPeriod: 10,
+        multiplier: 3);
     if (stRes.value != null && stRes.value! > 0) {
       final stValue = stRes.value!;
       final distanceToSt = ((currentLow - stValue).abs() / stValue);
@@ -345,15 +304,17 @@ class FilterUtils {
         return isPass;
 
       case 15:
-        bool isAboveSupertrend =
-            IndicatorUtils.isCloseAboveSupertrend(historyCandles).isPassed;
+        bool isAboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+                IndicatorEngine(historyCandles))
+            .isPassed;
         return isAboveSupertrend;
 
       case 1:
         bool isEMA20 =
-            IndicatorUtils.isCloseAboveEMA(historyCandles, 20).isPassed;
+            IndicatorUtils.isCloseAboveEMA(IndicatorEngine(historyCandles), 20)
+                .isPassed;
         bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-          historyCandles,
+          IndicatorEngine(historyCandles),
           atrPeriod: 10,
         ).isPassed;
         return isEMA20 || aboveSupertrend;
@@ -505,7 +466,7 @@ class FilterUtils {
     // VWAP
     // =====================================================
 
-    final vwap = IndicatorUtils.isCloseAboveVWAP(candles);
+    final vwap = IndicatorUtils.isCloseAboveVWAP(IndicatorEngine(candles));
 
     if (vwap) {
       score += 20;
@@ -587,7 +548,7 @@ class FilterUtils {
     // =====================================================
 
     final adx = IndicatorUtils.isAdxBullish(
-      candles,
+      IndicatorEngine(candles),
       diPeriod: 14,
     );
     if (adx) {
@@ -904,8 +865,10 @@ class FilterUtils {
           if (targetCandle.timestamp.day == targetDate.day) {
             alertCandle = targetCandle;
             entryPrice = targetCandle.close;
-            final stRes = IndicatorUtils.isCloseAboveSupertrend(historySoFar,
-                atrPeriod: 10, multiplier: 3);
+            final stRes = IndicatorUtils.isCloseAboveSupertrend(
+                IndicatorEngine(historySoFar),
+                atrPeriod: 10,
+                multiplier: 3);
             supertrendValue = stRes.value;
             break;
           }
@@ -920,8 +883,10 @@ class FilterUtils {
               entryPrice = targetCandle.close;
 
               // Need supertrend value at this point
-              final stRes = IndicatorUtils.isCloseAboveSupertrend(historySoFar,
-                  atrPeriod: 10, multiplier: 3);
+              final stRes = IndicatorUtils.isCloseAboveSupertrend(
+                  IndicatorEngine(historySoFar),
+                  atrPeriod: 10,
+                  multiplier: 3);
               supertrendValue = stRes.value;
               break; // Check only 1st time buy alert
             }

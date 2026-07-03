@@ -1,5 +1,6 @@
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 
 class AIScoreCalculator {
   // ================= PATTERN DETECTOR =================
@@ -47,7 +48,7 @@ class AIScoreCalculator {
     }
 
     // 4️⃣ EMA20 Bounce
-    double ema20 = IndicatorUtils.isCloseAboveEMA(candles, 20).value;
+    double ema20 = IndicatorUtils.isCloseAboveEMA(IndicatorEngine(candles), 20).value;
 
     if (last.low <= ema20 && last.close > ema20) {
       patterns.add("EMA20 Bounce");
@@ -195,12 +196,12 @@ class AIScoreCalculator {
     final adx = calculateADX();
     final avgVol20 = sma(volumes, 20);
 
-    final supertrendVals = IndicatorUtils.supertrendSeries(candles);
+    final supertrendVals = IndicatorUtils.supertrendSeries(IndicatorEngine(candles));
     final currentSupertrend =
         supertrendVals.isNotEmpty ? supertrendVals.last : 0.0;
 
     final isNearBuyZone =
-        IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(candles);
+        IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(IndicatorEngine(candles));
 
     final patterns = detectBullishPatterns(candles);
 
@@ -603,7 +604,7 @@ class AIScoreCalculator {
     }
 
     final isNearBuyZone =
-        IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(candles);
+        IndicatorUtils.isNearEMA20OrSupertrendAutoForDay(IndicatorEngine(candles));
     if (isNearBuyZone) {
       score += 10;
     }

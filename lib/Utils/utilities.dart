@@ -13,6 +13,7 @@ import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'filter_utils.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/APIService/api_service.dart';
 import 'package:stock_demo/APIService/end_point.dart';
@@ -81,43 +82,20 @@ class Utilities {
   }
 
   // ------------Notification Process---------------
-  static Future<Map<String, double>> calculateTargetAndStoploss(
+  static Future<Map<String, double>?> calculateTargetAndStoploss(
       StockModel stock) async {
     final entryPrice = stock.lastPrice ?? 0.0;
     final target = entryPrice * 1.02;
 
     double stoploss = 0.0;
-    try {
-      final interval = "minute";
-      final today = DateTime.now();
-      final from = Utilities.getBusinessDaysAgo(today, 5);
-      final to =
-          "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-
-      final response = await ApiService.instance.apiCall(
-        "${APIEndPoint.getHistoricalData}${stock.token}/$interval?from=$from&to=$to",
-        HttpRequestType.get,
-        null,
-      );
-
-      if (response.status) {
-        final candlesList =
-            (response.data["data"]["candles"] as List<dynamic>?) ?? [];
-        final historyOneMin = candlesList
-            .map((e) => HistoricalDataModel.fromList(e as List<dynamic>))
-            .toList();
-
-        if (historyOneMin.isNotEmpty) {
-          final supertrendVals = IndicatorUtils.supertrendSeries(historyOneMin);
-          if (supertrendVals.isNotEmpty) {
-            final currentSupertrend = supertrendVals.last;
-            stoploss =
-                currentSupertrend * 0.9975; // Calculate 0.25% below supertrend
-          }
-        }
+    if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
+      final supertrendVals =
+          IndicatorUtils.supertrendSeries(IndicatorEngine(stock.historyFiveMin!));
+      if (supertrendVals.isNotEmpty) {
+        final currentSupertrend = supertrendVals.last;
+        stoploss = currentSupertrend *
+            0.9975; // Calculate 0.25% below 5-min supertrend
       }
-    } catch (e) {
-      log("Error fetching 1 min historical data for stoploss: $e");
     }
 
     if (stoploss == 0.0) {
@@ -156,12 +134,14 @@ class Utilities {
       double volX = 0.0;
       double todayAvgVol = 0.0;
       if (stock.historyFiveMin != null) {
-        volX = IndicatorUtils.getAllCandlesAvgX(stock.historyFiveMin!);
-        todayAvgVol = IndicatorUtils.getTodayAvgVolume(stock.historyFiveMin!);
+        volX = IndicatorUtils.getAllCandlesAvgX(IndicatorEngine(stock.historyFiveMin!));
+        todayAvgVol = IndicatorUtils.getTodayAvgVolume(IndicatorEngine(stock.historyFiveMin!));
       }
 
       if (existingIndex == -1) {
         final calc = await calculateTargetAndStoploss(stock);
+        if (calc == null) continue; // Skip if trade is rejected
+
         final target = calc["target"] ?? 0.0;
         final stoploss = calc["stoploss"] ?? 0.0;
         final price = calc["price"] ?? (stock.lastPrice ?? 0.0);
@@ -522,12 +502,17 @@ class Utilities {
   ) {
     if (fiveMinCandles.isEmpty) return [];
 
-    final Map<String, List<HistoricalDataModel>> grouped = {};
+    final Map<int, List<HistoricalDataModel>> grouped = {};
 
+    int? lastKey;
     for (var c in fiveMinCandles) {
-      final dayKey =
-          "${c.timestamp.year}-${c.timestamp.month}-${c.timestamp.day}";
-      grouped.putIfAbsent(dayKey, () => []).add(c);
+      if (lastKey == null || 
+          (lastKey ~/ 10000) != c.timestamp.year || 
+          ((lastKey % 10000) ~/ 100) != c.timestamp.month || 
+          (lastKey % 100) != c.timestamp.day) {
+        lastKey = c.timestamp.year * 10000 + c.timestamp.month * 100 + c.timestamp.day;
+      }
+      grouped.putIfAbsent(lastKey, () => []).add(c);
     }
 
     final daily = <HistoricalDataModel>[];
@@ -627,17 +612,21 @@ class Utilities {
         bool isRadarHit = false;
         bool buyAlert = false;
 
-        isRadarHit =
-            FilterUtils.passesFilter(historySoFar, model.token.toString(), isHistoryCheck: true);
-        if (isRadarHit) {
-          hasPassedToday = true;
+        if (!hasPassedToday) {
+          isRadarHit = FilterUtils.passesFilter(
+              historySoFar, model.token.toString(),
+              isHistoryCheck: true);
+          if (isRadarHit) {
+            hasPassedToday = true;
+          }
         }
+
         if (hasPassedToday) {
           buyAlert = FilterUtils.isNearBuyingZone5Min(historySoFar) != null;
         }
 
         if (isRadarHit || buyAlert) {
-          double volumeX = IndicatorUtils.getOtherCandlesAvgX(historySoFar);
+          double volumeX = IndicatorUtils.getOtherCandlesAvgX(IndicatorEngine(historySoFar));
 
           result.add(
             HistoryModel(

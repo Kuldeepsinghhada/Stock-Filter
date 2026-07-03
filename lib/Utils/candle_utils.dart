@@ -8,13 +8,19 @@ class CandleUtils {
     return candles;
   }
 
-  /// Group candles by date key (DateTime with year,month,day) -> list of candles for that date (sorted ascending)
   static Map<DateTime, List<HistoricalDataModel>> groupByDate(
       List<HistoricalDataModel> candles) {
     final grouped = <DateTime, List<HistoricalDataModel>>{};
+    DateTime? lastDate;
+    
     for (var c in candles) {
-      final d = DateTime(c.timestamp.year, c.timestamp.month, c.timestamp.day);
-      grouped.putIfAbsent(d, () => []).add(c);
+      if (lastDate == null || 
+          lastDate.year != c.timestamp.year || 
+          lastDate.month != c.timestamp.month || 
+          lastDate.day != c.timestamp.day) {
+        lastDate = DateTime(c.timestamp.year, c.timestamp.month, c.timestamp.day);
+      }
+      grouped.putIfAbsent(lastDate, () => []).add(c);
     }
     // ensure each day's candles sorted
     for (var k in grouped.keys) {

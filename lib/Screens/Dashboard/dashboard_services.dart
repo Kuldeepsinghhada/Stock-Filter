@@ -227,6 +227,9 @@ class DashboardService {
                 ),
               );
 
+              // Yield to event loop to prevent UI lag in live scanning
+              await Future.delayed(const Duration(milliseconds: 2));
+
               // Apply final filter check
               var isPassedCurrent =
                   FilterUtils.passesFilter(history, stock.token.toString());
