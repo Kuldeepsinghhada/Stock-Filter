@@ -37,7 +37,7 @@ class FilterUtils {
     if (candles.isEmpty) return false;
 
     if (candles.last.timestamp.hour == 9 &&
-        candles.last.timestamp.minute < 35) {
+        candles.last.timestamp.minute < 30) {
       // Skip filtering for the first 20 minutes of the trading day
       return false;
     }
@@ -90,11 +90,11 @@ class FilterUtils {
       return false;
     }
 
-    final volumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(engine);
-    if (cachedIsVolBreakoutEnabled && !volumeBreakout) {
-      logMsg("Failed: $token at $timeStr - Reason: Volume Breakout Not Strong");
-      return false;
-    }
+    // final volumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(engine);
+    // if (cachedIsVolBreakoutEnabled && !volumeBreakout) {
+    //   logMsg("Failed: $token at $timeStr - Reason: Volume Breakout Not Strong");
+    //   return false;
+    // }
 
     // 5. VolumeSpike
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
@@ -328,14 +328,25 @@ class FilterUtils {
         return isAboveSupertrend;
 
       case 1:
-        bool isEMA20 =
-            IndicatorUtils.isCloseAboveEMA(IndicatorEngine(historyCandles), 20)
-                .isPassed;
+        final engine = IndicatorEngine(historyCandles);
+        final emaResult = IndicatorUtils.isCloseAboveEMA(engine, 20);
+        bool isEMA20 = emaResult.isPassed;
         bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-          IndicatorEngine(historyCandles),
+          engine,
           atrPeriod: 10,
         ).isPassed;
-        return isEMA20 || aboveSupertrend;
+
+        if (!isEMA20 && !aboveSupertrend) return false;
+
+        final ema20 = emaResult.value;
+        if (ema20 != null) {
+          final todaysLow = historyCandles.last.low;
+          final distanceToEma = ((todaysLow - ema20).abs() / ema20);
+          if (distanceToEma > 0.02) {
+            return false;
+          }
+        }
+        return true;
 
       default:
         return false;

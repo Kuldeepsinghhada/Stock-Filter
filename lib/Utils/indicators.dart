@@ -1543,27 +1543,33 @@ Final Score    : $score / 100
   }
 
   static bool isVolumeOk(IndicatorEngine engine) {
-    final now = DateTime.now();
+    if (engine.candles.isEmpty) return false;
 
-    // Today's candles only
-    final todayCandles = engine.candles.where((c) {
+    // Last candle ki date
+    final lastDate = engine.candles.last.timestamp.toLocal();
+
+    // Sirf usi date ki candles
+    final dayCandles = engine.candles.where((c) {
       final ts = c.timestamp.toLocal();
-      return ts.year == now.year && ts.month == now.month && ts.day == now.day;
+      return ts.year == lastDate.year &&
+          ts.month == lastDate.month &&
+          ts.day == lastDate.day;
     }).toList();
 
-    if (todayCandles.isEmpty) {
+    if (dayCandles.isEmpty) return false;
+
+    // Agar sirf last 8 candles check karni hain to ye use karo
+    // final candlesToCheck = dayCandles.length > 8
+    //     ? dayCandles.sublist(dayCandles.length - 8)
+    //     : dayCandles;
+
+    // Agar poore din ki candles check karni hain
+    if (dayCandles.any((c) => c.volume <= 1000)) {
       return false;
     }
 
-    // Every today's candle should have volume > 1000
-// Check only last 8 candles of today
-    final candlesToCheck = todayCandles;
-
-    if (candlesToCheck.any((c) => c.volume <= 1000)) {
-      return false;
-    }
-    // Last candle volume should be > 30000
-    return todayCandles.last.volume > 30000;
+    // Last candle volume > 30000
+    return dayCandles.last.volume > 30000;
   }
 
   /// 🔹 Checks if the total volume of the previous day is > 1M
