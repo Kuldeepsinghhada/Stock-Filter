@@ -36,12 +36,6 @@ class FilterUtils {
       {bool isHistoryCheck = false}) {
     if (candles.isEmpty) return false;
 
-    if (candles.last.timestamp.hour == 9 &&
-        candles.last.timestamp.minute < 30) {
-      // Skip filtering for the first 20 minutes of the trading day
-      return false;
-    }
-
     final timeStr = candles.last.timestamp.toString();
     final engine = IndicatorEngine(candles);
 
@@ -76,24 +70,12 @@ class FilterUtils {
     }
 
     // 4. PriceChange
-    if (!isHistoryCheck) {
-      var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
-      if (!isPercentChange) {
-        logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
-        return false;
-      }
-    }
-
-    final isVolumeOk = IndicatorUtils.isVolumeOk(engine);
-    if (!isVolumeOk) {
-      logMsg("Failed: $token at $timeStr - Reason: Volume Breakout Not Met");
-      return false;
-    }
-
-    // final volumeBreakout = IndicatorUtils.isVolumeBreakoutStrong(engine);
-    // if (cachedIsVolBreakoutEnabled && !volumeBreakout) {
-    //   logMsg("Failed: $token at $timeStr - Reason: Volume Breakout Not Strong");
-    //   return false;
+    // if (!isHistoryCheck) {
+    //   var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
+    //   if (!isPercentChange) {
+    //     logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
+    //     return false;
+    //   }
     // }
 
     // 5. VolumeSpike
@@ -328,25 +310,14 @@ class FilterUtils {
         return isAboveSupertrend;
 
       case 1:
-        final engine = IndicatorEngine(historyCandles);
-        final emaResult = IndicatorUtils.isCloseAboveEMA(engine, 20);
-        bool isEMA20 = emaResult.isPassed;
+        bool isEMA20 =
+            IndicatorUtils.isCloseAboveEMA(IndicatorEngine(historyCandles), 20)
+                .isPassed;
         bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-          engine,
+          IndicatorEngine(historyCandles),
           atrPeriod: 10,
         ).isPassed;
-
-        if (!isEMA20 && !aboveSupertrend) return false;
-
-        final ema20 = emaResult.value;
-        if (ema20 != null) {
-          final todaysLow = historyCandles.last.low;
-          final distanceToEma = ((todaysLow - ema20).abs() / ema20);
-          if (distanceToEma > 0.02) {
-            return false;
-          }
-        }
-        return true;
+        return isEMA20 || aboveSupertrend;
 
       default:
         return false;

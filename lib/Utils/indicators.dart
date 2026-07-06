@@ -380,7 +380,7 @@ class IndicatorUtils {
     int atrPeriod = 7,
     double lowPriceMinPct = 0.004,
     double lowPriceMaxPct = 0.04,
-    double highPriceMinPct = 0.006,
+    double highPriceMinPct = 0.004,
     double highPriceMaxPct = 0.03,
     double priceThreshold = 200.0,
   }) {
@@ -724,7 +724,7 @@ class IndicatorUtils {
   /// checks latest volume > EMA(volume, period) * factor
   static ({bool baseVolumeOk, bool isVolumeSpike40x}) checkDualVolumeStrength(
     IndicatorEngine engine, {
-    int skipCandles = 2,
+    int skipCandles = 3,
   }) {
     if (engine.candles.length < 100) {
       return (baseVolumeOk: false, isVolumeSpike40x: false);
@@ -794,7 +794,7 @@ class IndicatorUtils {
 
     final basePassed = lastCandleX >= 5.0 && otherCandlesAvgX >= 2.0;
 
-    final spikePassed = lastCandleX >= 10.0 && otherCandlesAvgX >= 0.0;
+    final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
 
     debugPrint("${engine.candles.last.timestamp} -> "
         "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
@@ -1543,33 +1543,38 @@ Final Score    : $score / 100
   }
 
   static bool isVolumeOk(IndicatorEngine engine) {
-    if (engine.candles.isEmpty) return false;
+    // Volume check
+    List<int> volumes = engine.candles.map((e) => e.volume).toList();
 
-    // Last candle ki date
-    final lastDate = engine.candles.last.timestamp.toLocal();
-
-    // Sirf usi date ki candles
-    final dayCandles = engine.candles.where((c) {
-      final ts = c.timestamp.toLocal();
-      return ts.year == lastDate.year &&
-          ts.month == lastDate.month &&
-          ts.day == lastDate.day;
-    }).toList();
-
-    if (dayCandles.isEmpty) return false;
-
-    // Agar sirf last 8 candles check karni hain to ye use karo
-    // final candlesToCheck = dayCandles.length > 8
-    //     ? dayCandles.sublist(dayCandles.length - 8)
-    //     : dayCandles;
-
-    // Agar poore din ki candles check karni hain
-    if (dayCandles.any((c) => c.volume <= 1000)) {
+    // ❌ NEW RULE:
+    // If ANY of last 8 engine.candles has volume <= 2000 → reject
+    final last8 = volumes.sublist(volumes.length - 10);
+    if (last8.any((v) => v <= 1000)) {
       return false;
     }
 
-    // Last candle volume > 30000
-    return dayCandles.last.volume > 30000;
+    final now = DateTime.now();
+    final lastWorking = Utilities.getLastWorkingDay(now);
+    final isWorkingDay = lastWorking.year == now.year &&
+        lastWorking.month == now.month &&
+        lastWorking.day == now.day;
+
+    int? volumeToCheck;
+    if (volumes.isNotEmpty) {
+      if (isWorkingDay) {
+        volumeToCheck = volumes.last;
+      } else {
+        final lastWorkDayCandle = engine.candles.lastWhere((c) {
+          final ts = c.timestamp.toLocal();
+          return ts.year == lastWorking.year &&
+              ts.month == lastWorking.month &&
+              ts.day == lastWorking.day;
+        }, orElse: () => engine.candles.last);
+        volumeToCheck = lastWorkDayCandle.volume;
+      }
+    }
+    bool isVolumeOk = (volumeToCheck != null) ? (volumeToCheck > 30000) : false;
+    return isVolumeOk;
   }
 
   /// 🔹 Checks if the total volume of the previous day is > 1M
