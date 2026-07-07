@@ -398,4 +398,83 @@ class SharedPreferenceHelper {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(maxTradeAmountKey) ?? 5000.0;
   }
+
+  // Intraday breakout trade logic settings
+  String atrPeriodKey = "atrPeriod";
+  String atrMultiplierKey = "atrMultiplier";
+  String riskRewardKey = "riskReward";
+  String supertrendPeriodKey = "supertrendPeriod";
+  String supertrendMultiplierKey = "supertrendMultiplier";
+  String squareOffTimeKey = "squareOffTime";
+  String squareOffEnabledKey = "squareOffEnabled";
+
+  Future<void> setAtrPeriod(int value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(atrPeriodKey, value);
+  }
+
+  Future<int> getAtrPeriod() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(atrPeriodKey) ?? 14;
+  }
+
+  Future<void> setAtrMultiplier(double value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(atrMultiplierKey, value);
+  }
+
+  Future<double> getAtrMultiplier() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(atrMultiplierKey) ?? 1.5;
+  }
+
+  Future<void> setRiskReward(double value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(riskRewardKey, value);
+  }
+
+  Future<double> getRiskReward() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(riskRewardKey) ?? 2.0;
+  }
+
+  Future<void> setSupertrendPeriod(int value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(supertrendPeriodKey, value);
+  }
+
+  Future<int> getSupertrendPeriod() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(supertrendPeriodKey) ?? 10;
+  }
+
+  Future<void> setSupertrendMultiplier(double value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(supertrendMultiplierKey, value);
+  }
+
+  Future<double> getSupertrendMultiplier() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(supertrendMultiplierKey) ?? 3.0;
+  }
+
+  Future<void> setSquareOffTime(String value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(squareOffTimeKey, value);
+  }
+
+  Future<String> getSquareOffTime() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(squareOffTimeKey) ?? "15:15";
+  }
+
+  Future<void> setSquareOffEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(squareOffEnabledKey, value);
+  }
+
+  Future<bool> getSquareOffEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(squareOffEnabledKey) ?? true;
+  }
 }

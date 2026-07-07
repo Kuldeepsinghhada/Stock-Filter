@@ -1,8 +1,16 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:math';
 import 'models.dart';
 import 'order_service.dart';
 import 'order_monitor.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/model/stock_model.dart';
+import 'package:stock_demo/model/historical_data_model.dart';
+import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 
 class TradeExecutor {
   final OrderService orderService;
@@ -148,7 +156,15 @@ class TradeExecutor {
 
       // 7. Continuously monitor both order statuses (OCO logic)
       if (slOrderId != null && targetOrderId != null) {
-        await _monitorOco(slOrderId, targetOrderId, config.pollingInterval);
+        await _monitorOco(
+          slOrderId: slOrderId,
+          targetOrderId: targetOrderId,
+          config: config,
+          averagePrice: averagePrice,
+          initialSL: slPrice,
+          initialTarget: targetPrice,
+          risk: slOffset,
+        );
       } else {
         developer.log('Could not place both SL and Target. OCO monitoring skipped.', name: 'TradeExecutor');
       }
@@ -156,11 +172,60 @@ class TradeExecutor {
   }
 
   /// Monitors SL and Target orders. If one completes, cancels the other.
-  Future<void> _monitorOco(String slOrderId, String targetOrderId, Duration pollingInterval) async {
+  /// Also implements EOD square-off and dynamic trailing stop loss at +1R profit using 1-minute Supertrend.
+  Future<void> _monitorOco({
+    required String slOrderId,
+    required String targetOrderId,
+    required TradeConfig config,
+    required double averagePrice,
+    required double initialSL,
+    required double initialTarget,
+    required double risk,
+  }) async {
     developer.log('Starting OCO monitoring for SL: $slOrderId, Target: $targetOrderId', name: 'TradeExecutor');
+
+    DateTime? lastFetchTime;
+    List<HistoricalDataModel> candles1m = [];
+    double currentTrailedSL = initialSL;
+    bool isTrailingActive = false;
 
     while (true) {
       try {
+        final prefs = SharedPreferenceHelper.instance;
+
+        // 1. Check EOD Square-off
+        final sqEnabled = await prefs.getSquareOffEnabled();
+        if (sqEnabled) {
+          final sqTimeStr = await prefs.getSquareOffTime();
+          final sqParts = sqTimeStr.split(":");
+          if (sqParts.length == 2) {
+            final hour = int.tryParse(sqParts[0]) ?? 15;
+            final minute = int.tryParse(sqParts[1]) ?? 15;
+            final now = DateTime.now();
+            final sqTime = DateTime(now.year, now.month, now.day, hour, minute);
+            if (now.isAfter(sqTime)) {
+              developer.log('EOD Square-off time reached. Cancelling open orders and exiting position.', name: 'TradeExecutor');
+              await _safeCancel(slOrderId);
+              await _safeCancel(targetOrderId);
+              try {
+                final sellMarketId = await orderService.placeOrder(
+                  variety: 'regular',
+                  exchange: config.exchange,
+                  tradingsymbol: config.symbol,
+                  transactionType: 'SELL',
+                  quantity: config.quantity,
+                  product: 'MIS',
+                  orderType: 'MARKET',
+                );
+                developer.log('EOD Square-off MARKET SELL order placed: $sellMarketId', name: 'TradeExecutor');
+              } catch (e) {
+                developer.log('EOD Market Sell order placement failed: $e', name: 'TradeExecutor', error: e);
+              }
+              break;
+            }
+          }
+        }
+
         // Fetch both statuses
         final slDetails = await orderService.getOrderHistory(slOrderId);
         final targetDetails = await orderService.getOrderHistory(targetOrderId);
@@ -185,10 +250,86 @@ class TradeExecutor {
           break;
         }
 
-        await Future.delayed(pollingInterval);
+        // 2. Fetch LTP to check for +1R Trailing condition
+        double ltp = 0.0;
+        try {
+          final ltpResponse = await orderService.apiClient.get('/quote/ltp?i=${config.exchange}:${config.symbol}');
+          if (ltpResponse != null && ltpResponse is Map) {
+            final instrumentKey = '${config.exchange}:${config.symbol}';
+            if (ltpResponse.containsKey(instrumentKey)) {
+              ltp = (ltpResponse[instrumentKey]['last_price'] as num).toDouble();
+            }
+          }
+        } catch (e) {
+          developer.log('Error fetching LTP: $e', name: 'TradeExecutor', error: e);
+        }
+
+        if (ltp > 0.0) {
+          if (!isTrailingActive && ltp >= averagePrice + risk) {
+            isTrailingActive = true;
+            developer.log('+1R profit reached (LTP: $ltp >= ${averagePrice + risk}). Trailing stop-loss activated.', name: 'TradeExecutor');
+          }
+        }
+
+        // 3. Trailing Stop Loss logic using 1-minute Supertrend
+        if (isTrailingActive) {
+          final now = DateTime.now();
+          if (lastFetchTime == null || now.difference(lastFetchTime) > const Duration(seconds: 30)) {
+            final stock = DataManager.instance.stocksList.firstWhere(
+              (s) => s.symbol?.replaceAll("NSE:", "") == config.symbol.replaceAll("NSE:", ""),
+              orElse: () => StockModel(symbol: config.symbol, token: 0),
+            );
+            final instrumentToken = int.tryParse(stock.token.toString()) ?? 0;
+            if (instrumentToken != 0) {
+              try {
+                final fetched = await DashboardService.instance.fetch1MinHistoricalData(instrumentToken);
+                if (fetched != null && fetched.isNotEmpty) {
+                  candles1m = fetched;
+                  lastFetchTime = now;
+                }
+              } catch (e) {
+                developer.log('Failed to fetch 1m candles for trailing: $e', name: 'TradeExecutor', error: e);
+              }
+            }
+          }
+
+          if (candles1m.isNotEmpty) {
+            final stPeriod = await prefs.getSupertrendPeriod();
+            final stMult = await prefs.getSupertrendMultiplier();
+            final engine1m = IndicatorEngine(candles1m);
+            final supertrend1mList = IndicatorUtils.supertrendSeries(
+              engine1m,
+              atrPeriod: stPeriod,
+              multiplier: stMult,
+            );
+            if (supertrend1mList.isNotEmpty) {
+              final latestStVal = supertrend1mList.last;
+              if (latestStVal != 0.0) {
+                final roundedSt = (latestStVal * 20).round() / 20; // NSE 0.05 tick rounding
+                if (roundedSt > currentTrailedSL) {
+                  developer.log('Trailing SL moving from $currentTrailedSL to $roundedSt', name: 'TradeExecutor');
+                  currentTrailedSL = roundedSt;
+                  try {
+                    await orderService.modifyOrder(
+                      orderId: slOrderId,
+                      variety: 'regular',
+                      triggerPrice: currentTrailedSL,
+                      price: config.slOrderType == 'SL' ? currentTrailedSL : null,
+                    );
+                    developer.log('Kite SL order $slOrderId successfully modified to $currentTrailedSL', name: 'TradeExecutor');
+                  } catch (e) {
+                    developer.log('Failed to modify Kite SL order $slOrderId to $currentTrailedSL: $e', name: 'TradeExecutor', error: e);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        await Future.delayed(config.pollingInterval);
       } catch (e) {
         developer.log('Error during OCO monitoring: $e', name: 'TradeExecutor', error: e);
-        await Future.delayed(pollingInterval);
+        await Future.delayed(config.pollingInterval);
       }
     }
 

@@ -71,7 +71,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
   }
 
   Future<void> fetchQuotesFromService() async {
-    getNotifications();
+    await getNotifications();
     setState(() => isLoading = true);
     try {
       final input = _symbolsController.text.trim();
@@ -82,6 +82,70 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
       final result = await DashboardService.instance
           .fetchQuotes(symbolsToFilter: symbols, selectedDate: selectedDate);
+
+      // Fetch LTPs for all active stocks in notificationsList that are not in result (filtered out by scanner)
+      final activeSymbols = notificationsList
+          .where((n) => n.status == "Active" && n.stocksNameList != null)
+          .map((n) => n.stocksNameList!.split(" - ").first.trim())
+          .toList();
+      if (activeSymbols.isNotEmpty) {
+        try {
+          final ltpMap =
+              await DashboardService.instance.fetchLtpForSymbols(activeSymbols);
+          for (var entry in ltpMap.entries) {
+            final symbol =
+                entry.key.replaceAll("NSE:", "").trim().toUpperCase();
+            final ltp = entry.value;
+
+            // Find if we already have it in result
+            final idx = result
+                .indexWhere((q) => q.stockSymbol?.toUpperCase() == symbol);
+            if (idx != -1) {
+              result[idx].lastPrice = ltp;
+            } else {
+              result.add(FinalStockModel(
+                stockSymbol: symbol,
+                lastPrice: ltp,
+              ));
+            }
+          }
+        } catch (e) {
+          log("LTP fetch for active symbols failed: $e");
+        }
+      }
+
+      // Check for stoploss/target hit conditions and lock their status
+      bool notificationsChanged = false;
+      for (var stock in notificationsList) {
+        if (stock.status == "Active") {
+          final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
+          final quote = result.firstWhere(
+            (q) =>
+                q.stockSymbol != null &&
+                symbolUpper.contains(q.stockSymbol!.toUpperCase()),
+            orElse: () => FinalStockModel(),
+          );
+
+          if (quote.lastPrice != null && quote.lastPrice! > 0) {
+            if (stock.target != null && quote.lastPrice! >= stock.target!) {
+              stock.status = "Target Hit";
+              notificationsChanged = true;
+              log("${stock.stocksNameList} hit target: ${stock.target}");
+            } else if (stock.stoploss != null &&
+                quote.lastPrice! <= stock.stoploss!) {
+              stock.status = "SL Hit";
+              notificationsChanged = true;
+              log("${stock.stocksNameList} hit stoploss: ${stock.stoploss}");
+            }
+          }
+        }
+      }
+
+      if (notificationsChanged) {
+        await SharedPreferenceHelper.instance
+            .saveNotificationList(notificationsList);
+      }
+
       await SharedPreferenceHelper.instance.saveStocks(result);
       setState(() => quoteList = result);
       var savedTokenList =
@@ -91,7 +155,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       // merge without duplicates
       savedTokenList = {...savedTokenList, ...tokenList}.toList();
       await SharedPreferenceHelper.instance.setStockTokenLists(savedTokenList);
-      getNotifications();
+      await getNotifications();
       if (isTaskRunning == true) {
         fetchQuotesFromService();
       }
@@ -135,14 +199,36 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
     for (var stock in notificationsListByRecent) {
       if (stock.price != null && stock.price! > 0) {
-        final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
-        final quote = quoteList.firstWhere(
-          (q) => q.stockSymbol != null && symbolUpper.contains(q.stockSymbol!.toUpperCase()),
-          orElse: () => FinalStockModel(),
-        );
+        double pnl = 0.0;
+        bool hasPnl = false;
 
-        if (quote.lastPrice != null && quote.lastPrice! > 0) {
-          double pnl = ((quote.lastPrice! - stock.price!) / stock.price!) * 100;
+        if (stock.status == "Target Hit") {
+          if (stock.target != null) {
+            pnl = ((stock.target! - stock.price!) / stock.price!) * 100;
+            hasPnl = true;
+          }
+        } else if (stock.status == "SL Hit") {
+          if (stock.stoploss != null) {
+            pnl = ((stock.stoploss! - stock.price!) / stock.price!) * 100;
+            hasPnl = true;
+          }
+        } else {
+          // Active
+          final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
+          final quote = quoteList.firstWhere(
+            (q) =>
+                q.stockSymbol != null &&
+                symbolUpper.contains(q.stockSymbol!.toUpperCase()),
+            orElse: () => FinalStockModel(),
+          );
+
+          if (quote.lastPrice != null && quote.lastPrice! > 0) {
+            pnl = ((quote.lastPrice! - stock.price!) / stock.price!) * 100;
+            hasPnl = true;
+          }
+        }
+
+        if (hasPnl) {
           totalPnlPercent += pnl;
           validStocksCount++;
         }
@@ -150,139 +236,140 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     }
 
     return Scaffold(
-        appBar: AppBar(
-          title: const Text('Dashboard'),
-          actions: [
-            // Search button
-            if (isLoading && quoteList.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          // Search button
+          if (isLoading && quoteList.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-            IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => PreFilteredStock()),
-              ),
-              icon: const Icon(Icons.filter_center_focus),
             ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => PreFilteredStock()),
+            ),
+            icon: const Icon(Icons.filter_center_focus),
+          ),
 
-            IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SearchStocksScreen()),
-              ),
-              icon: const Icon(Icons.search),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => SearchStocksScreen()),
             ),
-            IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => TradeSettingPage()),
-              ),
-              icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.search),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TradeSettingPage()),
             ),
-          ],
-        ),
-        body: Column(
-          children: [
+            icon: const Icon(Icons.settings),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Till Date: ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}",
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null && picked != selectedDate) {
+                      setState(() {
+                        selectedDate = picked;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today),
+                  label: const Text("Select Date"),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _symbolsController,
+              decoration: const InputDecoration(
+                labelText: 'Enter symbols (comma separated)',
+                hintText: 'e.g. RELIANCE,TCS,INFY',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          if (validStocksCount > 0)
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Till Date: ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}",
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final DateTime? picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (picked != null && picked != selectedDate) {
-                        setState(() {
-                          selectedDate = picked;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                    label: const Text("Select Date"),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextField(
-                controller: _symbolsController,
-                decoration: const InputDecoration(
-                  labelText: 'Enter symbols (comma separated)',
-                  hintText: 'e.g. RELIANCE,TCS,INFY',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-            if (validStocksCount > 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Card(
-                  color: Colors.blue.shade50,
-                  elevation: 2,
-                  child: ListTile(
-                    title: const Text("Today's Profit & Loss", style: TextStyle(fontWeight: FontWeight.bold)),
-                    trailing: Text(
-                      "${totalPnlPercent >= 0 ? '+' : ''}${totalPnlPercent.toStringAsFixed(2)}%",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: totalPnlPercent >= 0 ? Colors.green : Colors.red,
-                      ),
+              child: Card(
+                color: Colors.blue.shade50,
+                elevation: 2,
+                child: ListTile(
+                  title: const Text("Today's Profit & Loss",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: Text(
+                    "${totalPnlPercent >= 0 ? '+' : ''}${totalPnlPercent.toStringAsFixed(2)}%",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: totalPnlPercent >= 0 ? Colors.green : Colors.red,
                     ),
-                    subtitle: Text("Based on $validStocksCount active alerts"),
                   ),
+                  subtitle: Text("Based on $validStocksCount active alerts"),
                 ),
               ),
-            Expanded(
-              child: _buildList(notificationsListByRecent),
             ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          heroTag: 'filtered_stocks_fab',
-          child: Text(isTaskRunning ? "STOP" : "START"),
-          onPressed: () async {
-            // Only allow starting the task after 9:28 AM local time.
-            final now = DateTime.now();
-            final startAllowedAt =
-                DateTime(now.year, now.month, now.day, 9, 30);
-            // If currently not running (we're trying to START) and time is before allowed time, block it.
-            if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-              Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
-              return;
-            }
+          Expanded(
+            child: _buildList(notificationsListByRecent),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'filtered_stocks_fab',
+        child: Text(isTaskRunning ? "STOP" : "START"),
+        onPressed: () async {
+          // Only allow starting the task after 9:28 AM local time.
+          final now = DateTime.now();
+          final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
+          // If currently not running (we're trying to START) and time is before allowed time, block it.
+          if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+            Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
+            return;
+          }
 
-            await WakelockPlus.enable();
-            if (!isTaskRunning) {
-              await FilterUtils.cacheFilterSettings();
-              isTaskRunning = true;
-              await fetchQuotesFromService();
-            } else {
-              isTaskRunning = false;
-              await WakelockPlus.disable();
-            }
-            setState(() {});
-            // }
-          },
-        ),
+          await WakelockPlus.enable();
+          if (!isTaskRunning) {
+            await FilterUtils.cacheFilterSettings();
+            isTaskRunning = true;
+            await fetchQuotesFromService();
+          } else {
+            isTaskRunning = false;
+            await WakelockPlus.disable();
+          }
+          setState(() {});
+          // }
+        },
+      ),
     );
   }
 
@@ -295,18 +382,50 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           final stock = list[index];
           final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
           final quote = quoteList.firstWhere(
-            (q) => q.stockSymbol != null && symbolUpper.contains(q.stockSymbol!.toUpperCase()),
+            (q) =>
+                q.stockSymbol != null &&
+                symbolUpper.contains(q.stockSymbol!.toUpperCase()),
             orElse: () => FinalStockModel(),
           );
 
           Color? tileColor;
-          if (quote.lastPrice != null && quote.lastPrice! > 0 && stock.target != null && stock.stoploss != null && stock.price != null) {
-            if (quote.lastPrice! >= stock.target!) {
-              tileColor = Colors.green.withOpacity(0.3);
-            } else if (quote.lastPrice! <= stock.stoploss!) {
-              tileColor = Colors.red.withOpacity(0.3);
+          double pnl = 0.0;
+          bool hasPnl = false;
+
+          if (stock.status == "Target Hit") {
+            tileColor = Colors.green.withOpacity(0.3);
+            if (stock.target != null &&
+                stock.price != null &&
+                stock.price! > 0) {
+              pnl = ((stock.target! - stock.price!) / stock.price!) * 100;
+              hasPnl = true;
+            }
+          } else if (stock.status == "SL Hit") {
+            tileColor = Colors.red.withOpacity(0.3);
+            if (stock.stoploss != null &&
+                stock.price != null &&
+                stock.price! > 0) {
+              pnl = ((stock.stoploss! - stock.price!) / stock.price!) * 100;
+              hasPnl = true;
+            }
+          } else {
+            // Active
+            if (quote.lastPrice != null &&
+                quote.lastPrice! > 0 &&
+                stock.price != null &&
+                stock.price! > 0) {
+              pnl = ((quote.lastPrice! - stock.price!) / stock.price!) * 100;
+              hasPnl = true;
+              if (stock.target != null && quote.lastPrice! >= stock.target!) {
+                tileColor = Colors.green.withOpacity(0.3);
+              } else if (stock.stoploss != null &&
+                  quote.lastPrice! <= stock.stoploss!) {
+                tileColor = Colors.red.withOpacity(0.3);
+              } else {
+                tileColor = Colors.yellow.withOpacity(0.3);
+              }
             } else {
-              tileColor = Colors.yellow.withOpacity(0.3);
+              tileColor = Colors.grey.withOpacity(0.1);
             }
           }
 
@@ -315,39 +434,54 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             child: ListTile(
               title: Text(stock.stocksNameList ?? ''),
               subtitle: Text(
-                  "${stock.time ?? ''}${stock.volumeX != null && stock.volumeX! > 0 ? " | Vol: ${stock.volumeX!.toStringAsFixed(2)}x" : ""}${stock.target != null ? "\nTarget: ₹${stock.target?.toStringAsFixed(2)} | SL: ₹${stock.stoploss?.toStringAsFixed(2)}${stock.price != null && stock.price! > 0 && stock.stoploss != null ? " (${(((stock.price! - stock.stoploss!) / stock.price!) * 100).toStringAsFixed(2)}%)" : ""}" : ""}"),
-              leading: const Icon(Icons.notifications),
-            trailing: IconButton(
-              onPressed: () async {
-                bool? confirmDelete = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Confirm Delete'),
-                    content: const Text(
-                      'Are you sure you want to delete this stock?',
+                  "${stock.time ?? ''}${stock.target != null ? "\nTG: ₹${stock.target?.toStringAsFixed(2)} | SL: ₹${stock.stoploss?.toStringAsFixed(2)}${stock.price != null && stock.price! > 0 && stock.stoploss != null ? " (${(((stock.price! - stock.stoploss!) / stock.price!) * 100).toStringAsFixed(2)}%)" : ""}" : ""}"),
+              leading: Text("$index"),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasPnl)
+                    Text(
+                      "${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}%",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: pnl >= 0 ? Colors.green : Colors.red,
+                      ),
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Delete'),
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () async {
+                      bool? confirmDelete = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Confirm Delete'),
+                          content: const Text(
+                            'Are you sure you want to delete this stock?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmDelete == true) {
+                        notificationsList.remove(list[index]);
+                        await SharedPreferenceHelper.instance
+                            .saveNotificationList(notificationsList);
+                        getNotifications();
+                      }
+                    },
+                    icon: const Icon(Icons.delete),
                   ),
-                );
-                if (confirmDelete == true) {
-                  notificationsList.remove(list[index]);
-                  await SharedPreferenceHelper.instance
-                      .saveNotificationList(notificationsList);
-                  getNotifications();
-                }
-              },
-              icon: const Icon(Icons.delete),
-            ),
-            onTap: () {},
+                ],
+              ),
+              onTap: () {},
             ),
           );
         },

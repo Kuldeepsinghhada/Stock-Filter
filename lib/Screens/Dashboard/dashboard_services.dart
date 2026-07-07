@@ -403,6 +403,36 @@ class DashboardService {
     }
   }
 
+  /// Fetch 1-minute historical data for a given instrument token
+  Future<List<HistoricalDataModel>?> fetch1MinHistoricalData(
+    int instrumentToken, {
+    DateTime? selectedDate,
+  }) async {
+    final interval = "minute";
+    final today = selectedDate ?? DateTime.now();
+    // Fetch today's 1-minute candles. Request past 2 business days to get enough data for indicator calculations.
+    final from = Utilities.getBusinessDaysAgo(today, 2);
+    final to =
+        "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+    final response = await ApiService.instance.apiCall(
+      "${APIEndPoint.getHistoricalData}$instrumentToken/$interval?from=$from&to=$to",
+      HttpRequestType.get,
+      null,
+    );
+
+    if (response.status) {
+      final candles =
+          (response.data["data"]["candles"] as List<dynamic>?) ?? [];
+      return candles
+          .map((e) => HistoricalDataModel.fromList(e as List<dynamic>))
+          .toList();
+    } else {
+      log("Error fetching 1-minute historical data: ${response.error}");
+      return null;
+    }
+  }
+
   /// Choppy stock utility (loose filter)
   bool isChoppyStockLoose(
     List<double> highs,
@@ -431,6 +461,34 @@ class DashboardService {
     final atr = tr.reduce((a, b) => a + b) / tr.length;
     final avgClose = lastCloses.reduce((a, b) => a + b) / lastCloses.length;
     return (atr / avgClose) < threshold;
+  }
+
+  /// Fetch live prices (LTP) for a list of symbols
+  Future<Map<String, double>> fetchLtpForSymbols(List<String> symbols) async {
+    if (symbols.isEmpty) return {};
+    final queryParams = symbols
+        .map((s) => 'i=${Uri.encodeQueryComponent(s.contains(":") ? s : "NSE:$s")}')
+        .join('&');
+    try {
+      final response = await ApiService.instance.apiCall(
+        "/quote/ltp?$queryParams",
+        HttpRequestType.get,
+        null,
+      );
+      final Map<String, double> ltpMap = {};
+      if (response.status && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        data.forEach((key, value) {
+          if (value is Map && value.containsKey('last_price')) {
+            ltpMap[key] = (value['last_price'] as num).toDouble();
+          }
+        });
+      }
+      return ltpMap;
+    } catch (e) {
+      log("Error fetching LTP for symbols: $e");
+      return {};
+    }
   }
 }
 

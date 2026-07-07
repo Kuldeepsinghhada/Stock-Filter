@@ -6,6 +6,7 @@ class NotificationModel {
   double? target;
   double? stoploss;
   double? price;
+  String? status; // "Active", "Target Hit", "SL Hit"
 
   NotificationModel({
     this.stocksNameList,
@@ -15,6 +16,7 @@ class NotificationModel {
     this.target,
     this.stoploss,
     this.price,
+    this.status = "Active",
   });
 
   NotificationModel.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,7 @@ class NotificationModel {
     target = (json['target'] as num?)?.toDouble();
     stoploss = (json['stoploss'] as num?)?.toDouble();
     price = (json['price'] as num?)?.toDouble();
+    status = json['status'] ?? "Active";
   }
 
   Map<String, dynamic> toJson() {
@@ -36,6 +39,7 @@ class NotificationModel {
     data['target'] = target;
     data['stoploss'] = stoploss;
     data['price'] = price;
+    data['status'] = status;
     return data;
   }
 }

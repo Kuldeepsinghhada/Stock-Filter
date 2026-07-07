@@ -78,4 +78,40 @@ class OrderService {
       rethrow;
     }
   }
+
+  /// Modify an open order.
+  Future<String> modifyOrder({
+    required String orderId,
+    required String variety,
+    int? quantity,
+    double? price,
+    double? triggerPrice,
+    String? orderType,
+  }) async {
+    final Map<String, dynamic> payload = {};
+
+    if (quantity != null) {
+      payload['quantity'] = quantity.toString();
+    }
+    if (price != null) {
+      payload['price'] = price.toString();
+    }
+    if (triggerPrice != null) {
+      payload['trigger_price'] = triggerPrice.toString();
+    }
+    if (orderType != null) {
+      payload['order_type'] = orderType;
+    }
+
+    try {
+      final response = await apiClient.put('/orders/$variety/$orderId', payload);
+      if (response != null && response['order_id'] != null) {
+        return response['order_id'];
+      }
+      throw Exception('Failed to modify order $orderId: $response');
+    } catch (e) {
+      developer.log('Failed to modify order $orderId', name: 'OrderService', error: e);
+      rethrow;
+    }
+  }
 }

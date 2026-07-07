@@ -7,6 +7,7 @@ import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
+import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'candle_utils.dart';
 import 'math_utils.dart';
 
@@ -20,6 +21,14 @@ class FilterUtils {
   static bool cachedIsEma20Enabled = true;
   static bool cachedIsVolBreakoutEnabled = true;
 
+  static int cachedAtrPeriod = 14;
+  static double cachedAtrMultiplier = 1.5;
+  static double cachedRiskReward = 2.0;
+  static int cachedSupertrendPeriod = 10;
+  static double cachedSupertrendMultiplier = 3.0;
+  static String cachedSquareOffTime = "15:15";
+  static bool cachedSquareOffEnabled = true;
+
   /// Loads and caches the settings from SharedPreferences
   static Future<void> cacheFilterSettings() async {
     final prefs = SharedPreferenceHelper.instance;
@@ -30,6 +39,14 @@ class FilterUtils {
     cachedIsSupertrendEnabled = await prefs.getSupertrendEnabled();
     cachedIsEma20Enabled = await prefs.getEma20Enabled();
     cachedIsVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
+
+    cachedAtrPeriod = await prefs.getAtrPeriod();
+    cachedAtrMultiplier = await prefs.getAtrMultiplier();
+    cachedRiskReward = await prefs.getRiskReward();
+    cachedSupertrendPeriod = await prefs.getSupertrendPeriod();
+    cachedSupertrendMultiplier = await prefs.getSupertrendMultiplier();
+    cachedSquareOffTime = await prefs.getSquareOffTime();
+    cachedSquareOffEnabled = await prefs.getSquareOffEnabled();
   }
 
   static bool passesFilter(List<HistoricalDataModel> candles, String token,
@@ -46,7 +63,7 @@ class FilterUtils {
     }
 
     // 1. Volume
-    int minVolume = 15000;
+    int minVolume = 30000;
     if (engine.last.volume < minVolume) {
       logMsg(
           "Failed: $token at $timeStr - Reason: Low Volume (${engine.last.volume})");
@@ -54,12 +71,12 @@ class FilterUtils {
     }
 
     // 2. AlreadyMoved
-    var isLaseChanged = IndicatorUtils.isNotAlreadyMoved(engine);
-    if (!isLaseChanged) {
-      logMsg(
-          "Failed: $token at $timeStr - Reason: Last Candle Already Moved Significantly");
-      return false;
-    }
+    // var isLaseChanged = IndicatorUtils.isNotAlreadyMoved(engine);
+    // if (!isLaseChanged) {
+    //   logMsg(
+    //       "Failed: $token at $timeStr - Reason: Last Candle Already Moved Significantly");
+    //   return false;
+    // }
 
     // 3. RangeExpansion
     var rangeExpansion = IndicatorUtils.getRangeExpansion(engine);
@@ -822,9 +839,9 @@ class FilterUtils {
   }
 
   /// 🔹 Calculates accuracy of the 1st Buy Alert for the current day
-  static Map<String, dynamic>? calculateBuyAlertAccuracy(
+  static Future<Map<String, dynamic>?> calculateBuyAlertAccuracy(
       List<HistoricalDataModel> history, String token,
-      {bool useRadarAlert = false}) {
+      {bool useRadarAlert = false}) async {
     if (history.isEmpty) return null;
 
     final targetDate = history.last.timestamp;
@@ -840,6 +857,7 @@ class FilterUtils {
     HistoricalDataModel? alertCandle;
     double? entryPrice;
     double? supertrendValue;
+    double? atrValue;
     bool hasPassedRadar = false;
 
     // Simulate going through today's candles one by one
@@ -867,9 +885,15 @@ class FilterUtils {
             entryPrice = targetCandle.close;
             final stRes = IndicatorUtils.isCloseAboveSupertrend(
                 IndicatorEngine(historySoFar),
-                atrPeriod: 10,
-                multiplier: 3);
+                atrPeriod: cachedSupertrendPeriod,
+                multiplier: cachedSupertrendMultiplier);
             supertrendValue = stRes.value;
+            atrValue = IndicatorUtils.atrLast(
+              historySoFar.map((e) => e.high).toList(),
+              historySoFar.map((e) => e.low).toList(),
+              historySoFar.map((e) => e.close).toList(),
+              period: cachedAtrPeriod,
+            );
             break;
           }
         } else {
@@ -885,9 +909,15 @@ class FilterUtils {
               // Need supertrend value at this point
               final stRes = IndicatorUtils.isCloseAboveSupertrend(
                   IndicatorEngine(historySoFar),
-                  atrPeriod: 10,
-                  multiplier: 3);
+                  atrPeriod: cachedSupertrendPeriod,
+                  multiplier: cachedSupertrendMultiplier);
               supertrendValue = stRes.value;
+              atrValue = IndicatorUtils.atrLast(
+                historySoFar.map((e) => e.high).toList(),
+                historySoFar.map((e) => e.low).toList(),
+                historySoFar.map((e) => e.close).toList(),
+                period: cachedAtrPeriod,
+              );
               break; // Check only 1st time buy alert
             }
           }
@@ -899,39 +929,166 @@ class FilterUtils {
       return null; // No alert today
     }
 
-    double target = entryPrice * 1.02; // Up by 2%
-    double stoploss = supertrendValue * 0.9975; // 0.25% below the supertrend
-    double maxStoploss = entryPrice * 0.97; // Max 3% loss
-    if (stoploss < maxStoploss) {
-      stoploss = maxStoploss;
+    atrValue ??= 0.0;
+    double atrSL = entryPrice - (atrValue * cachedAtrMultiplier);
+    double stoploss = min(supertrendValue, atrSL);
+    double risk = entryPrice - stoploss;
+    if (risk <= 0) {
+      risk = entryPrice * 0.01; // fallback
     }
+    double target = entryPrice + (risk * cachedRiskReward);
 
     String status = "Pending";
     double percentPnL = 0.0;
     bool tradeClosed = false;
 
-    int globalAlertIndex = history.indexOf(alertCandle);
-    for (int i = globalAlertIndex + 1; i < history.length; i++) {
-      var c = history[i];
-      if (c.low <= stoploss) {
-        // Check stoploss first to be conservative
-        status = "Loss";
-        percentPnL = ((stoploss - entryPrice) / entryPrice) * 100;
-        tradeClosed = true;
-        break;
-      }
-      if (c.high >= target) {
-        status = "Win";
-        percentPnL = 2.0;
-        tradeClosed = true;
-        break;
+    // Define entryTime for 1-minute tracking (5 minutes after start of alertCandle)
+    final entryTime = alertCandle.timestamp.add(const Duration(minutes: 5));
+
+    // End-of-day square off setup
+    DateTime? squareOffDateTime;
+    if (cachedSquareOffEnabled) {
+      final parts = cachedSquareOffTime.split(":");
+      if (parts.length == 2) {
+        final hour = int.tryParse(parts[0]) ?? 15;
+        final minute = int.tryParse(parts[1]) ?? 15;
+        squareOffDateTime = DateTime(
+            targetDate.year, targetDate.month, targetDate.day, hour, minute);
       }
     }
 
-    if (!tradeClosed) {
-      // Calculate Open PnL based on the last available candle
-      final lastClose = history.last.close;
-      percentPnL = ((lastClose - entryPrice) / entryPrice) * 100;
+    // Try to fetch 1-minute historical data
+    List<HistoricalDataModel>? candles1m;
+    try {
+      final tokenInt = int.tryParse(token);
+      if (tokenInt != null) {
+        candles1m = await DashboardService.instance.fetch1MinHistoricalData(
+          tokenInt,
+          selectedDate: targetDate,
+        );
+      }
+    } catch (e) {
+      debugPrint("Error fetching 1-minute candles inside accuracy check: $e");
+    }
+
+    if (candles1m != null && candles1m.isNotEmpty) {
+      final engine1m = IndicatorEngine(candles1m);
+      final supertrend1mList = IndicatorUtils.supertrendSeries(
+        engine1m,
+        atrPeriod: cachedSupertrendPeriod,
+        multiplier: cachedSupertrendMultiplier,
+      );
+
+      bool isTrailingActive = false;
+      double currentSL = stoploss;
+
+      for (int j = 0; j < engine1m.candles.length; j++) {
+        final c1m = engine1m.candles[j];
+        if (c1m.timestamp.isBefore(entryTime)) continue;
+
+        // Check EOD Square-off
+        if (squareOffDateTime != null &&
+            !c1m.timestamp.isBefore(squareOffDateTime)) {
+          status = "Square-off";
+          percentPnL = ((c1m.close - entryPrice) / entryPrice) * 100;
+          tradeClosed = true;
+          break;
+        }
+
+        // Check +1R profit
+        if (!isTrailingActive && c1m.high >= entryPrice + risk) {
+          isTrailingActive = true;
+        }
+
+        if (isTrailingActive) {
+          if (j < supertrend1mList.length) {
+            final stVal = supertrend1mList[j];
+            if (stVal != 0.0) {
+              currentSL = max(currentSL, stVal);
+            }
+          }
+        }
+
+        // Check SL hit
+        if (c1m.low <= currentSL) {
+          status = isTrailingActive ? "Trailing SL Hit" : "SL Hit";
+          percentPnL = ((currentSL - entryPrice) / entryPrice) * 100;
+          tradeClosed = true;
+          break;
+        }
+
+        // Check target hit
+        if (c1m.high >= target) {
+          status = "Win";
+          percentPnL = ((target - entryPrice) / entryPrice) * 100;
+          tradeClosed = true;
+          break;
+        }
+      }
+
+      if (!tradeClosed && engine1m.candles.isNotEmpty) {
+        final lastC = engine1m.candles.last;
+        percentPnL = ((lastC.close - entryPrice) / entryPrice) * 100;
+      }
+    } else {
+      // Fallback: 5-minute candles simulation
+      final supertrend5mList = IndicatorUtils.supertrendSeries(
+        IndicatorEngine(history),
+        atrPeriod: cachedSupertrendPeriod,
+        multiplier: cachedSupertrendMultiplier,
+      );
+
+      bool isTrailingActive = false;
+      double currentSL = stoploss;
+      int globalAlertIndex = history.indexOf(alertCandle);
+
+      for (int i = globalAlertIndex + 1; i < history.length; i++) {
+        final c5m = history[i];
+
+        // Check EOD Square-off
+        if (squareOffDateTime != null &&
+            !c5m.timestamp.isBefore(squareOffDateTime)) {
+          status = "Square-off";
+          percentPnL = ((c5m.close - entryPrice) / entryPrice) * 100;
+          tradeClosed = true;
+          break;
+        }
+
+        // Check +1R profit
+        if (!isTrailingActive && c5m.high >= entryPrice + risk) {
+          isTrailingActive = true;
+        }
+
+        if (isTrailingActive) {
+          if (i < supertrend5mList.length) {
+            final stVal = supertrend5mList[i];
+            if (stVal != 0.0) {
+              currentSL = max(currentSL, stVal);
+            }
+          }
+        }
+
+        // Check SL hit
+        if (c5m.low <= currentSL) {
+          status = isTrailingActive ? "Trailing SL Hit" : "SL Hit";
+          percentPnL = ((currentSL - entryPrice) / entryPrice) * 100;
+          tradeClosed = true;
+          break;
+        }
+
+        // Check target hit
+        if (c5m.high >= target) {
+          status = "Win";
+          percentPnL = ((target - entryPrice) / entryPrice) * 100;
+          tradeClosed = true;
+          break;
+        }
+      }
+
+      if (!tradeClosed && history.isNotEmpty) {
+        final lastC = history.last;
+        percentPnL = ((lastC.close - entryPrice) / entryPrice) * 100;
+      }
     }
 
     return {
@@ -941,6 +1098,15 @@ class FilterUtils {
       "stoploss": stoploss,
       "percentPnL": percentPnL,
       "alertTime": alertCandle.timestamp,
+
+      // Expose required outputs
+      "stopLoss": stoploss,
+      "targetPrice": target,
+      "risk": risk,
+      "reward": risk * cachedRiskReward,
+      "rrRatio": cachedRiskReward,
+      "atrValue": atrValue,
+      "supertrendValue": supertrendValue,
     };
   }
 }

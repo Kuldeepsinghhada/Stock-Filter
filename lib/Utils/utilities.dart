@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:math' show min, max;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
@@ -85,33 +86,48 @@ class Utilities {
   static Future<Map<String, double>?> calculateTargetAndStoploss(
       StockModel stock) async {
     final entryPrice = stock.lastPrice ?? 0.0;
-    final target = entryPrice * 1.02;
+    if (entryPrice <= 0.0) return null;
+
+    final prefs = SharedPreferenceHelper.instance;
+    final atrPeriod = await prefs.getAtrPeriod();
+    final atrMultiplier = await prefs.getAtrMultiplier();
+    final riskReward = await prefs.getRiskReward();
+    final supertrendPeriod = await prefs.getSupertrendPeriod();
+    final supertrendMultiplier = await prefs.getSupertrendMultiplier();
 
     double stoploss = 0.0;
+    double atrValue = 0.0;
+    double supertrendValue = 0.0;
+
     if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
-      final supertrendVals =
-          IndicatorUtils.supertrendSeries(IndicatorEngine(stock.historyFiveMin!));
-      if (supertrendVals.isNotEmpty) {
-        final currentSupertrend = supertrendVals.last;
-        stoploss = currentSupertrend *
-            0.9975; // Calculate 0.25% below 5-min supertrend
-      }
+      final engine = IndicatorEngine(stock.historyFiveMin!);
+      atrValue = IndicatorUtils.atrLast(
+            engine.highs,
+            engine.lows,
+            engine.closes,
+            period: atrPeriod,
+          ) ??
+          0.0;
+
+      final stRes = IndicatorUtils.isCloseAboveSupertrend(
+        engine,
+        atrPeriod: supertrendPeriod,
+        multiplier: supertrendMultiplier,
+      );
+      supertrendValue = stRes.value ?? entryPrice;
+    } else {
+      supertrendValue = entryPrice;
     }
 
-    if (stoploss == 0.0) {
-      if (stock.historyFiveMin != null && stock.historyFiveMin!.isNotEmpty) {
-        final targetCandle =
-            FilterUtils.getLastClosed5MinCandle(stock.historyFiveMin!);
-        stoploss = targetCandle.low * 0.9950;
-      } else {
-        stoploss = entryPrice * 0.9950;
-      }
+    double atrSL = entryPrice - (atrValue * atrMultiplier);
+    stoploss = min(supertrendValue, atrSL);
+
+    double risk = entryPrice - stoploss;
+    if (risk <= 0) {
+      risk = entryPrice * 0.01; // fallback
     }
 
-    double maxStoploss = entryPrice * 0.97; // Max 3% loss
-    if (stoploss < maxStoploss) {
-      stoploss = maxStoploss;
-    }
+    double target = entryPrice + (risk * riskReward);
 
     return {"target": target, "stoploss": stoploss, "price": entryPrice};
   }
@@ -134,8 +150,10 @@ class Utilities {
       double volX = 0.0;
       double todayAvgVol = 0.0;
       if (stock.historyFiveMin != null) {
-        volX = IndicatorUtils.getAllCandlesAvgX(IndicatorEngine(stock.historyFiveMin!));
-        todayAvgVol = IndicatorUtils.getTodayAvgVolume(IndicatorEngine(stock.historyFiveMin!));
+        volX = IndicatorUtils.getAllCandlesAvgX(
+            IndicatorEngine(stock.historyFiveMin!));
+        todayAvgVol = IndicatorUtils.getTodayAvgVolume(
+            IndicatorEngine(stock.historyFiveMin!));
       }
 
       if (existingIndex == -1) {
@@ -506,11 +524,13 @@ class Utilities {
 
     int? lastKey;
     for (var c in fiveMinCandles) {
-      if (lastKey == null || 
-          (lastKey ~/ 10000) != c.timestamp.year || 
-          ((lastKey % 10000) ~/ 100) != c.timestamp.month || 
+      if (lastKey == null ||
+          (lastKey ~/ 10000) != c.timestamp.year ||
+          ((lastKey % 10000) ~/ 100) != c.timestamp.month ||
           (lastKey % 100) != c.timestamp.day) {
-        lastKey = c.timestamp.year * 10000 + c.timestamp.month * 100 + c.timestamp.day;
+        lastKey = c.timestamp.year * 10000 +
+            c.timestamp.month * 100 +
+            c.timestamp.day;
       }
       grouped.putIfAbsent(lastKey, () => []).add(c);
     }
@@ -626,7 +646,8 @@ class Utilities {
         }
 
         if (isRadarHit || buyAlert) {
-          double volumeX = IndicatorUtils.getOtherCandlesAvgX(IndicatorEngine(historySoFar));
+          double volumeX =
+              IndicatorUtils.getOtherCandlesAvgX(IndicatorEngine(historySoFar));
 
           result.add(
             HistoryModel(

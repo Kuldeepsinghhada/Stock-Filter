@@ -27,6 +27,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
   double totalPnL = 0.0;
   bool isRadarMode = true;
   Map<String, String> stockTradeResult = {};
+  Map<String, Map<String, dynamic>> stockAccuracyResults = {};
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
   Future<void> _initialize() async {
     quoteList.clear();
     stockTradeResult.clear();
+    stockAccuracyResults.clear();
     Future.delayed(const Duration(milliseconds: 200), () async {
       setState(() {
         isLoading = true;
@@ -60,11 +62,12 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           quoteList.add(item);
           historyList.add(result);
 
-          final accResult = FilterUtils.calculateBuyAlertAccuracy(
+          final accResult = await FilterUtils.calculateBuyAlertAccuracy(
               item.historyFiveMin ?? [], item.token.toString(),
               useRadarAlert: isRadarMode);
 
           if (accResult != null) {
+            stockAccuracyResults[item.symbol ?? ''] = accResult;
             tSignals++;
             double pnl = accResult['percentPnL'] ?? 0.0;
             tPnL += pnl;
@@ -72,7 +75,7 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
             if (status == "Win") {
               targetHits++;
               stockTradeResult[item.symbol ?? ''] = "Target Hit";
-            } else if (status == "Loss") {
+            } else if (status == "Loss" || status == "SL Hit" || status == "Trailing SL Hit") {
               slHits++;
               stockTradeResult[item.symbol ?? ''] = "SL Hit";
             } else {
@@ -233,12 +236,15 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                       trailing: Text(
                         stockHistory.length.toString(),
                       ),
-                      onTap: () {
-                        final accResult =
-                            FilterUtils.calculateBuyAlertAccuracy(
-                                stock.historyFiveMin ?? [],
-                                stock.token.toString(),
-                                useRadarAlert: isRadarMode);
+                      onTap: () async {
+                        // Use cached result if available, otherwise fetch on the fly
+                        Map<String, dynamic>? accResult = stockAccuracyResults[stock.symbol ?? ''];
+                        if (accResult == null) {
+                          accResult = await FilterUtils.calculateBuyAlertAccuracy(
+                              stock.historyFiveMin ?? [],
+                              stock.token.toString(),
+                              useRadarAlert: isRadarMode);
+                        }
 
                         double signalPrice = accResult != null
                             ? accResult['entryPrice']
@@ -250,6 +256,12 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                         double percentPnL = accResult != null
                             ? accResult['percentPnL'] ?? 0.0
                             : 0.0;
+
+                        double risk = accResult != null ? (accResult['risk'] ?? 0.0) : 0.0;
+                        double reward = accResult != null ? (accResult['reward'] ?? 0.0) : 0.0;
+                        double rrRatio = accResult != null ? (accResult['rrRatio'] ?? 0.0) : 0.0;
+                        double atrVal = accResult != null ? (accResult['atrValue'] ?? 0.0) : 0.0;
+                        double stVal = accResult != null ? (accResult['supertrendValue'] ?? 0.0) : 0.0;
 
                         final historySoFar = stock.historyFiveMin
                                 ?.where((c) => !c.timestamp.isAfter(
@@ -292,16 +304,22 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
                                 Text('Score: $score'),
                                 Text(
                                     'Volume Mult: ${volMult.toStringAsFixed(2)}x'),
-                                const SizedBox(height: 8),
+                                const Divider(color: Colors.white24, height: 16),
                                 Text(
-                                    'Target (2%): ${targetPrice.toStringAsFixed(2)}',
+                                    'Target Price: ${targetPrice.toStringAsFixed(2)}',
                                     style: const TextStyle(
                                         color: Colors.green)),
                                 Text(
-                                    'Stoploss: ${stoplossPrice.toStringAsFixed(2)} '
+                                    'Stoploss Price: ${stoplossPrice.toStringAsFixed(2)} '
                                     '(${signalPrice > 0 ? (((signalPrice - stoplossPrice) / signalPrice) * 100).toStringAsFixed(2) : "0.00"}%)',
                                     style:
                                         const TextStyle(color: Colors.red)),
+                                const SizedBox(height: 8),
+                                Text('Risk: ${risk.toStringAsFixed(2)}'),
+                                Text('Reward: ${reward.toStringAsFixed(2)}'),
+                                Text('Risk Reward Ratio: 1:${rrRatio.toStringAsFixed(1)}'),
+                                Text('ATR (5m): ${atrVal.toStringAsFixed(2)}'),
+                                Text('Supertrend (5m): ${stVal.toStringAsFixed(2)}'),
                               ],
                             ),
                             actions: [
