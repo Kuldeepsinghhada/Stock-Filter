@@ -887,7 +887,7 @@ class FilterUtils {
                 IndicatorEngine(historySoFar),
                 atrPeriod: cachedSupertrendPeriod,
                 multiplier: cachedSupertrendMultiplier);
-            supertrendValue = stRes.value;
+            supertrendValue = stRes.value != null ? stRes.value! * 0.998 : null;
             atrValue = IndicatorUtils.atrLast(
               historySoFar.map((e) => e.high).toList(),
               historySoFar.map((e) => e.low).toList(),
@@ -911,7 +911,8 @@ class FilterUtils {
                   IndicatorEngine(historySoFar),
                   atrPeriod: cachedSupertrendPeriod,
                   multiplier: cachedSupertrendMultiplier);
-              supertrendValue = stRes.value;
+              supertrendValue =
+                  stRes.value != null ? stRes.value! * 0.998 : null;
               atrValue = IndicatorUtils.atrLast(
                 historySoFar.map((e) => e.high).toList(),
                 historySoFar.map((e) => e.low).toList(),

@@ -115,6 +115,9 @@ class Utilities {
         multiplier: supertrendMultiplier,
       );
       supertrendValue = stRes.value ?? entryPrice;
+      if (stRes.value != null) {
+        supertrendValue = supertrendValue * 0.998; // 0.20% below supertrend
+      }
     } else {
       supertrendValue = entryPrice;
     }
