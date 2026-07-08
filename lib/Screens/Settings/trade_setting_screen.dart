@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:stock_demo/APIService/backend_order_service.dart';
 import '../../Utils/sharepreference_helper.dart';
 import 'package:stock_demo/trading/trading_manager.dart';
 
@@ -18,20 +19,18 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       TextEditingController();
   final TextEditingController _defaultQuantityController =
       TextEditingController();
-
   final TextEditingController _atrPeriodController = TextEditingController();
-  final TextEditingController _atrMultiplierController = TextEditingController();
+  final TextEditingController _atrMultiplierController =
+      TextEditingController();
   final TextEditingController _riskRewardController = TextEditingController();
-  final TextEditingController _supertrendPeriodController = TextEditingController();
-  final TextEditingController _supertrendMultiplierController = TextEditingController();
-  final TextEditingController _squareOffTimeController = TextEditingController();
+  final TextEditingController _supertrendPeriodController =
+      TextEditingController();
+  final TextEditingController _supertrendMultiplierController =
+      TextEditingController();
+  final TextEditingController _squareOffTimeController =
+      TextEditingController();
   bool _squareOffEnabled = true;
 
-  bool _isVolumeAverageOK = true;
-  bool _isPattern = true;
-  bool _aboveSupertrend = true;
-  bool _aboveEma20 = true;
-  bool _isVolumeBreakout = true;
   bool _telegramAlerts = true;
 
   @override
@@ -47,11 +46,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final maxTradeAmount = await prefs.getMaxTradeAmount();
     final defaultQuantity = await prefs.getDefaultQuantity();
 
-    final volAvg = await prefs.getVolumeAverageEnabled();
-    final pattern = await prefs.getPatternEnabled();
-    final supertrend = await prefs.getSupertrendEnabled();
-    final ema20 = await prefs.getEma20Enabled();
-    final volBreakout = await prefs.getVolumeBreakoutEnabled();
     final telegram = await prefs.getTelegramAlertsEnabled();
 
     final atrPeriod = await prefs.getAtrPeriod();
@@ -67,11 +61,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       _otherMultiplierController.text = otherMultiplier.toString();
       _maxTradeAmountController.text = maxTradeAmount.toString();
       _defaultQuantityController.text = defaultQuantity.toString();
-      _isVolumeAverageOK = volAvg;
-      _isPattern = pattern;
-      _aboveSupertrend = supertrend;
-      _aboveEma20 = ema20;
-      _isVolumeBreakout = volBreakout;
       _telegramAlerts = telegram;
 
       _atrPeriodController.text = atrPeriod.toString();
@@ -95,7 +84,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final atrMultiplier = double.tryParse(_atrMultiplierController.text);
     final riskReward = double.tryParse(_riskRewardController.text);
     final supertrendPeriod = int.tryParse(_supertrendPeriodController.text);
-    final supertrendMultiplier = double.tryParse(_supertrendMultiplierController.text);
+    final supertrendMultiplier =
+        double.tryParse(_supertrendMultiplierController.text);
     final squareOffTime = _squareOffTimeController.text.trim();
 
     if (last != null &&
@@ -113,11 +103,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       await prefs.setMaxTradeAmount(maxAmount);
       await prefs.setDefaultQuantity(defQuantity);
 
-      await prefs.setVolumeAverageEnabled(_isVolumeAverageOK);
-      await prefs.setPatternEnabled(_isPattern);
-      await prefs.setSupertrendEnabled(_aboveSupertrend);
-      await prefs.setEma20Enabled(_aboveEma20);
-      await prefs.setVolumeBreakoutEnabled(_isVolumeBreakout);
       await prefs.setTelegramAlertsEnabled(_telegramAlerts);
 
       await prefs.setAtrPeriod(atrPeriod);
@@ -137,7 +122,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text("Please enter valid numbers/values for all fields")),
+              content:
+                  Text("Please enter valid numbers/values for all fields")),
         );
       }
     }
@@ -165,31 +151,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
                     fontSize: 18,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            _buildToggleTile(
-              label: "Volume Average (isVolumeAverageOK)",
-              value: _isVolumeAverageOK,
-              onChanged: (val) => setState(() => _isVolumeAverageOK = val),
-            ),
-            _buildToggleTile(
-              label: "Bullish Pattern (isPattern)",
-              value: _isPattern,
-              onChanged: (val) => setState(() => _isPattern = val),
-            ),
-            _buildToggleTile(
-              label: "Above Supertrend",
-              value: _aboveSupertrend,
-              onChanged: (val) => setState(() => _aboveSupertrend = val),
-            ),
-            _buildToggleTile(
-              label: "Above EMA20",
-              value: _aboveEma20,
-              onChanged: (val) => setState(() => _aboveEma20 = val),
-            ),
-            _buildToggleTile(
-              label: "Volume Breakout",
-              value: _isVolumeBreakout,
-              onChanged: (val) => setState(() => _isVolumeBreakout = val),
-            ),
             _buildToggleTile(
               label: "Telegram Buy Alerts",
               value: _telegramAlerts,
@@ -220,24 +181,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               label: "Default Quantity",
               controller: _defaultQuantityController,
               helperText: "e.g., 1",
-            ),
-            const Divider(color: Colors.white10, height: 40),
-            const Text("Volume Multipliers",
-                style: TextStyle(
-                    color: Colors.blueAccent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _buildMultiplierInput(
-              label: "Last Candle Volume Multiplier",
-              controller: _lastMultiplierController,
-              helperText: "e.g., 15",
-            ),
-            const SizedBox(height: 20),
-            _buildMultiplierInput(
-              label: "Other Candles Volume Multiplier",
-              controller: _otherMultiplierController,
-              helperText: "e.g., 10",
             ),
             const Divider(color: Colors.white10, height: 40),
             const Text("Breakout Strategy Settings",
@@ -323,7 +266,9 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () => _showTestTradeDialog(context),
+                onPressed: () {
+                  BackendOrderService.testPlaceStockOrder();
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orangeAccent,
                   shape: RoundedRectangleBorder(

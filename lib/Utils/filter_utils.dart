@@ -13,14 +13,6 @@ import 'math_utils.dart';
 
 class FilterUtils {
   // Static cached variables to avoid querying SharedPreferences repetitively
-  static double cachedLastMultiplier = 3.0;
-  static double cachedOtherMultiplier = 2.0;
-  static bool cachedIsVolAvgEnabled = true;
-  static bool cachedIsPatternEnabled = true;
-  static bool cachedIsSupertrendEnabled = true;
-  static bool cachedIsEma20Enabled = true;
-  static bool cachedIsVolBreakoutEnabled = true;
-
   static int cachedAtrPeriod = 14;
   static double cachedAtrMultiplier = 1.5;
   static double cachedRiskReward = 2.0;
@@ -32,14 +24,6 @@ class FilterUtils {
   /// Loads and caches the settings from SharedPreferences
   static Future<void> cacheFilterSettings() async {
     final prefs = SharedPreferenceHelper.instance;
-    cachedLastMultiplier = await prefs.getLastCandleMultiplier();
-    cachedOtherMultiplier = await prefs.getOtherCandlesMultiplier();
-    cachedIsVolAvgEnabled = await prefs.getVolumeAverageEnabled();
-    cachedIsPatternEnabled = await prefs.getPatternEnabled();
-    cachedIsSupertrendEnabled = await prefs.getSupertrendEnabled();
-    cachedIsEma20Enabled = await prefs.getEma20Enabled();
-    cachedIsVolBreakoutEnabled = await prefs.getVolumeBreakoutEnabled();
-
     cachedAtrPeriod = await prefs.getAtrPeriod();
     cachedAtrMultiplier = await prefs.getAtrMultiplier();
     cachedRiskReward = await prefs.getRiskReward();
@@ -102,12 +86,10 @@ class FilterUtils {
     }
 
     // 6. EMA
-    if (cachedIsEma20Enabled) {
-      bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(engine, 20).isPassed;
-      if (!aboveEma20) {
-        logMsg("Failed: $token at $timeStr - Reason: Below EMA20");
-        return false;
-      }
+    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(engine, 20).isPassed;
+    if (!aboveEma20) {
+      logMsg("Failed: $token at $timeStr - Reason: Below EMA20");
+      return false;
     }
 
     // 7. ATR
@@ -118,16 +100,14 @@ class FilterUtils {
     }
 
     // 8. Supertrend
-    if (cachedIsSupertrendEnabled) {
-      bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-        engine,
-        atrPeriod: 10,
-        multiplier: 3,
-      ).isPassed;
-      if (!aboveSupertrend) {
-        logMsg("Failed: $token at $timeStr - Reason: Below Supertrend");
-        return false;
-      }
+    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
+      engine,
+      atrPeriod: 10,
+      multiplier: 3,
+    ).isPassed;
+    if (!aboveSupertrend) {
+      logMsg("Failed: $token at $timeStr - Reason: Below Supertrend");
+      return false;
     }
 
     // 9. ADX

@@ -160,6 +160,9 @@ class Utilities {
       }
 
       if (existingIndex == -1) {
+        if (!isHistorical && DateTime.now().hour >= 14) {
+          continue; // New stock in radar not allowed after 2 PM
+        }
         final calc = await calculateTargetAndStoploss(stock);
         if (calc == null) continue; // Skip if trade is rejected
 
