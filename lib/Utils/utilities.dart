@@ -135,7 +135,7 @@ class Utilities {
     return {"target": target, "stoploss": stoploss, "price": entryPrice};
   }
 
-  static Future<void> addAndShowNotification(List<StockModel> finalList) async {
+  static Future<void> addAndShowNotification(List<StockModel> finalList, {bool isHistorical = false}) async {
     List<NotificationModel> notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
 
@@ -184,12 +184,14 @@ class Utilities {
         newStocksForTelegram.add(stock);
 
         // Auto Trading Execution
-        TradingManager.instance.onStockRadarTrigger(
-          stock.symbol ?? '',
-          price,
-          target,
-          stoploss,
-        );
+        if (!isHistorical) {
+          TradingManager.instance.onStockRadarTrigger(
+            stock.symbol ?? '',
+            price,
+            target,
+            stoploss,
+          );
+        }
       } else {
         notificationsList[existingIndex].volumeX = volX;
         if (notificationsList[existingIndex].initialAvgVolume == null &&

@@ -45,7 +45,7 @@ class HistoryServices {
       maxCallsPerSecond: 12,
     );
 
-    Utilities.addAndShowNotification(_finalList);
+    Utilities.addAndShowNotification(_finalList, isHistorical: true);
 
     return _finalList;
   }

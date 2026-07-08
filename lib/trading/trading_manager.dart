@@ -5,6 +5,7 @@ import 'trade_executor.dart';
 import 'kite_api_client.dart';
 import 'order_service.dart';
 import 'order_monitor.dart';
+import 'package:stock_demo/APIService/backend_order_service.dart';
 
 class TradingManager {
   static final TradingManager instance = TradingManager._internal();
@@ -60,25 +61,20 @@ class TradingManager {
         'Signal received for $symbol. Entry: $entryPrice, Target: $target, SL: $stoploss',
         name: 'TradingManager');
 
-    if (!_isAutoTradingEnabled) {
-      developer.log('Auto Trading is disabled. Ignoring signal for $symbol.',
-          name: 'TradingManager');
-      return;
-    }
+    // Commented out to ensure it always executes in live for now
+    // if (!_isAutoTradingEnabled) {
+    //   developer.log('Auto Trading is disabled. Ignoring signal for $symbol.',
+    //       name: 'TradingManager');
+    //   return;
+    // }
 
-    // Get max trade amount from preferences
+    // Read custom quantity from preferences, default to 1 if not set
     final prefs = await SharedPreferences.getInstance();
-    final maxTradeAmount = prefs.getDouble('maxTradeAmount') ?? 5000.0;
-
-    // Calculate quantity based on max trade amount and entry price
-    int calculatedQuantity = 0;
-    if (entryPrice > 0) {
-      calculatedQuantity = (maxTradeAmount / entryPrice).floor();
-    }
+    final int calculatedQuantity = prefs.getInt('defaultQuantity') ?? 1;
 
     if (calculatedQuantity <= 0) {
       developer.log(
-          'Calculated quantity is 0 or less (Price: $entryPrice, MaxAmount: $maxTradeAmount). Aborting trade.',
+          'Calculated quantity is 0 or less. Aborting trade.',
           name: 'TradingManager');
       return;
     }
@@ -101,11 +97,25 @@ class TradingManager {
       slOrderType: defaultTradeConfig.slOrderType,
     );
 
-    // Execute the trade (fire and forget)
-    tradeExecutor.executeTrade(config).catchError((e) {
-      developer.log('Trade execution failed for $symbol: $e',
+    // Execute the trade via custom backend
+    BackendOrderService.placeStockOrder(
+      symbol: symbol,
+      exchange: defaultTradeConfig.exchange,
+      transactionType: "BUY",
+      quantity: calculatedQuantity > 0 ? calculatedQuantity : 1, // Fallback to 1 if calculation fails
+      product: "MIS", // Executing as MIS for intraday trading
+      stopLoss: stoploss,
+      target: target,
+    ).catchError((e) {
+      developer.log('Backend Trade execution failed for $symbol: $e',
           name: 'TradingManager', error: e);
     });
+
+    // Optionally you can keep the local execution as well, but commented out to prefer backend:
+    // tradeExecutor.executeTrade(config).catchError((e) {
+    //   developer.log('Trade execution failed for $symbol: $e',
+    //       name: 'TradingManager', error: e);
+    // });
   }
 
   /// Test function to forcefully execute a trade with 1 quantity

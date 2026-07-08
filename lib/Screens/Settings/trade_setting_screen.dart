@@ -16,6 +16,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       TextEditingController();
   final TextEditingController _maxTradeAmountController =
       TextEditingController();
+  final TextEditingController _defaultQuantityController =
+      TextEditingController();
 
   final TextEditingController _atrPeriodController = TextEditingController();
   final TextEditingController _atrMultiplierController = TextEditingController();
@@ -43,6 +45,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final lastMultiplier = await prefs.getLastCandleMultiplier();
     final otherMultiplier = await prefs.getOtherCandlesMultiplier();
     final maxTradeAmount = await prefs.getMaxTradeAmount();
+    final defaultQuantity = await prefs.getDefaultQuantity();
 
     final volAvg = await prefs.getVolumeAverageEnabled();
     final pattern = await prefs.getPatternEnabled();
@@ -63,6 +66,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       _lastMultiplierController.text = lastMultiplier.toString();
       _otherMultiplierController.text = otherMultiplier.toString();
       _maxTradeAmountController.text = maxTradeAmount.toString();
+      _defaultQuantityController.text = defaultQuantity.toString();
       _isVolumeAverageOK = volAvg;
       _isPattern = pattern;
       _aboveSupertrend = supertrend;
@@ -85,6 +89,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final last = double.tryParse(_lastMultiplierController.text);
     final other = double.tryParse(_otherMultiplierController.text);
     final maxAmount = double.tryParse(_maxTradeAmountController.text);
+    final defQuantity = int.tryParse(_defaultQuantityController.text);
 
     final atrPeriod = int.tryParse(_atrPeriodController.text);
     final atrMultiplier = double.tryParse(_atrMultiplierController.text);
@@ -96,6 +101,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     if (last != null &&
         other != null &&
         maxAmount != null &&
+        defQuantity != null &&
         atrPeriod != null &&
         atrMultiplier != null &&
         riskReward != null &&
@@ -105,6 +111,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       await prefs.setLastCandleMultiplier(last);
       await prefs.setOtherCandlesMultiplier(other);
       await prefs.setMaxTradeAmount(maxAmount);
+      await prefs.setDefaultQuantity(defQuantity);
 
       await prefs.setVolumeAverageEnabled(_isVolumeAverageOK);
       await prefs.setPatternEnabled(_isPattern);
@@ -207,6 +214,12 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               label: "Max Trade Amount (₹)",
               controller: _maxTradeAmountController,
               helperText: "e.g., 5000",
+            ),
+            const SizedBox(height: 16),
+            _buildMultiplierInput(
+              label: "Default Quantity",
+              controller: _defaultQuantityController,
+              helperText: "e.g., 1",
             ),
             const Divider(color: Colors.white10, height: 40),
             const Text("Volume Multipliers",

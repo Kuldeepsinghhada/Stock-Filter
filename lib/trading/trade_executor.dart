@@ -11,6 +11,7 @@ import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:stock_demo/Utils/indicators.dart';
+import 'package:stock_demo/APIService/backend_order_service.dart';
 
 class TradeExecutor {
   final OrderService orderService;
@@ -319,6 +320,16 @@ class TradeExecutor {
                     developer.log('Kite SL order $slOrderId successfully modified to $currentTrailedSL', name: 'TradeExecutor');
                   } catch (e) {
                     developer.log('Failed to modify Kite SL order $slOrderId to $currentTrailedSL: $e', name: 'TradeExecutor', error: e);
+                  }
+
+                  // Also update on the backend
+                  try {
+                    await BackendOrderService.updateActiveSL(
+                      symbol: config.symbol,
+                      triggerPrice: currentTrailedSL,
+                    );
+                  } catch (e) {
+                    developer.log('Failed to update SL on Backend for ${config.symbol}: $e', name: 'TradeExecutor', error: e);
                   }
                 }
               }

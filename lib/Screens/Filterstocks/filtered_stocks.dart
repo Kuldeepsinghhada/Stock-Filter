@@ -1,7 +1,8 @@
-import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
+import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
 import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
@@ -23,6 +24,7 @@ class FilteredStockScreen extends StatefulWidget {
 class _FilteredStockScreenState extends State<FilteredStockScreen>
     with WidgetsBindingObserver {
   bool isLoading = false;
+  bool isBackendConnected = false;
   bool isTaskRunning = false;
   List<FinalStockModel> quoteList = [];
   final TextEditingController _symbolsController = TextEditingController();
@@ -192,6 +194,40 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     return true;
   }
 
+  void connectBackend() async {
+    {
+      try {
+        // 1. Health Check
+        final isHealthy = await BackendOrderService.healthCheck();
+        if (isHealthy) {
+          // 2. Save Zerodha Session
+          String? accessToken =
+              await SharedPreferenceHelper.instance.getToken();
+          String? refreshToken =
+              await SharedPreferenceHelper.instance.getRefreshToken();
+
+          final isSaved = await BackendOrderService.saveZerodhaSession(
+              accessToken ?? "", refreshToken ?? "");
+
+          if (isSaved) {
+            setState(() {
+              isBackendConnected = true;
+            });
+            Fluttertoast.showToast(msg: "Connected");
+            // 3. Make GET API call to check session and print token
+            await BackendOrderService.getSession();
+          } else {
+            Fluttertoast.showToast(msg: "Failed to save session");
+          }
+        } else {
+          Fluttertoast.showToast(msg: "Health check failed");
+        }
+      } catch (e) {
+        Fluttertoast.showToast(msg: "Connection error: $e");
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     double totalPnlPercent = 0.0;
@@ -344,31 +380,53 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'filtered_stocks_fab',
-        child: Text(isTaskRunning ? "STOP" : "START"),
-        onPressed: () async {
-          // Only allow starting the task after 9:28 AM local time.
-          final now = DateTime.now();
-          final startAllowedAt = DateTime(now.year, now.month, now.day, 9, 30);
-          // If currently not running (we're trying to START) and time is before allowed time, block it.
-          if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-            Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
-            return;
-          }
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'connect_backend_fab',
+            label: Text(isBackendConnected ? "Connected" : "Connect"),
+            icon: Icon(isBackendConnected ? Icons.cloud_done : Icons.cloud_off),
+            backgroundColor: isBackendConnected ? Colors.green : null,
+            onPressed: () => connectBackend(),
+          ),
+          const SizedBox(height: 10),
+          // FloatingActionButton(
+          //     child: Icon(Icons.network_check),
+          //     onPressed: () {
+          //       BackendOrderService.testPlaceStockOrder();
+          //     }),
+          // const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: 'filtered_stocks_fab',
+            child: Text(isTaskRunning ? "STOP" : "START"),
+            onPressed: () async {
+              // Only allow starting the task after 9:28 AM local time.
+              final now = DateTime.now();
+              final startAllowedAt =
+                  DateTime(now.year, now.month, now.day, 9, 30);
+              // If currently not running (we're trying to START) and time is before allowed time, block it.
+              if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+                Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
+                return;
+              }
 
-          await WakelockPlus.enable();
-          if (!isTaskRunning) {
-            await FilterUtils.cacheFilterSettings();
-            isTaskRunning = true;
-            await fetchQuotesFromService();
-          } else {
-            isTaskRunning = false;
-            await WakelockPlus.disable();
-          }
-          setState(() {});
-          // }
-        },
+              await WakelockPlus.enable();
+              if (!isTaskRunning) {
+                await FilterUtils.cacheFilterSettings();
+                isTaskRunning = true;
+                await fetchQuotesFromService();
+              } else {
+                isTaskRunning = false;
+                await WakelockPlus.disable();
+              }
+              setState(() {});
+              // }
+            },
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,7 @@ class SharedPreferenceHelper {
   String kAlarmRunning = "alarmRunning";
   String quotesKey = "quotes";
   String tokenKey = "access_token";
+  String refreshTokenKey = "refresh_token";
   String accessTokenExpiry = "access_token_expiry";
   String daily = "daily";
   String tokenList = "tokenList";
@@ -30,6 +31,7 @@ class SharedPreferenceHelper {
   String isNearEmaOrSupertrendKey = "isNearEmaOrSupertrend";
   String telegramAlertsKey = "telegramAlerts";
   String maxTradeAmountKey = "maxTradeAmount";
+  String defaultQuantityKey = "defaultQuantity";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -80,6 +82,18 @@ class SharedPreferenceHelper {
   Future<String?> getToken() async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
     var data = preferences.getString(tokenKey);
+    return data;
+  }
+
+  Future<bool?> setRefreshToken(String token) async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var status = await preferences.setString(refreshTokenKey, token);
+    return status;
+  }
+
+  Future<String?> getRefreshToken() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var data = preferences.getString(refreshTokenKey);
     return data;
   }
 
@@ -397,6 +411,16 @@ class SharedPreferenceHelper {
   Future<double> getMaxTradeAmount() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(maxTradeAmountKey) ?? 5000.0;
+  }
+
+  Future<int> getDefaultQuantity() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(defaultQuantityKey) ?? 1;
+  }
+
+  Future<void> setDefaultQuantity(int quantity) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(defaultQuantityKey, quantity);
   }
 
   // Intraday breakout trade logic settings

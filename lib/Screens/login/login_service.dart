@@ -36,7 +36,12 @@ class LoginService {
         });
     if (response.status) {
       final token = response.data["data"]["access_token"];
+      final refreshToken = response.data["data"]["refresh_token"];
       log("🎯 Access Token: $token");
+      if (refreshToken != null) {
+        log("🔄 Refresh Token received");
+        await SharedPreferenceHelper.instance.setRefreshToken(refreshToken);
+      }
       // Save token and expiry (midnight)
       await SharedPreferenceHelper.instance.clearNotifications();
       await SharedPreferenceHelper.instance.setToken(token);
