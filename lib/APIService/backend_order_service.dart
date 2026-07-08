@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -86,12 +87,15 @@ class BackendOrderService {
         final responseData = jsonDecode(response.body);
         print("Order Placed Successfully!");
         print(responseData); // This will contain your order IDs
+        Fluttertoast.showToast(msg: "Order Placed: ${symbol}");
       } else {
         print("Failed to place order: ${response.statusCode}");
         print(response.body);
+        Fluttertoast.showToast(msg: "Order Failed: ${response.body}");
       }
     } catch (e) {
       print("Error calling API: $e");
+      Fluttertoast.showToast(msg: "Order API Error: $e");
     }
   }
 
@@ -132,12 +136,15 @@ class BackendOrderService {
 
       if (response.statusCode == 200) {
         print("SL Updated Successfully on Backend! ($symbol -> $triggerPrice)");
+        Fluttertoast.showToast(msg: "SL Updated: $symbol");
       } else {
         print("Failed to update SL on Backend: ${response.statusCode}");
         print(response.body);
+        Fluttertoast.showToast(msg: "SL Update Failed: ${response.body}");
       }
     } catch (e) {
       print("Error calling updateActiveSL API: $e");
+      Fluttertoast.showToast(msg: "SL API Error: $e");
     }
   }
 }

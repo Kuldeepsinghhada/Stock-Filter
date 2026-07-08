@@ -87,13 +87,13 @@ class FilterUtils {
     }
 
     // 4. PriceChange
-    // if (!isHistoryCheck) {
-    //   var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
-    //   if (!isPercentChange) {
-    //     logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
-    //     return false;
-    //   }
-    // }
+    if (!isHistoryCheck) {
+      var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
+      if (!isPercentChange) {
+        logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
+        return false;
+      }
+    }
 
     // 5. VolumeSpike
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
