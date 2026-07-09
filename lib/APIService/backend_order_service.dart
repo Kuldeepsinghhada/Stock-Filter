@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:stock_demo/model/executed_order.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -91,7 +92,14 @@ class BackendOrderService {
       } else {
         print("Failed to place order: ${response.statusCode}");
         print(response.body);
-        Fluttertoast.showToast(msg: "Order Failed: ${response.body}");
+        String errorMessage = response.body;
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded['message'] != null) {
+            errorMessage = decoded['message'];
+          }
+        } catch (_) {}
+        Fluttertoast.showToast(msg: "Order Failed: $errorMessage");
       }
     } catch (e) {
       print("Error calling API: $e");
@@ -140,11 +148,43 @@ class BackendOrderService {
       } else {
         print("Failed to update SL on Backend: ${response.statusCode}");
         print(response.body);
-        Fluttertoast.showToast(msg: "SL Update Failed: ${response.body}");
+        String errorMessage = response.body;
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded['message'] != null) {
+            errorMessage = decoded['message'];
+          }
+        } catch (_) {}
+        Fluttertoast.showToast(msg: "SL Update Failed: $errorMessage");
       }
     } catch (e) {
       print("Error calling updateActiveSL API: $e");
       Fluttertoast.showToast(msg: "SL API Error: $e");
     }
+  }
+
+  /// Get Executed Orders
+  static Future<List<ExecutedOrder>> getExecutedOrders() async {
+    final url = Uri.parse('$baseUrl/executedOrders');
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+
+    try {
+      final response = await http.get(url, headers: headers);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['success'] == true && decoded['data'] != null) {
+          List<dynamic> dataList = decoded['data'];
+          return dataList.map((e) => ExecutedOrder.fromJson(e)).toList();
+        }
+      } else {
+        print("Failed to get executed orders: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error calling getExecutedOrders API: $e");
+    }
+    return [];
   }
 }

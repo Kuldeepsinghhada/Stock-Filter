@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Screens/Swing/bulk_analysis_screen.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
+import 'package:stock_demo/Screens/Orders/orders_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,6 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _screens = [
       FilteredStockScreen(),
       BulkAnalysisScreen(selectedDate: DateTime.now()),
+      const OrderScreen(),
     ];
   }
 
@@ -42,6 +44,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           BottomNavigationBarItem(
               icon: Icon(Icons.data_usage), label: "INVESTMENT"),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long), label: "ORDERS"),
         ],
       ),
     );
