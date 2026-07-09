@@ -5,6 +5,8 @@ class ExecutedOrder {
   final String slOrderId;
   final String targetOrderId;
   final double buyingPrice;
+  final double? exitPrice;
+  final double? profitLossPercentage;
   final String status;
   final DateTime? createdAt;
 
@@ -15,6 +17,8 @@ class ExecutedOrder {
     required this.slOrderId,
     required this.targetOrderId,
     required this.buyingPrice,
+    this.exitPrice,
+    this.profitLossPercentage,
     required this.status,
     this.createdAt,
   });
@@ -27,6 +31,8 @@ class ExecutedOrder {
       slOrderId: json['slOrderId'] ?? '',
       targetOrderId: json['targetOrderId'] ?? '',
       buyingPrice: (json['buyingPrice'] ?? 0).toDouble(),
+      exitPrice: json['exitPrice'] != null ? (json['exitPrice'] as num).toDouble() : null,
+      profitLossPercentage: json['profitLossPercentage'] != null ? (json['profitLossPercentage'] as num).toDouble() : null,
       status: json['status'] ?? 'UNKNOWN',
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
     );

@@ -70,6 +70,10 @@ class BackendOrderService {
       'X-Backend-Key': 'my_super_secret_key', // Ensure this is stored securely
     };
 
+    // Round to nearest 0.05 (NSE Tick size)
+    final double roundedSL = (stopLoss * 20).round() / 20.0;
+    final double roundedTarget = (target * 20).round() / 20.0;
+
     final body = jsonEncode({
       "symbol":
           symbol.replaceAll("NSE:", "").replaceAll("BSE:", ""), // Clean symbol
@@ -77,8 +81,8 @@ class BackendOrderService {
       "transactionType": transactionType,
       "quantity": quantity,
       "product": product,
-      "stopLoss": stopLoss,
-      "target": target,
+      "stopLoss": roundedSL,
+      "target": roundedTarget,
     });
 
     try {
@@ -115,7 +119,7 @@ class BackendOrderService {
       exchange: "NSE",
       transactionType: "BUY",
       quantity: 1,
-      product: "CNC",
+      product: "MIS",
       stopLoss: 1000.0,
       target: 1100.0,
     );
@@ -134,9 +138,11 @@ class BackendOrderService {
       'X-Backend-Key': 'my_super_secret_key',
     };
 
+    final double roundedTrigger = (triggerPrice * 20).round() / 20.0;
+
     final body = jsonEncode({
       "symbol": symbol.replaceAll("NSE:", "").replaceAll("BSE:", ""),
-      "triggerPrice": triggerPrice,
+      "triggerPrice": roundedTrigger,
     });
 
     try {

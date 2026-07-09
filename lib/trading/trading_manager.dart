@@ -61,12 +61,12 @@ class TradingManager {
         'Signal received for $symbol. Entry: $entryPrice, Target: $target, SL: $stoploss',
         name: 'TradingManager');
 
-    // Commented out to ensure it always executes in live for now
-    // if (!_isAutoTradingEnabled) {
-    //   developer.log('Auto Trading is disabled. Ignoring signal for $symbol.',
-    //       name: 'TradingManager');
-    //   return;
-    // }
+    // Check if Auto Trading is enabled before proceeding
+    if (!_isAutoTradingEnabled) {
+      developer.log('Auto Trading is disabled. Ignoring signal for $symbol.',
+          name: 'TradingManager');
+      return;
+    }
 
     // Read custom quantity from preferences, default to 1 if not set
     final prefs = await SharedPreferences.getInstance();
