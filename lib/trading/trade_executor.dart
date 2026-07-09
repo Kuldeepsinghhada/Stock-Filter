@@ -28,20 +28,26 @@ class TradeExecutor {
   /// Executes the full trade flow for a given configuration.
   Future<void> executeTrade(TradeConfig config) async {
     if (_activeTrades.contains(config.symbol)) {
-      developer.log('Trade for ${config.symbol} is already active. Ignoring new request.', name: 'TradeExecutor');
+      developer.log(
+          'Trade for ${config.symbol} is already active. Ignoring new request.',
+          name: 'TradeExecutor');
       return;
     }
 
     _activeTrades.add(config.symbol);
-    developer.log('Starting trade execution for ${config.symbol}', name: 'TradeExecutor');
+    developer.log('Starting trade execution for ${config.symbol}',
+        name: 'TradeExecutor');
 
     try {
       await _runTradeFlow(config);
     } catch (e) {
-      developer.log('Trade flow for ${config.symbol} failed with error: $e', name: 'TradeExecutor', error: e);
+      developer.log('Trade flow for ${config.symbol} failed with error: $e',
+          name: 'TradeExecutor', error: e);
     } finally {
       _activeTrades.remove(config.symbol);
-      developer.log('Finished trade execution for ${config.symbol}. Lock released.', name: 'TradeExecutor');
+      developer.log(
+          'Finished trade execution for ${config.symbol}. Lock released.',
+          name: 'TradeExecutor');
     }
   }
 
@@ -58,9 +64,11 @@ class TradeExecutor {
         product: 'MIS',
         orderType: 'MARKET',
       );
-      developer.log('BUY order placed successfully. Order ID: $buyOrderId', name: 'TradeExecutor');
+      developer.log('BUY order placed successfully. Order ID: $buyOrderId',
+          name: 'TradeExecutor');
     } catch (e) {
-      developer.log('Failed to place BUY order.', name: 'TradeExecutor', error: e);
+      developer.log('Failed to place BUY order.',
+          name: 'TradeExecutor', error: e);
       return;
     }
 
@@ -73,23 +81,29 @@ class TradeExecutor {
 
     // 6. If the BUY order is still not COMPLETE after timeout
     if (buyOrderDetails == null) {
-      developer.log('BUY order $buyOrderId timed out after ${config.timeout.inSeconds}s.', name: 'TradeExecutor');
+      developer.log(
+          'BUY order $buyOrderId timed out after ${config.timeout.inSeconds}s.',
+          name: 'TradeExecutor');
       // Fetch latest state to check if it's still open
       try {
         final latestDetails = await orderService.getOrderHistory(buyOrderId);
         if (latestDetails.isOpen) {
-          developer.log('Cancelling open BUY order $buyOrderId', name: 'TradeExecutor');
+          developer.log('Cancelling open BUY order $buyOrderId',
+              name: 'TradeExecutor');
           await orderService.cancelOrder(buyOrderId);
         }
       } catch (e) {
-        developer.log('Failed to fetch or cancel timed-out BUY order.', name: 'TradeExecutor', error: e);
+        developer.log('Failed to fetch or cancel timed-out BUY order.',
+            name: 'TradeExecutor', error: e);
       }
       return; // Exit flow
     }
 
     // 5. If the BUY order is REJECTED or CANCELLED, stop the flow.
     if (buyOrderDetails.isRejected || buyOrderDetails.isCancelled) {
-      developer.log('BUY order $buyOrderId was ${buyOrderDetails.status}. Stopping flow.', name: 'TradeExecutor');
+      developer.log(
+          'BUY order $buyOrderId was ${buyOrderDetails.status}. Stopping flow.',
+          name: 'TradeExecutor');
       return;
     }
 
@@ -98,16 +112,24 @@ class TradeExecutor {
       final averagePrice = buyOrderDetails.averagePrice;
       final filledQuantity = buyOrderDetails.filledQuantity;
 
-      developer.log('BUY order COMPLETE. Avg Price: $averagePrice, Qty: $filledQuantity', name: 'TradeExecutor');
+      developer.log(
+          'BUY order COMPLETE. Avg Price: $averagePrice, Qty: $filledQuantity',
+          name: 'TradeExecutor');
 
       if (filledQuantity == 0 || averagePrice == 0) {
-        developer.log('Warning: Filled quantity or average price is 0. Aborting SL/Target placement.', name: 'TradeExecutor');
+        developer.log(
+            'Warning: Filled quantity or average price is 0. Aborting SL/Target placement.',
+            name: 'TradeExecutor');
         return;
       }
 
       // Calculate SL and Target prices
-      double slOffset = config.isPercentageBased ? averagePrice * (config.slPoints / 100) : config.slPoints;
-      double targetOffset = config.isPercentageBased ? averagePrice * (config.targetPoints / 100) : config.targetPoints;
+      double slOffset = config.isPercentageBased
+          ? averagePrice * (config.slPoints / 100)
+          : config.slPoints;
+      double targetOffset = config.isPercentageBased
+          ? averagePrice * (config.targetPoints / 100)
+          : config.targetPoints;
 
       double slPrice = averagePrice - slOffset;
       double targetPrice = averagePrice + targetOffset;
@@ -116,7 +138,8 @@ class TradeExecutor {
       slPrice = (slPrice * 20).round() / 20;
       targetPrice = (targetPrice * 20).round() / 20;
 
-      developer.log('Calculated SL: $slPrice, Target: $targetPrice', name: 'TradeExecutor');
+      developer.log('Calculated SL: $slPrice, Target: $targetPrice',
+          name: 'TradeExecutor');
 
       // Place SELL Stop Loss order
       String? slOrderId;
@@ -130,11 +153,15 @@ class TradeExecutor {
           product: 'MIS',
           orderType: config.slOrderType,
           triggerPrice: slPrice,
-          price: config.slOrderType == 'SL' ? slPrice : null, // If SL-L, pass price as well
+          price: config.slOrderType == 'SL'
+              ? slPrice
+              : null, // If SL-L, pass price as well
         );
-        developer.log('SL Order placed. Order ID: $slOrderId', name: 'TradeExecutor');
+        developer.log('SL Order placed. Order ID: $slOrderId',
+            name: 'TradeExecutor');
       } catch (e) {
-        developer.log('Failed to place SL order.', name: 'TradeExecutor', error: e);
+        developer.log('Failed to place SL order.',
+            name: 'TradeExecutor', error: e);
       }
 
       // Place SELL Target LIMIT order
@@ -150,9 +177,11 @@ class TradeExecutor {
           orderType: 'LIMIT',
           price: targetPrice,
         );
-        developer.log('Target Order placed. Order ID: $targetOrderId', name: 'TradeExecutor');
+        developer.log('Target Order placed. Order ID: $targetOrderId',
+            name: 'TradeExecutor');
       } catch (e) {
-        developer.log('Failed to place Target order.', name: 'TradeExecutor', error: e);
+        developer.log('Failed to place Target order.',
+            name: 'TradeExecutor', error: e);
       }
 
       // 7. Continuously monitor both order statuses (OCO logic)
@@ -167,7 +196,9 @@ class TradeExecutor {
           risk: slOffset,
         );
       } else {
-        developer.log('Could not place both SL and Target. OCO monitoring skipped.', name: 'TradeExecutor');
+        developer.log(
+            'Could not place both SL and Target. OCO monitoring skipped.',
+            name: 'TradeExecutor');
       }
     }
   }
@@ -183,7 +214,9 @@ class TradeExecutor {
     required double initialTarget,
     required double risk,
   }) async {
-    developer.log('Starting OCO monitoring for SL: $slOrderId, Target: $targetOrderId', name: 'TradeExecutor');
+    developer.log(
+        'Starting OCO monitoring for SL: $slOrderId, Target: $targetOrderId',
+        name: 'TradeExecutor');
 
     DateTime? lastFetchTime;
     List<HistoricalDataModel> candles1m = [];
@@ -205,7 +238,9 @@ class TradeExecutor {
             final now = DateTime.now();
             final sqTime = DateTime(now.year, now.month, now.day, hour, minute);
             if (now.isAfter(sqTime)) {
-              developer.log('EOD Square-off time reached. Cancelling open orders and exiting position.', name: 'TradeExecutor');
+              developer.log(
+                  'EOD Square-off time reached. Cancelling open orders and exiting position.',
+                  name: 'TradeExecutor');
               await _safeCancel(slOrderId);
               await _safeCancel(targetOrderId);
               try {
@@ -218,9 +253,12 @@ class TradeExecutor {
                   product: 'MIS',
                   orderType: 'MARKET',
                 );
-                developer.log('EOD Square-off MARKET SELL order placed: $sellMarketId', name: 'TradeExecutor');
+                developer.log(
+                    'EOD Square-off MARKET SELL order placed: $sellMarketId',
+                    name: 'TradeExecutor');
               } catch (e) {
-                developer.log('EOD Market Sell order placement failed: $e', name: 'TradeExecutor', error: e);
+                developer.log('EOD Market Sell order placement failed: $e',
+                    name: 'TradeExecutor', error: e);
               }
               break;
             }
@@ -233,63 +271,80 @@ class TradeExecutor {
 
         // If Target order completes, cancel SL
         if (targetDetails.isComplete) {
-          developer.log('Target order $targetOrderId COMPLETE. Cancelling SL $slOrderId', name: 'TradeExecutor');
+          developer.log(
+              'Target order $targetOrderId COMPLETE. Cancelling SL $slOrderId',
+              name: 'TradeExecutor');
           await _safeCancel(slOrderId);
           break;
         }
 
         // If SL order completes, cancel Target
         if (slDetails.isComplete) {
-          developer.log('SL order $slOrderId COMPLETE. Cancelling Target $targetOrderId', name: 'TradeExecutor');
+          developer.log(
+              'SL order $slOrderId COMPLETE. Cancelling Target $targetOrderId',
+              name: 'TradeExecutor');
           await _safeCancel(targetOrderId);
           break;
         }
 
         // If both are cancelled or rejected (e.g., by user manually or exchange), stop monitoring
-        if ((slDetails.isCancelled || slDetails.isRejected) && (targetDetails.isCancelled || targetDetails.isRejected)) {
-          developer.log('Both SL and Target are no longer active. Stopping OCO monitoring.', name: 'TradeExecutor');
+        if ((slDetails.isCancelled || slDetails.isRejected) &&
+            (targetDetails.isCancelled || targetDetails.isRejected)) {
+          developer.log(
+              'Both SL and Target are no longer active. Stopping OCO monitoring.',
+              name: 'TradeExecutor');
           break;
         }
 
         // 2. Fetch LTP to check for +1R Trailing condition
         double ltp = 0.0;
         try {
-          final ltpResponse = await orderService.apiClient.get('/quote/ltp?i=${config.exchange}:${config.symbol}');
+          final ltpResponse = await orderService.apiClient
+              .get('/quote/ltp?i=${config.exchange}:${config.symbol}');
           if (ltpResponse != null && ltpResponse is Map) {
             final instrumentKey = '${config.exchange}:${config.symbol}';
             if (ltpResponse.containsKey(instrumentKey)) {
-              ltp = (ltpResponse[instrumentKey]['last_price'] as num).toDouble();
+              ltp =
+                  (ltpResponse[instrumentKey]['last_price'] as num).toDouble();
             }
           }
         } catch (e) {
-          developer.log('Error fetching LTP: $e', name: 'TradeExecutor', error: e);
+          developer.log('Error fetching LTP: $e',
+              name: 'TradeExecutor', error: e);
         }
 
         if (ltp > 0.0) {
           if (!isTrailingActive && ltp >= averagePrice + risk) {
             isTrailingActive = true;
-            developer.log('+1R profit reached (LTP: $ltp >= ${averagePrice + risk}). Trailing stop-loss activated.', name: 'TradeExecutor');
+            developer.log(
+                '+1R profit reached (LTP: $ltp >= ${averagePrice + risk}). Trailing stop-loss activated.',
+                name: 'TradeExecutor');
           }
         }
 
         // 3. Trailing Stop Loss logic using 1-minute Supertrend
         if (isTrailingActive) {
           final now = DateTime.now();
-          if (lastFetchTime == null || now.difference(lastFetchTime) > const Duration(seconds: 30)) {
+          if (lastFetchTime == null ||
+              now.difference(lastFetchTime) > const Duration(seconds: 30)) {
             final stock = DataManager.instance.stocksList.firstWhere(
-              (s) => s.symbol?.replaceAll("NSE:", "") == config.symbol.replaceAll("NSE:", ""),
+              (s) =>
+                  s.symbol?.replaceAll("NSE:", "") ==
+                  config.symbol.replaceAll("NSE:", ""),
               orElse: () => StockModel(symbol: config.symbol, token: 0),
             );
             final instrumentToken = int.tryParse(stock.token.toString()) ?? 0;
             if (instrumentToken != 0) {
               try {
-                final fetched = await DashboardService.instance.fetch1MinHistoricalData(instrumentToken);
+                final fetched = await DashboardService.instance
+                    .fetch1MinHistoricalData(instrumentToken);
                 if (fetched != null && fetched.isNotEmpty) {
                   candles1m = fetched;
                   lastFetchTime = now;
                 }
               } catch (e) {
-                developer.log('Failed to fetch 1m candles for trailing: $e', name: 'TradeExecutor', error: e);
+                developer.log('Failed to fetch 1m candles for trailing: $e',
+                    name: 'TradeExecutor', error: e);
               }
             }
           }
@@ -306,20 +361,29 @@ class TradeExecutor {
             if (supertrend1mList.isNotEmpty) {
               final latestStVal = supertrend1mList.last;
               if (latestStVal != 0.0) {
-                final roundedSt = (latestStVal * 20).round() / 20; // NSE 0.05 tick rounding
+                final roundedSt =
+                    (latestStVal * 20).round() / 20; // NSE 0.05 tick rounding
                 if (roundedSt > currentTrailedSL) {
-                  developer.log('Trailing SL moving from $currentTrailedSL to $roundedSt', name: 'TradeExecutor');
+                  developer.log(
+                      'Trailing SL moving from $currentTrailedSL to $roundedSt',
+                      name: 'TradeExecutor');
                   currentTrailedSL = roundedSt;
                   try {
                     await orderService.modifyOrder(
                       orderId: slOrderId,
                       variety: 'regular',
                       triggerPrice: currentTrailedSL,
-                      price: config.slOrderType == 'SL' ? currentTrailedSL : null,
+                      price:
+                          config.slOrderType == 'SL' ? currentTrailedSL : null,
                     );
-                    developer.log('Kite SL order $slOrderId successfully modified to $currentTrailedSL', name: 'TradeExecutor');
+                    developer.log(
+                        'Kite SL order $slOrderId successfully modified to $currentTrailedSL',
+                        name: 'TradeExecutor');
                   } catch (e) {
-                    developer.log('Failed to modify Kite SL order $slOrderId to $currentTrailedSL: $e', name: 'TradeExecutor', error: e);
+                    developer.log(
+                        'Failed to modify Kite SL order $slOrderId to $currentTrailedSL: $e',
+                        name: 'TradeExecutor',
+                        error: e);
                   }
 
                   // Also update on the backend
@@ -329,7 +393,32 @@ class TradeExecutor {
                       triggerPrice: currentTrailedSL,
                     );
                   } catch (e) {
-                    developer.log('Failed to update SL on Backend for ${config.symbol}: $e', name: 'TradeExecutor', error: e);
+                    developer.log(
+                        'Failed to update SL on Backend for ${config.symbol}: $e',
+                        name: 'TradeExecutor',
+                        error: e);
+                  }
+
+                  // Update UI notifications list so FilteredStockScreen shows the latest SL
+                  try {
+                    final prefs = SharedPreferenceHelper.instance;
+                    var notifications = await prefs.getNotificationList();
+                    bool updated = false;
+                    for (var n in notifications) {
+                      if (n.stocksNameList == config.symbol &&
+                          n.status != "SL Hit" &&
+                          n.status != "Target Hit") {
+                        n.stoploss = currentTrailedSL;
+                        updated = true;
+                      }
+                    }
+                    if (updated) {
+                      await prefs.saveNotificationList(notifications);
+                    }
+                  } catch (e) {
+                    developer.log(
+                        'Failed to update SL in local storage for ${config.symbol}: $e',
+                        name: 'TradeExecutor');
                   }
                 }
               }
@@ -339,7 +428,8 @@ class TradeExecutor {
 
         await Future.delayed(config.pollingInterval);
       } catch (e) {
-        developer.log('Error during OCO monitoring: $e', name: 'TradeExecutor', error: e);
+        developer.log('Error during OCO monitoring: $e',
+            name: 'TradeExecutor', error: e);
         await Future.delayed(config.pollingInterval);
       }
     }
@@ -350,9 +440,11 @@ class TradeExecutor {
   Future<void> _safeCancel(String orderId) async {
     try {
       await orderService.cancelOrder(orderId);
-      developer.log('Successfully cancelled order $orderId', name: 'TradeExecutor');
+      developer.log('Successfully cancelled order $orderId',
+          name: 'TradeExecutor');
     } catch (e) {
-      developer.log('Failed to cancel order $orderId', name: 'TradeExecutor', error: e);
+      developer.log('Failed to cancel order $orderId',
+          name: 'TradeExecutor', error: e);
     }
   }
 }
