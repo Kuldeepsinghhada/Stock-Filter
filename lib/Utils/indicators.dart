@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
@@ -452,6 +453,95 @@ class IndicatorUtils {
       final vwap = tpVol / volSum;
       return sessionCandles.last.close >= vwap;
     }
+  }
+
+  static bool isCurrentCandleNotExtended(
+    IndicatorEngine engine, {
+    int atrPeriod = 14,
+    double multiplier = 1.5,
+  }) {
+    if (engine.candles.length < 21) return false;
+
+    final current = engine.candles.last;
+    final closes = engine.candles.map((e) => e.close).toList();
+    final highs = engine.candles.map((e) => e.high).toList();
+    final lows = engine.candles.map((e) => e.low).toList();
+
+    final atr14List = atrSeries(highs, lows, closes, period: 14);
+    if (atr14List.isEmpty) return false;
+    final currentAtr = atr14List.last;
+    final candleSize = current.high - current.low;
+    if (candleSize > currentAtr * 1.5) return false;
+    return true;
+  }
+
+  /// ---------- Custom Strategy ----------
+  /// Checks 4 conditions:
+  /// 1. Close within 3% of EMA20
+  /// 2. Current volume > 1.8 * average last 20 candles
+  /// 3. Current candle size > ATR * 1.5 -> Reject (size <= ATR * 1.5)
+  /// 4. Close > VWAP AND VWAP rising
+  static bool isCustomStrategyPassed(IndicatorEngine engine) {
+    if (engine.candles.length < 21) return false;
+
+    final current = engine.candles.last;
+    final closes = engine.candles.map((e) => e.close).toList();
+    final highs = engine.candles.map((e) => e.high).toList();
+    final lows = engine.candles.map((e) => e.low).toList();
+
+    // 1. Close within 3% of EMA20
+    final ema20List = MathUtils.emaAligned(closes, 20);
+    if (ema20List.isEmpty || ema20List.last == null) return false;
+    final ema20 = ema20List.last!;
+    final distToEma = (current.close - ema20).abs() / ema20;
+    if (distToEma > 0.03) return false;
+
+    // 2. Current volume > 1.8 * average last 20 candles
+    final previous20 = engine.candles
+        .sublist(engine.candles.length - 21, engine.candles.length - 1);
+    double avgVol = previous20.fold(0.0, (sum, c) => sum + c.volume) / 20;
+    if (current.volume <= 1.8 * avgVol) return false;
+
+    // 3. Current candle > ATR * 1.5 -> Reject
+    final atr14List = atrSeries(highs, lows, closes, period: 14);
+    if (atr14List.isEmpty) return false;
+    final currentAtr = atr14List.last;
+    final candleSize = current.high - current.low;
+    if (candleSize > currentAtr * 1.5) return false;
+
+    // 4. Close > VWAP AND VWAP rising
+    final grouped = engine.groupedByDate;
+    if (grouped.isEmpty) return false;
+    final dates = grouped.keys.toList()..sort();
+    final lastDate = dates.last;
+    final sessionCandles = grouped[lastDate]!;
+    if (sessionCandles.length < 2)
+      return false; // Need at least 2 candles to check if VWAP is rising
+
+    double tpVol = 0.0, volSum = 0.0;
+    double prevVwap = 0.0;
+    double currentVwap = 0.0;
+
+    for (int i = 0; i < sessionCandles.length; i++) {
+      var c = sessionCandles[i];
+      final tp = (c.high + c.low + c.close) / 3.0;
+      tpVol += tp * c.volume;
+      volSum += c.volume;
+
+      if (volSum > 0) {
+        if (i == sessionCandles.length - 2) {
+          prevVwap = tpVol / volSum;
+        } else if (i == sessionCandles.length - 1) {
+          currentVwap = tpVol / volSum;
+        }
+      }
+    }
+
+    if (volSum == 0) return false;
+    if (current.close <= currentVwap) return false; // Close must be > VWAP
+    if (currentVwap <= prevVwap) return false; // VWAP must be rising
+
+    return true;
   }
 
   /// ---------- ADX (14,14) ----------

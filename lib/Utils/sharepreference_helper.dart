@@ -27,6 +27,7 @@ class SharedPreferenceHelper {
   String telegramAlertsKey = "telegramAlerts";
   String maxTradeAmountKey = "maxTradeAmount";
   String defaultQuantityKey = "defaultQuantity";
+  String isCandleExtendedKey = "isCandleExtended";
 
   // Private constructor
   SharedPreferenceHelper._internal();
@@ -46,6 +47,16 @@ class SharedPreferenceHelper {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     // Default to true
     return prefs.getBool(enableSwingScannerLooseKey) ?? true;
+  }
+
+  Future<void> setIsCandleExtendedEnabled(bool value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(isCandleExtendedKey, value);
+  }
+
+  Future<bool> getIsCandleExtendedEnabled() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(isCandleExtendedKey) ?? false;
   }
 
   Future<void> setBullish(bool value) async {

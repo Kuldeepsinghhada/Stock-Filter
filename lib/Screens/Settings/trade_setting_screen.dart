@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import '../../Utils/sharepreference_helper.dart';
+import '../../Utils/filter_utils.dart';
 import 'package:stock_demo/trading/trading_manager.dart';
 
 class TradeSettingPage extends StatefulWidget {
@@ -32,6 +33,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
   bool _squareOffEnabled = true;
 
   bool _telegramAlerts = true;
+  bool _isCandleExtendedEnabled = false;
 
   @override
   void initState() {
@@ -47,6 +49,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final defaultQuantity = await prefs.getDefaultQuantity();
 
     final telegram = await prefs.getTelegramAlertsEnabled();
+    final isCandleExtended = await prefs.getIsCandleExtendedEnabled();
 
     final atrPeriod = await prefs.getAtrPeriod();
     final atrMultiplier = await prefs.getAtrMultiplier();
@@ -62,6 +65,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       _maxTradeAmountController.text = maxTradeAmount.toString();
       _defaultQuantityController.text = defaultQuantity.toString();
       _telegramAlerts = telegram;
+      _isCandleExtendedEnabled = isCandleExtended;
 
       _atrPeriodController.text = atrPeriod.toString();
       _atrMultiplierController.text = atrMultiplier.toString();
@@ -104,6 +108,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       await prefs.setDefaultQuantity(defQuantity);
 
       await prefs.setTelegramAlertsEnabled(_telegramAlerts);
+      await prefs.setIsCandleExtendedEnabled(_isCandleExtendedEnabled);
 
       await prefs.setAtrPeriod(atrPeriod);
       await prefs.setAtrMultiplier(atrMultiplier);
@@ -112,6 +117,9 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       await prefs.setSupertrendMultiplier(supertrendMultiplier);
       await prefs.setSquareOffTime(squareOffTime);
       await prefs.setSquareOffEnabled(_squareOffEnabled);
+
+      // Refresh cached filter settings
+      await FilterUtils.cacheFilterSettings();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,7 +162,19 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
             _buildToggleTile(
               label: "Telegram Buy Alerts",
               value: _telegramAlerts,
-              onChanged: (val) => setState(() => _telegramAlerts = val),
+              onChanged: (val) async {
+                setState(() => _telegramAlerts = val);
+                await SharedPreferenceHelper.instance.setTelegramAlertsEnabled(val);
+              },
+            ),
+            _buildToggleTile(
+              label: "Apply Candle Extended Check",
+              value: _isCandleExtendedEnabled,
+              onChanged: (val) async {
+                setState(() => _isCandleExtendedEnabled = val);
+                await SharedPreferenceHelper.instance.setIsCandleExtendedEnabled(val);
+                await FilterUtils.cacheFilterSettings();
+              },
             ),
             const Text("Auto Trading",
                 style: TextStyle(
@@ -268,6 +288,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               child: ElevatedButton(
                 onPressed: () {
                   BackendOrderService.testPlaceStockOrder();
+                  // BackendOrderService.updateActiveSL(symbol: 'TVSELECT', triggerPrice: 515);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orangeAccent,
@@ -281,73 +302,6 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
           ],
         ),
       ),
-    );
-  }
-
-  void _showTestTradeDialog(BuildContext context) {
-    final TextEditingController symbolController =
-        TextEditingController(text: 'SAKSOFT');
-    final TextEditingController priceController =
-        TextEditingController(text: '100.0');
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xff1e222d),
-          title:
-              const Text('Test Trade', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: symbolController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Stock Symbol',
-                  labelStyle: TextStyle(color: Colors.white54),
-                ),
-              ),
-              TextField(
-                controller: priceController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Current Price (Dummy)',
-                  labelStyle: TextStyle(color: Colors.white54),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child:
-                  const Text('Cancel', style: TextStyle(color: Colors.white54)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final symbol = symbolController.text.trim().toUpperCase();
-                final price =
-                    double.tryParse(priceController.text.trim()) ?? 100.0;
-
-                TradingManager.instance.testTradeExecution(symbol, price);
-
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(
-                          'Test trade initiated for $symbol! Check console logs.')),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orangeAccent),
-              child: const Text('Execute'),
-            ),
-          ],
-        );
-      },
     );
   }
 

@@ -20,6 +20,7 @@ class FilterUtils {
   static double cachedSupertrendMultiplier = 3.0;
   static String cachedSquareOffTime = "15:15";
   static bool cachedSquareOffEnabled = true;
+  static bool cachedIsCandleExtendedEnabled = false;
 
   /// Loads and caches the settings from SharedPreferences
   static Future<void> cacheFilterSettings() async {
@@ -31,6 +32,7 @@ class FilterUtils {
     cachedSupertrendMultiplier = await prefs.getSupertrendMultiplier();
     cachedSquareOffTime = await prefs.getSquareOffTime();
     cachedSquareOffEnabled = await prefs.getSquareOffEnabled();
+    cachedIsCandleExtendedEnabled = await prefs.getIsCandleExtendedEnabled();
   }
 
   static bool passesFilter(List<HistoricalDataModel> candles, String token,
@@ -49,7 +51,7 @@ class FilterUtils {
     // 1. Volume
     int minVolume = 30000;
     if (engine.last.volume < minVolume) {
-      logMsg(
+      debugPrint(
           "Failed: $token at $timeStr - Reason: Low Volume (${engine.last.volume})");
       return false;
     }
@@ -65,7 +67,7 @@ class FilterUtils {
     // 3. RangeExpansion
     var rangeExpansion = IndicatorUtils.getRangeExpansion(engine);
     if (rangeExpansion > 6) {
-      logMsg(
+      debugPrint(
           "Failed: $token at $timeStr - Reason: Range Expansion ($rangeExpansion)");
       return false;
     }
@@ -88,14 +90,14 @@ class FilterUtils {
     // 6. EMA
     bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(engine, 20).isPassed;
     if (!aboveEma20) {
-      logMsg("Failed: $token at $timeStr - Reason: Below EMA20");
+      debugPrint("Failed: $token at $timeStr - Reason: Below EMA20");
       return false;
     }
 
     // 7. ATR
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(engine);
     if (!atrOk) {
-      logMsg("Failed: $token at $timeStr - Reason: Low ATR");
+      debugPrint("Failed: $token at $timeStr - Reason: Low ATR");
       return false;
     }
 
@@ -106,21 +108,22 @@ class FilterUtils {
       multiplier: 3,
     ).isPassed;
     if (!aboveSupertrend) {
-      logMsg("Failed: $token at $timeStr - Reason: Below Supertrend");
+      debugPrint("Failed: $token at $timeStr - Reason: Below Supertrend");
       return false;
     }
 
     // 9. ADX
     bool adxRes = IndicatorUtils.isAdxBullish(engine);
     if (!adxRes) {
-      logMsg("Failed: $token at $timeStr - Reason: ADX Not Bullish");
+      debugPrint("Failed: $token at $timeStr - Reason: ADX Not Bullish");
       return false;
     }
 
     // 10. History
     final isDayPass = isPassHistoryChart(engine.dailyCandles, token, 1);
     if (!isDayPass) {
-      logMsg("Failed: $token at $timeStr - Reason: Day History Chart Failed");
+      debugPrint(
+          "Failed: $token at $timeStr - Reason: Day History Chart Failed");
       return false;
     }
 
@@ -133,6 +136,20 @@ class FilterUtils {
     //   }
     // }
 
+    // 12. Custom Strategy
+    // bool customPassed = IndicatorUtils.isCustomStrategyPassed(engine);
+    // if (!customPassed) {
+    //   logMsg("Failed: $token at $timeStr - Reason: Custom Strategy Failed");
+    //   return false;
+    // }
+
+    // 13. Candle Extended Check
+    if (cachedIsCandleExtendedEnabled) {
+      if (!IndicatorUtils.isCurrentCandleNotExtended(engine)) {
+        debugPrint("Failed: $token at $timeStr - Extended Candle");
+        return false;
+      }
+    }
     logMsg("Passed : $token");
     return true;
   }
