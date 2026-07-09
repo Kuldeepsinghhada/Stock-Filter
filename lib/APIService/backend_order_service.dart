@@ -116,8 +116,8 @@ class BackendOrderService {
       transactionType: "BUY",
       quantity: 1,
       product: "CNC",
-      stopLoss: 1400.0,
-      target: 1500.0,
+      stopLoss: 1000.0,
+      target: 1100.0,
     );
   }
 
