@@ -170,7 +170,12 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
 
               if (quote.lastPrice! >= oneRPrice) {
                 // Fetch token
-                final cleanSymbol = symbolUpper.split(" - ").first.trim().replaceAll("NSE:", "").replaceAll("BSE:", "");
+                final cleanSymbol = symbolUpper
+                    .split(" - ")
+                    .first
+                    .trim()
+                    .replaceAll("NSE:", "")
+                    .replaceAll("BSE:", "");
                 int instrumentToken = 0;
                 try {
                   final s = DataManager.instance.stocksList.firstWhere(
@@ -180,7 +185,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                 } catch (_) {}
 
                 if (instrumentToken != 0) {
-                  final candles1m = await DashboardService.instance.fetch1MinHistoricalData(instrumentToken);
+                  final candles1m = await DashboardService.instance
+                      .fetch1MinHistoricalData(instrumentToken);
                   if (candles1m != null && candles1m.isNotEmpty) {
                     final engine1m = IndicatorEngine(candles1m);
                     final supertrend1mList = IndicatorUtils.supertrendSeries(
@@ -191,12 +197,14 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                     if (supertrend1mList.isNotEmpty) {
                       final latestStVal = supertrend1mList.last;
                       if (latestStVal != 0.0) {
-                        final roundedSt = (latestStVal * 20).round() / 20; // NSE 0.05 tick rounding
-                        if (stock.stoploss == null || roundedSt > stock.stoploss!) {
+                        final roundedSt = (latestStVal * 20).round() /
+                            20; // NSE 0.05 tick rounding
+                        if (stock.stoploss == null ||
+                            roundedSt > stock.stoploss!) {
                           log("Trailing SL for $cleanSymbol moving from ${stock.stoploss} to $roundedSt");
                           stock.stoploss = roundedSt;
                           notificationsChanged = true;
-                          
+
                           // Update on backend
                           try {
                             await BackendOrderService.updateActiveSL(
@@ -211,13 +219,46 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                     }
                   }
                 }
+              } else if (quote.lastPrice! > entryPrice) {
+                // Pre-1R Trailing: Update SL in discrete 1% steps
+                final cleanSymbol = symbolUpper
+                    .split(" - ")
+                    .first
+                    .trim()
+                    .replaceAll("NSE:", "")
+                    .replaceAll("BSE:", "");
+
+                double stepSize = entryPrice * 0.01; // 1% of entry price
+                int steps =
+                    ((quote.lastPrice! - entryPrice) / stepSize).floor();
+
+                if (steps >= 1) {
+                  double theoreticalSl = initialSL + (steps * stepSize);
+                  double roundedSl = (theoreticalSl * 20).round() /
+                      20; // NSE 0.05 tick rounding
+
+                  if (stock.stoploss == null || roundedSl > stock.stoploss!) {
+                    log("Pre-1R Trailing SL (1% step) for $cleanSymbol moving from ${stock.stoploss} to $roundedSl");
+                    stock.stoploss = roundedSl;
+                    notificationsChanged = true;
+
+                    // Update on backend
+                    try {
+                      await BackendOrderService.updateActiveSL(
+                        symbol: cleanSymbol,
+                        triggerPrice: roundedSl,
+                      );
+                    } catch (e) {
+                      log('Failed to update SL on Backend (pre-1R) for $cleanSymbol: $e');
+                    }
+                  }
+                }
               }
             }
           }
         }
       }
       // ---------------- END NEW TRAILING SL LOGIC ----------------
-
 
       if (notificationsChanged) {
         await SharedPreferenceHelper.instance

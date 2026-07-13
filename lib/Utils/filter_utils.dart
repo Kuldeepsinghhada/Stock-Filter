@@ -39,6 +39,11 @@ class FilterUtils {
       {bool isHistoryCheck = false}) {
     if (candles.isEmpty) return false;
 
+    final secondLast = candles.elementAt(candles.length - 2);
+    if(secondLast.volume < 5000){
+      return false;
+    }
+
     final timeStr = candles.last.timestamp.toString();
     final engine = IndicatorEngine(candles);
 
@@ -996,6 +1001,13 @@ class FilterUtils {
         // Check +1R profit
         if (!isTrailingActive && c1m.high >= entryPrice + risk) {
           isTrailingActive = true;
+        } else if (!isTrailingActive && c1m.high > entryPrice) {
+          double stepSize = entryPrice * 0.01;
+          int steps = ((c1m.high - entryPrice) / stepSize).floor();
+          if (steps >= 1) {
+            double theoreticalSl = stoploss + (steps * stepSize);
+            currentSL = max(currentSL, theoreticalSl);
+          }
         }
 
         if (isTrailingActive) {
@@ -1055,6 +1067,13 @@ class FilterUtils {
         // Check +1R profit
         if (!isTrailingActive && c5m.high >= entryPrice + risk) {
           isTrailingActive = true;
+        } else if (!isTrailingActive && c5m.high > entryPrice) {
+          double stepSize = entryPrice * 0.01;
+          int steps = ((c5m.high - entryPrice) / stepSize).floor();
+          if (steps >= 1) {
+            double theoreticalSl = stoploss + (steps * stepSize);
+            currentSL = max(currentSL, theoreticalSl);
+          }
         }
 
         if (isTrailingActive) {
