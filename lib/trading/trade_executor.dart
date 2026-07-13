@@ -299,10 +299,11 @@ class TradeExecutor {
         // 2. Fetch LTP to check for +1R Trailing condition
         double ltp = 0.0;
         try {
+          final cleanSymbol = config.symbol.replaceAll("NSE:", "").replaceAll("BSE:", "");
+          final instrumentKey = '${config.exchange}:$cleanSymbol';
           final ltpResponse = await orderService.apiClient
-              .get('/quote/ltp?i=${config.exchange}:${config.symbol}');
+              .get('/quote/ltp?i=$instrumentKey');
           if (ltpResponse != null && ltpResponse is Map) {
-            final instrumentKey = '${config.exchange}:${config.symbol}';
             if (ltpResponse.containsKey(instrumentKey)) {
               ltp =
                   (ltpResponse[instrumentKey]['last_price'] as num).toDouble();
@@ -327,13 +328,7 @@ class TradeExecutor {
           final now = DateTime.now();
           if (lastFetchTime == null ||
               now.difference(lastFetchTime) > const Duration(seconds: 30)) {
-            final stock = DataManager.instance.stocksList.firstWhere(
-              (s) =>
-                  s.symbol?.replaceAll("NSE:", "") ==
-                  config.symbol.replaceAll("NSE:", ""),
-              orElse: () => StockModel(symbol: config.symbol, token: 0),
-            );
-            final instrumentToken = int.tryParse(stock.token.toString()) ?? 0;
+            final instrumentToken = config.instrumentToken;
             if (instrumentToken != 0) {
               try {
                 final fetched = await DashboardService.instance
@@ -346,6 +341,8 @@ class TradeExecutor {
                 developer.log('Failed to fetch 1m candles for trailing: $e',
                     name: 'TradeExecutor', error: e);
               }
+            } else {
+              developer.log('Instrument token is 0, cannot fetch 1m data for ${config.symbol}', name: 'TradeExecutor');
             }
           }
 

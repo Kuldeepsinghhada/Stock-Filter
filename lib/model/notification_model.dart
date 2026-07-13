@@ -5,6 +5,7 @@ class NotificationModel {
   double? initialAvgVolume;
   double? target;
   double? stoploss;
+  double? initialSL;
   double? price;
   String? status; // "Active", "Target Hit", "SL Hit"
 
@@ -15,6 +16,7 @@ class NotificationModel {
     this.initialAvgVolume,
     this.target,
     this.stoploss,
+    this.initialSL,
     this.price,
     this.status = "Active",
   });
@@ -26,6 +28,7 @@ class NotificationModel {
     initialAvgVolume = (json['initialAvgVolume'] as num?)?.toDouble();
     target = (json['target'] as num?)?.toDouble();
     stoploss = (json['stoploss'] as num?)?.toDouble();
+    initialSL = (json['initialSL'] as num?)?.toDouble();
     price = (json['price'] as num?)?.toDouble();
     status = json['status'] ?? "Active";
   }
@@ -38,6 +41,7 @@ class NotificationModel {
     data['initialAvgVolume'] = initialAvgVolume;
     data['target'] = target;
     data['stoploss'] = stoploss;
+    data['initialSL'] = initialSL;
     data['price'] = price;
     data['status'] = status;
     return data;

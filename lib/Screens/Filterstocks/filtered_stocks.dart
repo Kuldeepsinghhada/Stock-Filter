@@ -12,6 +12,9 @@ import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
+import 'package:stock_demo/Utils/data_manager.dart';
+import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
+import 'package:stock_demo/Utils/indicators.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class FilteredStockScreen extends StatefulWidget {
@@ -142,6 +145,79 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           }
         }
       }
+
+      // ---------------- NEW TRAILING SL LOGIC ----------------
+      final prefs = SharedPreferenceHelper.instance;
+      final stPeriod = await prefs.getSupertrendPeriod();
+      final stMult = await prefs.getSupertrendMultiplier();
+
+      for (var stock in notificationsList) {
+        if (stock.status == "Active") {
+          final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
+          final quote = result.firstWhere(
+            (q) =>
+                q.stockSymbol != null &&
+                symbolUpper.contains(q.stockSymbol!.toUpperCase()),
+            orElse: () => FinalStockModel(),
+          );
+
+          if (quote.lastPrice != null && quote.lastPrice! > 0) {
+            double entryPrice = stock.price ?? 0.0;
+            double initialSL = stock.initialSL ?? stock.stoploss ?? 0.0;
+            if (entryPrice > 0 && initialSL > 0) {
+              double risk = entryPrice - initialSL;
+              double oneRPrice = entryPrice + risk;
+
+              if (quote.lastPrice! >= oneRPrice) {
+                // Fetch token
+                final cleanSymbol = symbolUpper.split(" - ").first.trim().replaceAll("NSE:", "").replaceAll("BSE:", "");
+                int instrumentToken = 0;
+                try {
+                  final s = DataManager.instance.stocksList.firstWhere(
+                    (s) => s.symbol?.replaceAll("NSE:", "") == cleanSymbol,
+                  );
+                  instrumentToken = int.tryParse(s.token.toString()) ?? 0;
+                } catch (_) {}
+
+                if (instrumentToken != 0) {
+                  final candles1m = await DashboardService.instance.fetch1MinHistoricalData(instrumentToken);
+                  if (candles1m != null && candles1m.isNotEmpty) {
+                    final engine1m = IndicatorEngine(candles1m);
+                    final supertrend1mList = IndicatorUtils.supertrendSeries(
+                      engine1m,
+                      atrPeriod: stPeriod,
+                      multiplier: stMult,
+                    );
+                    if (supertrend1mList.isNotEmpty) {
+                      final latestStVal = supertrend1mList.last;
+                      if (latestStVal != 0.0) {
+                        final roundedSt = (latestStVal * 20).round() / 20; // NSE 0.05 tick rounding
+                        if (stock.stoploss == null || roundedSt > stock.stoploss!) {
+                          log("Trailing SL for $cleanSymbol moving from ${stock.stoploss} to $roundedSt");
+                          stock.stoploss = roundedSt;
+                          notificationsChanged = true;
+                          
+                          // Update on backend
+                          try {
+                            await BackendOrderService.updateActiveSL(
+                              symbol: cleanSymbol,
+                              triggerPrice: roundedSt,
+                            );
+                          } catch (e) {
+                            log('Failed to update SL on Backend for $cleanSymbol: $e');
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      // ---------------- END NEW TRAILING SL LOGIC ----------------
+
 
       if (notificationsChanged) {
         await SharedPreferenceHelper.instance

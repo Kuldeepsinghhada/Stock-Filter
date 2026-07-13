@@ -8,6 +8,7 @@ class TradeConfig {
   final Duration pollingInterval;
   final Duration timeout;
   final String slOrderType; // 'SL' or 'SL-M'
+  final int instrumentToken;
 
   TradeConfig({
     required this.symbol,
@@ -19,6 +20,7 @@ class TradeConfig {
     this.pollingInterval = const Duration(seconds: 1),
     this.timeout = const Duration(seconds: 15),
     this.slOrderType = 'SL-M', // default to Stop-Loss Market
+    this.instrumentToken = 0,
   });
 }
 

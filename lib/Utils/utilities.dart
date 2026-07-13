@@ -179,6 +179,7 @@ class Utilities {
             initialAvgVolume: todayAvgVol,
             target: target,
             stoploss: stoploss,
+            initialSL: stoploss,
             price: price,
           ),
         );

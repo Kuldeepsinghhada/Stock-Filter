@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
+import '../Utils/data_manager.dart';
 import 'models.dart';
 import 'trade_executor.dart';
 import 'kite_api_client.dart';
@@ -73,8 +74,7 @@ class TradingManager {
     final int calculatedQuantity = prefs.getInt('defaultQuantity') ?? 1;
 
     if (calculatedQuantity <= 0) {
-      developer.log(
-          'Calculated quantity is 0 or less. Aborting trade.',
+      developer.log('Calculated quantity is 0 or less. Aborting trade.',
           name: 'TradingManager');
       return;
     }
@@ -95,6 +95,18 @@ class TradingManager {
       pollingInterval: defaultTradeConfig.pollingInterval,
       timeout: defaultTradeConfig.timeout,
       slOrderType: defaultTradeConfig.slOrderType,
+      instrumentToken: (() {
+        try {
+          final stock = DataManager.instance.stocksList.firstWhere(
+            (s) =>
+                s.symbol?.replaceAll("NSE:", "") ==
+                symbol.replaceAll("NSE:", ""),
+          );
+          return int.tryParse(stock.token.toString()) ?? 0;
+        } catch (_) {
+          return 0;
+        }
+      })(),
     );
 
     // Execute the trade via custom backend
@@ -102,7 +114,9 @@ class TradingManager {
       symbol: symbol,
       exchange: defaultTradeConfig.exchange,
       transactionType: "BUY",
-      quantity: calculatedQuantity > 0 ? calculatedQuantity : 1, // Fallback to 1 if calculation fails
+      quantity: calculatedQuantity > 0
+          ? calculatedQuantity
+          : 1, // Fallback to 1 if calculation fails
       product: "MIS", // Executing as MIS for intraday trading
       stopLoss: stoploss,
       target: target,
@@ -111,11 +125,7 @@ class TradingManager {
           name: 'TradingManager', error: e);
     });
 
-    // Optionally you can keep the local execution as well, but commented out to prefer backend:
-    // tradeExecutor.executeTrade(config).catchError((e) {
-    //   developer.log('Trade execution failed for $symbol: $e',
-    //       name: 'TradingManager', error: e);
-    // });
+
   }
 
   /// Test function to forcefully execute a trade with 1 quantity
@@ -135,6 +145,18 @@ class TradingManager {
       pollingInterval: defaultTradeConfig.pollingInterval,
       timeout: defaultTradeConfig.timeout,
       slOrderType: defaultTradeConfig.slOrderType,
+      instrumentToken: (() {
+        try {
+          final stock = DataManager.instance.stocksList.firstWhere(
+            (s) =>
+                s.symbol?.replaceAll("NSE:", "") ==
+                symbol.replaceAll("NSE:", ""),
+          );
+          return int.tryParse(stock.token.toString()) ?? 0;
+        } catch (_) {
+          return 0;
+        }
+      })(),
     );
 
     tradeExecutor.executeTrade(config).catchError((e) {
