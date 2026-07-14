@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:stock_demo/Screens/StrategyTesting/api_backtest_screen.dart';
 import 'package:stock_demo/Screens/Swing/bulk_analysis_screen.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 import 'package:stock_demo/Screens/Orders/orders_screen.dart';
@@ -20,7 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _screens = [
       FilteredStockScreen(),
-      BulkAnalysisScreen(selectedDate: DateTime.now()),
+      ApiBacktestScreen(),
       const OrderScreen(),
     ];
   }
@@ -43,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             label: "TRADE",
           ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.data_usage), label: "INVESTMENT"),
+              icon: Icon(Icons.data_usage), label: "BACKTEST"),
           BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long), label: "ORDERS"),
         ],

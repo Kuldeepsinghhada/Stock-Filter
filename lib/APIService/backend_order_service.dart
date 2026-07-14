@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/model/executed_order.dart';
+import 'package:stock_demo/model/api_backtest_model.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -139,21 +141,28 @@ class BackendOrderService {
     };
 
     final double roundedTrigger = (triggerPrice * 20).round() / 20.0;
+    final cleanSymbol = symbol.replaceAll("NSE:", "").replaceAll("BSE:", "");
 
     final body = jsonEncode({
-      "symbol": symbol.replaceAll("NSE:", "").replaceAll("BSE:", ""),
+      "symbol": cleanSymbol,
       "triggerPrice": roundedTrigger,
     });
 
+    log("Attempting to call backend API: POST $url for $cleanSymbol with SL: $roundedTrigger",
+        name: "BackendOrderService");
+
     try {
-      final response = await http.post(url, headers: headers, body: body);
+      final response = await http
+          .post(url, headers: headers, body: body)
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        print("SL Updated Successfully on Backend! ($symbol -> $triggerPrice)");
-        Fluttertoast.showToast(msg: "SL Updated: $symbol");
+        log("SL Updated Successfully on Backend! ($cleanSymbol -> $roundedTrigger)",
+            name: "BackendOrderService");
+        Fluttertoast.showToast(msg: "SL Updated: $cleanSymbol");
       } else {
-        print("Failed to update SL on Backend: ${response.statusCode}");
-        print(response.body);
+        log("Failed to update SL on Backend: ${response.statusCode}, Body: ${response.body}",
+            name: "BackendOrderService");
         String errorMessage = response.body;
         try {
           final decoded = jsonDecode(response.body);
@@ -164,7 +173,8 @@ class BackendOrderService {
         Fluttertoast.showToast(msg: "SL Update Failed: $errorMessage");
       }
     } catch (e) {
-      print("Error calling updateActiveSL API: $e");
+      log("Error calling updateActiveSL API: $e",
+          name: "BackendOrderService", error: e);
       Fluttertoast.showToast(msg: "SL API Error: $e");
     }
   }
@@ -192,5 +202,26 @@ class BackendOrderService {
       print("Error calling getExecutedOrders API: $e");
     }
     return [];
+  }
+
+  /// Run Backtest via Backend API
+  static Future<ApiBacktestResponse?> runBacktest(int days) async {
+    final url = Uri.parse('$baseUrl/api/backtest?days=$days');
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+
+    try {
+      final response = await http.get(url, headers: headers);
+      if (response.statusCode == 200) {
+        return ApiBacktestResponse.fromJson(jsonDecode(response.body));
+      } else {
+        print("Failed to run backtest: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error calling backtest API: $e");
+    }
+    return null;
   }
 }
