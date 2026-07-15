@@ -127,55 +127,34 @@ class BackendOrderService {
     );
   }
 
-  /// Update Active Stoploss
-  /// Called when the 1-minute Supertrend trailing logic modifies the SL.
-  static Future<void> updateActiveSL({
-    required String symbol,
-    required double triggerPrice,
-  }) async {
-    final url = Uri.parse('$baseUrl/updateActiveSL');
-
+  /// Auto Trail SL
+  /// Trigger the backend to run its trailing stop-loss logic.
+  static Future<bool> autoTrailSL() async {
+    final url = Uri.parse('$baseUrl/autoTrailSL');
     final headers = {
       'Content-Type': 'application/json',
       'X-Backend-Key': 'my_super_secret_key',
     };
 
-    final double roundedTrigger = (triggerPrice * 20).round() / 20.0;
-    final cleanSymbol = symbol.replaceAll("NSE:", "").replaceAll("BSE:", "");
-
-    final body = jsonEncode({
-      "symbol": cleanSymbol,
-      "triggerPrice": roundedTrigger,
-    });
-
-    log("Attempting to call backend API: POST $url for $cleanSymbol with SL: $roundedTrigger",
-        name: "BackendOrderService");
+    log("Attempting to call backend API: POST $url", name: "BackendOrderService");
 
     try {
       final response = await http
-          .post(url, headers: headers, body: body)
+          .post(url, headers: headers)
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        log("SL Updated Successfully on Backend! ($cleanSymbol -> $roundedTrigger)",
-            name: "BackendOrderService");
-        Fluttertoast.showToast(msg: "SL Updated: $cleanSymbol");
+        log("Auto Trail SL Successful on Backend!", name: "BackendOrderService");
+        return true;
       } else {
-        log("Failed to update SL on Backend: ${response.statusCode}, Body: ${response.body}",
+        log("Failed to auto trail SL on Backend: ${response.statusCode}, Body: ${response.body}",
             name: "BackendOrderService");
-        String errorMessage = response.body;
-        try {
-          final decoded = jsonDecode(response.body);
-          if (decoded['message'] != null) {
-            errorMessage = decoded['message'];
-          }
-        } catch (_) {}
-        Fluttertoast.showToast(msg: "SL Update Failed: $errorMessage");
+        return false;
       }
     } catch (e) {
-      log("Error calling updateActiveSL API: $e",
+      log("Error calling autoTrailSL API: $e",
           name: "BackendOrderService", error: e);
-      Fluttertoast.showToast(msg: "SL API Error: $e");
+      return false;
     }
   }
 

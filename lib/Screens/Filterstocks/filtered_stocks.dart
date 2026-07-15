@@ -151,59 +151,6 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       final stPeriod = await prefs.getSupertrendPeriod();
       final stMult = await prefs.getSupertrendMultiplier();
 
-      for (var stock in notificationsList) {
-        if (stock.status == "Active") {
-          final symbolUpper = stock.stocksNameList?.toUpperCase() ?? '';
-          final quote = result.firstWhere(
-            (q) =>
-                q.stockSymbol != null &&
-                symbolUpper.contains(q.stockSymbol!.toUpperCase()),
-            orElse: () => FinalStockModel(),
-          );
-
-          if (quote.lastPrice != null && quote.lastPrice! > 0) {
-            double entryPrice = stock.price ?? 0.0;
-            double initialSL = stock.initialSL ?? stock.stoploss ?? 0.0;
-            if (entryPrice > 0 && initialSL > 0) {
-              if (quote.lastPrice! > entryPrice) {
-                // Trailing SL in discrete 2% steps
-                final cleanSymbol = symbolUpper
-                    .split(" - ")
-                    .first
-                    .trim()
-                    .replaceAll("NSE:", "")
-                    .replaceAll("BSE:", "");
-
-                double stepSize = entryPrice * 0.02; // 2% of entry price
-                int steps =
-                    ((quote.lastPrice! - entryPrice) / stepSize).floor();
-
-                if (steps >= 1) {
-                  double theoreticalSl = initialSL + (steps * stepSize);
-                  double roundedSl = (theoreticalSl * 20).round() /
-                      20; // NSE 0.05 tick rounding
-
-                  if (stock.stoploss == null || roundedSl > stock.stoploss!) {
-                    log("Trailing SL (2% step) for $cleanSymbol moving from ${stock.stoploss} to $roundedSl");
-                    stock.stoploss = roundedSl;
-                    notificationsChanged = true;
-
-                    // Update on backend
-                    try {
-                      await BackendOrderService.updateActiveSL(
-                        symbol: cleanSymbol,
-                        triggerPrice: roundedSl,
-                      );
-                    } catch (e) {
-                      log('Failed to update SL on Backend for $cleanSymbol: $e');
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
       // ---------------- END NEW TRAILING SL LOGIC ----------------
 
       if (notificationsChanged) {
@@ -221,7 +168,14 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       savedTokenList = {...savedTokenList, ...tokenList}.toList();
       await SharedPreferenceHelper.instance.setStockTokenLists(savedTokenList);
       await getNotifications();
+
       if (isTaskRunning == true) {
+        bool trailSuccess = await BackendOrderService.autoTrailSL();
+        if (trailSuccess) {
+          Fluttertoast.showToast(msg: "Auto Trail SL executed successfully");
+        } else {
+          Fluttertoast.showToast(msg: "FAILED: Auto Trail SL");
+        }
         fetchQuotesFromService();
       }
     } catch (e) {

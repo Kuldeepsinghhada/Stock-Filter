@@ -383,19 +383,6 @@ class TradeExecutor {
                         error: e);
                   }
 
-                  // Also update on the backend
-                  try {
-                    await BackendOrderService.updateActiveSL(
-                      symbol: config.symbol,
-                      triggerPrice: currentTrailedSL,
-                    );
-                  } catch (e) {
-                    developer.log(
-                        'Failed to update SL on Backend for ${config.symbol}: $e',
-                        name: 'TradeExecutor',
-                        error: e);
-                  }
-
                   // Update UI notifications list so FilteredStockScreen shows the latest SL
                   try {
                     final prefs = SharedPreferenceHelper.instance;

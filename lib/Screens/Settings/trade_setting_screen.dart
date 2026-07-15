@@ -288,7 +288,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               child: ElevatedButton(
                 onPressed: () {
                   BackendOrderService.testPlaceStockOrder();
-                  // BackendOrderService.updateActiveSL(symbol: 'TVSELECT', triggerPrice: 515);
+
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orangeAccent,
