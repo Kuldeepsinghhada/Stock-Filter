@@ -1,12 +1,14 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:stock_demo/trading/order_monitor.dart';
 import 'dart:developer' as developer;
 import '../Utils/data_manager.dart';
 import 'models.dart';
 import 'trade_executor.dart';
 import 'kite_api_client.dart';
 import 'order_service.dart';
-import 'order_monitor.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
+import '../Utils/sharepreference_helper.dart';
+import 'package:intl/intl.dart';
 
 class TradingManager {
   static final TradingManager instance = TradingManager._internal();
@@ -113,6 +115,31 @@ class TradingManager {
       })(),
     );
 
+    // Check daily trade limit BEFORE sending to backend
+    final maxTradesPerDay =
+        await SharedPreferenceHelper.instance.getMaxTradesPerDay();
+    String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    String lastDate =
+        await SharedPreferenceHelper.instance.getLastTradeExecutionDate();
+    int currentCount =
+        await SharedPreferenceHelper.instance.getTodayExecutedTradesCount();
+
+    if (lastDate != todayStr) {
+      currentCount = 0;
+      await SharedPreferenceHelper.instance.setLastTradeExecutionDate(todayStr);
+    }
+
+    if (currentCount >= maxTradesPerDay) {
+      developer.log(
+          'Max trades per day ($maxTradesPerDay) reached. Ignoring backend execution for $symbol.',
+          name: 'TradingManager');
+      return;
+    }
+
+    // Increment count before execution
+    await SharedPreferenceHelper.instance
+        .setTodayExecutedTradesCount(currentCount + 1);
+
     // Execute the trade via custom backend
     BackendOrderService.placeStockOrder(
       symbol: symbol,
@@ -128,8 +155,6 @@ class TradingManager {
       developer.log('Backend Trade execution failed for $symbol: $e',
           name: 'TradingManager', error: e);
     });
-
-
   }
 
   /// Test function to forcefully execute a trade with 1 quantity

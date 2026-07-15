@@ -458,4 +458,38 @@ class SharedPreferenceHelper {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool(squareOffEnabledKey) ?? true;
   }
+
+  String maxTradesPerDayKey = "maxTradesPerDayKey";
+  String todayExecutedTradesCountKey = "todayExecutedTradesCount";
+  String lastTradeExecutionDateKey = "lastTradeExecutionDate";
+
+  Future<void> setMaxTradesPerDay(int maxTrades) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(maxTradesPerDayKey, maxTrades);
+  }
+
+  Future<int> getMaxTradesPerDay() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(maxTradesPerDayKey) ?? 5; // Default 5
+  }
+
+  Future<void> setTodayExecutedTradesCount(int count) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(todayExecutedTradesCountKey, count);
+  }
+
+  Future<int> getTodayExecutedTradesCount() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(todayExecutedTradesCountKey) ?? 0;
+  }
+
+  Future<void> setLastTradeExecutionDate(String dateStr) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(lastTradeExecutionDateKey, dateStr);
+  }
+
+  Future<String> getLastTradeExecutionDate() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(lastTradeExecutionDateKey) ?? "";
+  }
 }

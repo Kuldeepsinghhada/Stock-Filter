@@ -18,6 +18,8 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       TextEditingController();
   final TextEditingController _maxTradeAmountController =
       TextEditingController();
+  final TextEditingController _maxTradesPerDayController =
+      TextEditingController();
 
   final TextEditingController _atrPeriodController = TextEditingController();
   final TextEditingController _atrMultiplierController =
@@ -45,6 +47,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final lastMultiplier = await prefs.getLastCandleMultiplier();
     final otherMultiplier = await prefs.getOtherCandlesMultiplier();
     final maxTradeAmount = await prefs.getMaxTradeAmount();
+    final maxTradesPerDay = await prefs.getMaxTradesPerDay();
 
 
     final telegram = await prefs.getTelegramAlertsEnabled();
@@ -62,6 +65,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       _lastMultiplierController.text = lastMultiplier.toString();
       _otherMultiplierController.text = otherMultiplier.toString();
       _maxTradeAmountController.text = maxTradeAmount.toString();
+      _maxTradesPerDayController.text = maxTradesPerDay.toString();
 
       _telegramAlerts = telegram;
       _isCandleExtendedEnabled = isCandleExtended;
@@ -81,6 +85,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     final last = double.tryParse(_lastMultiplierController.text);
     final other = double.tryParse(_otherMultiplierController.text);
     final maxAmount = double.tryParse(_maxTradeAmountController.text);
+    final maxTrades = int.tryParse(_maxTradesPerDayController.text);
 
 
     final atrPeriod = int.tryParse(_atrPeriodController.text);
@@ -94,6 +99,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
     if (last != null &&
         other != null &&
         maxAmount != null &&
+        maxTrades != null &&
         atrPeriod != null &&
         atrMultiplier != null &&
         riskReward != null &&
@@ -103,6 +109,7 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
       await prefs.setLastCandleMultiplier(last);
       await prefs.setOtherCandlesMultiplier(other);
       await prefs.setMaxTradeAmount(maxAmount);
+      await prefs.setMaxTradesPerDay(maxTrades);
 
 
       await prefs.setTelegramAlertsEnabled(_telegramAlerts);
@@ -193,6 +200,12 @@ class _TradeSettingPageState extends State<TradeSettingPage> {
               label: "Max Trade Amount (₹)",
               controller: _maxTradeAmountController,
               helperText: "e.g., 5000",
+            ),
+            const SizedBox(height: 16),
+            _buildMultiplierInput(
+              label: "Max Trades Per Day",
+              controller: _maxTradesPerDayController,
+              helperText: "e.g., 5",
             ),
 
             const Divider(color: Colors.white10, height: 40),
