@@ -165,62 +165,8 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             double entryPrice = stock.price ?? 0.0;
             double initialSL = stock.initialSL ?? stock.stoploss ?? 0.0;
             if (entryPrice > 0 && initialSL > 0) {
-              double risk = entryPrice - initialSL;
-              double oneRPrice = entryPrice + risk;
-
-              if (quote.lastPrice! >= oneRPrice) {
-                // Fetch token
-                final cleanSymbol = symbolUpper
-                    .split(" - ")
-                    .first
-                    .trim()
-                    .replaceAll("NSE:", "")
-                    .replaceAll("BSE:", "");
-                int instrumentToken = 0;
-                try {
-                  final s = DataManager.instance.stocksList.firstWhere(
-                    (s) => s.symbol?.replaceAll("NSE:", "") == cleanSymbol,
-                  );
-                  instrumentToken = int.tryParse(s.token.toString()) ?? 0;
-                } catch (_) {}
-
-                if (instrumentToken != 0) {
-                  final candles1m = await DashboardService.instance
-                      .fetch1MinHistoricalData(instrumentToken);
-                  if (candles1m != null && candles1m.isNotEmpty) {
-                    final engine1m = IndicatorEngine(candles1m);
-                    final supertrend1mList = IndicatorUtils.supertrendSeries(
-                      engine1m,
-                      atrPeriod: stPeriod,
-                      multiplier: stMult,
-                    );
-                    if (supertrend1mList.isNotEmpty) {
-                      final latestStVal = supertrend1mList.last;
-                      if (latestStVal != 0.0) {
-                        final roundedSt = (latestStVal * 20).round() /
-                            20; // NSE 0.05 tick rounding
-                        if (stock.stoploss == null ||
-                            roundedSt > stock.stoploss!) {
-                          log("Trailing SL for $cleanSymbol moving from ${stock.stoploss} to $roundedSt");
-                          stock.stoploss = roundedSt;
-                          notificationsChanged = true;
-
-                          // Update on backend
-                          try {
-                            await BackendOrderService.updateActiveSL(
-                              symbol: cleanSymbol,
-                              triggerPrice: roundedSt,
-                            );
-                          } catch (e) {
-                            log('Failed to update SL on Backend for $cleanSymbol: $e');
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              } else if (quote.lastPrice! > entryPrice) {
-                // Pre-1R Trailing: Update SL in discrete 1% steps
+              if (quote.lastPrice! > entryPrice) {
+                // Trailing SL in discrete 2% steps
                 final cleanSymbol = symbolUpper
                     .split(" - ")
                     .first
@@ -228,7 +174,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                     .replaceAll("NSE:", "")
                     .replaceAll("BSE:", "");
 
-                double stepSize = entryPrice * 0.01; // 1% of entry price
+                double stepSize = entryPrice * 0.02; // 2% of entry price
                 int steps =
                     ((quote.lastPrice! - entryPrice) / stepSize).floor();
 
@@ -238,7 +184,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                       20; // NSE 0.05 tick rounding
 
                   if (stock.stoploss == null || roundedSl > stock.stoploss!) {
-                    log("Pre-1R Trailing SL (1% step) for $cleanSymbol moving from ${stock.stoploss} to $roundedSl");
+                    log("Trailing SL (2% step) for $cleanSymbol moving from ${stock.stoploss} to $roundedSl");
                     stock.stoploss = roundedSl;
                     notificationsChanged = true;
 
@@ -249,7 +195,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                         triggerPrice: roundedSl,
                       );
                     } catch (e) {
-                      log('Failed to update SL on Backend (pre-1R) for $cleanSymbol: $e');
+                      log('Failed to update SL on Backend for $cleanSymbol: $e');
                     }
                   }
                 }
@@ -525,10 +471,10 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
               final startAllowedAt =
                   DateTime(now.year, now.month, now.day, 9, 30);
               // If currently not running (we're trying to START) and time is before allowed time, block it.
-              if (!isTaskRunning && now.isBefore(startAllowedAt)) {
-                Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
-                return;
-              }
+              // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
+              //   Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");
+              //   return;
+              // }
 
               await WakelockPlus.enable();
               if (!isTaskRunning) {

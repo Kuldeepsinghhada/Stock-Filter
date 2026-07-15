@@ -17,7 +17,6 @@ import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:http/http.dart' as http;
 import 'package:stock_demo/APIService/api_service.dart';
-import 'package:stock_demo/APIService/end_point.dart';
 import 'enums.dart';
 import 'package:stock_demo/trading/trading_manager.dart';
 
@@ -135,7 +134,8 @@ class Utilities {
     return {"target": target, "stoploss": stoploss, "price": entryPrice};
   }
 
-  static Future<void> addAndShowNotification(List<StockModel> finalList, {bool isHistorical = false}) async {
+  static Future<void> addAndShowNotification(List<StockModel> finalList,
+      {bool isHistorical = false}) async {
     List<NotificationModel> notificationsList =
         await SharedPreferenceHelper.instance.getNotificationList();
 

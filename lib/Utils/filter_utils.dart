@@ -37,10 +37,17 @@ class FilterUtils {
 
   static bool passesFilter(List<HistoricalDataModel> candles, String token,
       {bool isHistoryCheck = false}) {
+    if (candles.last.timestamp.hour == 9 &&
+        candles.last.timestamp.minute < 35) {
+      debugPrint(
+          "Failed: $token at ${candles.last.timestamp} - Reason: Market Open Time");
+      return false;
+    }
+
     if (candles.isEmpty) return false;
 
     final secondLast = candles.elementAt(candles.length - 2);
-    if(secondLast.volume < 5000){
+    if (secondLast.volume < 5000) {
       return false;
     }
 
@@ -86,17 +93,40 @@ class FilterUtils {
       }
     }
 
-    // 5. VolumeSpike
-    final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
-    if (!volumeStrength.isVolumeSpike40x) {
+    final volumeAll = IndicatorUtils.getAllCandlesAvgX(engine);
+    if (volumeAll < 1) {
       return false;
     }
 
+    // final isNearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAuto(engine);
+    // if (!isNearBuyingZone) {
+    //   return false;
+    // }
+
+    final isPatternFound = BullishPatternDetector.detect(engine.candles);
+    if (isPatternFound.found) {
+      return false;
+    }
+
+    // 5. VolumeSpike
+    // final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
+    // if (!volumeStrength.isVolumeSpike40x) {
+    //   return false;
+    // }
+
     // 6. EMA
-    bool aboveEma20 = IndicatorUtils.isCloseAboveEMA(engine, 20).isPassed;
-    if (!aboveEma20) {
+    final ema20Res = IndicatorUtils.isCloseAboveEMA(engine, 20);
+    if (!ema20Res.isPassed) {
       debugPrint("Failed: $token at $timeStr - Reason: Below EMA20");
       return false;
+    }
+
+    if (ema20Res.value != null) {
+      double maxLow = ema20Res.value! * 1.05;
+      if (engine.last.low > maxLow) {
+        debugPrint("Failed: $token at $timeStr - Reason: Low > 5% above EMA20");
+        return false;
+      }
     }
 
     // 7. ATR
@@ -156,6 +186,79 @@ class FilterUtils {
       }
     }
     logMsg("Passed : $token");
+    return true;
+  }
+
+  static bool isHealthyBreakoutRetest(
+    IndicatorEngine engine, {
+    int breakoutLookback = 20,
+    int maxPullbackCandles = 5,
+    double breakoutTolerance = 0.003, // 0.3%
+  }) {
+    final candles = engine.candles;
+    if (candles.length < breakoutLookback + maxPullbackCandles + 2) {
+      return false;
+    }
+
+    final current = candles.last;
+
+    // -------------------------------
+    // Find breakout level
+    // -------------------------------
+    final breakoutIndex = candles.length - maxPullbackCandles - 2;
+
+    double breakoutLevel = 0;
+
+    for (int i = breakoutIndex - breakoutLookback; i < breakoutIndex; i++) {
+      if (candles[i].high > breakoutLevel) {
+        breakoutLevel = candles[i].high;
+      }
+    }
+
+    // Breakout must already happen
+    if (candles[breakoutIndex].close <= breakoutLevel) {
+      return false;
+    }
+
+    bool touched = false;
+
+    // -------------------------------
+    // Pullback check
+    // -------------------------------
+    for (int i = breakoutIndex + 1; i < candles.length - 1; i++) {
+      final c = candles[i];
+
+      final distance = (c.low - breakoutLevel).abs() / breakoutLevel;
+
+      if (distance <= breakoutTolerance) {
+        touched = true;
+      }
+
+      // Retest failed
+      if (c.close < breakoutLevel) {
+        return false;
+      }
+    }
+
+    if (!touched) return false;
+
+    // -------------------------------
+    // Current candle confirmation
+    // -------------------------------
+    final previous = candles[candles.length - 2];
+
+    if (current.close <= previous.high) {
+      return false;
+    }
+
+    if (current.close <= current.open) {
+      return false;
+    }
+
+    if (current.volume <= previous.volume) {
+      return false;
+    }
+
     return true;
   }
 
@@ -326,7 +429,10 @@ class FilterUtils {
         bool isAboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
                 IndicatorEngine(historyCandles))
             .isPassed;
-        return isAboveSupertrend;
+        bool isEMA20 =
+            IndicatorUtils.isCloseAboveEMA(IndicatorEngine(historyCandles), 20)
+                .isPassed;
+        return isAboveSupertrend && isEMA20;
 
       case 1:
         bool isEMA20 =
@@ -865,6 +971,10 @@ class FilterUtils {
     // Simulate going through today's candles one by one
     // Start at least 20 candles in to allow EMA calculations if possible
     for (int i = 0; i < todayCandles.length; i++) {
+      if (todayCandles[i].timestamp.hour == 9 &&
+          todayCandles[i].timestamp.minute < 35) {
+        continue; // Start history check from 9:35 candles
+      }
       int globalIndex = history.indexOf(todayCandles[i]);
       if (globalIndex < 20) continue; // Need minimum data for EMA
 
@@ -935,10 +1045,12 @@ class FilterUtils {
     atrValue ??= 0.0;
     double atrSL = entryPrice - (atrValue * cachedAtrMultiplier);
     double stoploss = min(supertrendValue, atrSL);
+
     double risk = entryPrice - stoploss;
     if (risk <= 0) {
       risk = entryPrice * 0.01; // fallback
     }
+
     double target = entryPrice + (risk * cachedRiskReward);
 
     String status = "Pending";
@@ -959,7 +1071,6 @@ class FilterUtils {
             targetDate.year, targetDate.month, targetDate.day, hour, minute);
       }
     }
-
     // Try to fetch 1-minute historical data
     List<HistoricalDataModel>? candles1m;
     try {
@@ -998,23 +1109,15 @@ class FilterUtils {
           break;
         }
 
-        // Check +1R profit
-        if (!isTrailingActive && c1m.high >= entryPrice + risk) {
-          isTrailingActive = true;
-        } else if (!isTrailingActive && c1m.high > entryPrice) {
-          double stepSize = entryPrice * 0.01;
+        // Trail SL by 2% on every 2% move
+        if (c1m.high > entryPrice) {
+          double stepSize = entryPrice * 0.02;
           int steps = ((c1m.high - entryPrice) / stepSize).floor();
           if (steps >= 1) {
             double theoreticalSl = stoploss + (steps * stepSize);
-            currentSL = max(currentSL, theoreticalSl);
-          }
-        }
-
-        if (isTrailingActive) {
-          if (j < supertrend1mList.length) {
-            final stVal = supertrend1mList[j];
-            if (stVal != 0.0) {
-              currentSL = max(currentSL, stVal);
+            if (theoreticalSl > currentSL) {
+              currentSL = theoreticalSl;
+              isTrailingActive = true;
             }
           }
         }
@@ -1064,23 +1167,15 @@ class FilterUtils {
           break;
         }
 
-        // Check +1R profit
-        if (!isTrailingActive && c5m.high >= entryPrice + risk) {
-          isTrailingActive = true;
-        } else if (!isTrailingActive && c5m.high > entryPrice) {
-          double stepSize = entryPrice * 0.01;
+        // Trail SL by 2% on every 2% move
+        if (c5m.high > entryPrice) {
+          double stepSize = entryPrice * 0.02;
           int steps = ((c5m.high - entryPrice) / stepSize).floor();
           if (steps >= 1) {
             double theoreticalSl = stoploss + (steps * stepSize);
-            currentSL = max(currentSL, theoreticalSl);
-          }
-        }
-
-        if (isTrailingActive) {
-          if (i < supertrend5mList.length) {
-            final stVal = supertrend5mList[i];
-            if (stVal != 0.0) {
-              currentSL = max(currentSL, stVal);
+            if (theoreticalSl > currentSL) {
+              currentSL = theoreticalSl;
+              isTrailingActive = true;
             }
           }
         }
