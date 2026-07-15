@@ -93,26 +93,21 @@ class FilterUtils {
       }
     }
 
-    final volumeAll = IndicatorUtils.getAllCandlesAvgX(engine);
-    if (volumeAll < 1) {
-      return false;
-    }
-
     // final isNearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAuto(engine);
     // if (!isNearBuyingZone) {
     //   return false;
     // }
 
-    final isPatternFound = BullishPatternDetector.detect(engine.candles);
-    if (isPatternFound.found) {
-      return false;
-    }
-
-    // 5. VolumeSpike
-    // final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
-    // if (!volumeStrength.isVolumeSpike40x) {
+    // final isPatternFound = BullishPatternDetector.detect(engine.candles);
+    // if (isPatternFound.found) {
     //   return false;
     // }
+
+    // 5. VolumeSpike
+    final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
+    if (!volumeStrength.isVolumeSpike40x) {
+      return false;
+    }
 
     // 6. EMA
     final ema20Res = IndicatorUtils.isCloseAboveEMA(engine, 20);
@@ -121,13 +116,13 @@ class FilterUtils {
       return false;
     }
 
-    if (ema20Res.value != null) {
-      double maxLow = ema20Res.value! * 1.05;
-      if (engine.last.low > maxLow) {
-        debugPrint("Failed: $token at $timeStr - Reason: Low > 5% above EMA20");
-        return false;
-      }
-    }
+    // if (ema20Res.value != null) {
+    //   double maxLow = ema20Res.value! * 1.05;
+    //   if (engine.last.low > maxLow) {
+    //     debugPrint("Failed: $token at $timeStr - Reason: Low > 5% above EMA20");
+    //     return false;
+    //   }
+    // }
 
     // 7. ATR
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(engine);
