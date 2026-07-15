@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
+import 'package:intl/intl.dart';
 
 class ApiBacktestScreen extends StatefulWidget {
   const ApiBacktestScreen({super.key});
@@ -10,8 +11,8 @@ class ApiBacktestScreen extends StatefulWidget {
 }
 
 class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
-  final TextEditingController _daysController =
-      TextEditingController(text: "1");
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
+  DateTime _endDate = DateTime.now();
   bool _isLoading = false;
   ApiBacktestSummary? _summary;
   Map<String, List<ApiBacktestTrade>> _groupedTrades = {};
@@ -30,8 +31,37 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     return map;
   }
 
+  Future<void> _selectStartDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _startDate) {
+      setState(() {
+        _startDate = picked;
+      });
+    }
+  }
+
+  Future<void> _selectEndDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _endDate) {
+      setState(() {
+        _endDate = picked;
+      });
+    }
+  }
+
   Future<void> _runBacktest() async {
-    int days = int.tryParse(_daysController.text) ?? 1;
+    String startStr = DateFormat('yyyy-MM-dd').format(_startDate);
+    String endStr = DateFormat('yyyy-MM-dd').format(_endDate);
     setState(() {
       _isLoading = true;
       _summary = null;
@@ -39,7 +69,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     });
 
     try {
-      var result = await BackendOrderService.runBacktest(days);
+      var result = await BackendOrderService.runBacktest(startStr, endStr);
       if (result != null && result.success) {
         var data = result.data;
         if (data != null) {
@@ -131,16 +161,33 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _daysController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Days to backtest',
-                      border: OutlineInputBorder(),
+                  child: InkWell(
+                    onTap: () => _selectStartDate(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Start Date',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      child: Text(DateFormat('yyyy-MM-dd').format(_startDate)),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectEndDate(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'End Date',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      child: Text(DateFormat('yyyy-MM-dd').format(_endDate)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _runBacktest,
                   child: _isLoading
@@ -148,7 +195,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Run API Backtest'),
+                      : const Text('Run'),
                 ),
               ],
             ),

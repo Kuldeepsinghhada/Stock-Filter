@@ -245,9 +245,10 @@ class Utilities {
           final stoploss = notif.stoploss ?? (stock.lastPrice ?? 0.0) * 0.98;
           final entryPrice = notif.price ?? stock.lastPrice ?? 0.0;
 
+          final double maxTradeAmount = await SharedPreferenceHelper.instance.getMaxTradeAmount();
           int quantity = 0;
           if (entryPrice > 0) {
-            quantity = (60000 / entryPrice).floor();
+            quantity = (maxTradeAmount / entryPrice).floor();
           }
 
           double slPercent = 0.0;

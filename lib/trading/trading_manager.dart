@@ -69,9 +69,13 @@ class TradingManager {
       return;
     }
 
-    // Read custom quantity from preferences, default to 1 if not set
+    // Calculate quantity based on maxTradeAmount and entryPrice
     final prefs = await SharedPreferences.getInstance();
-    final int calculatedQuantity = prefs.getInt('defaultQuantity') ?? 1;
+    final double maxTradeAmount = prefs.getDouble('maxTradeAmount') ?? 5000.0;
+    int calculatedQuantity = 1;
+    if (entryPrice > 0) {
+      calculatedQuantity = (maxTradeAmount / entryPrice).floor();
+    }
 
     if (calculatedQuantity <= 0) {
       developer.log('Calculated quantity is 0 or less. Aborting trade.',

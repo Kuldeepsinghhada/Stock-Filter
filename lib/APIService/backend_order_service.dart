@@ -184,8 +184,8 @@ class BackendOrderService {
   }
 
   /// Run Backtest via Backend API
-  static Future<ApiBacktestResponse?> runBacktest(int days) async {
-    final url = Uri.parse('$baseUrl/api/backtest?days=$days');
+  static Future<ApiBacktestResponse?> runBacktest(String startDate, String endDate) async {
+    final url = Uri.parse('$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate');
     final headers = {
       'Content-Type': 'application/json',
       'X-Backend-Key': 'my_super_secret_key',
