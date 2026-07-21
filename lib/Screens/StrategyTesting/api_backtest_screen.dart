@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
+import 'package:stock_demo/Utils/utilities.dart';
 import 'package:intl/intl.dart';
 
 class ApiBacktestScreen extends StatefulWidget {
@@ -13,7 +14,12 @@ class ApiBacktestScreen extends StatefulWidget {
 class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime _endDate = DateTime.now();
+  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 15);
+  TimeOfDay _endTime = const TimeOfDay(hour: 15, minute: 30);
+  final TextEditingController _maxTradesController =
+      TextEditingController(text: '5');
   bool _isLoading = false;
+  ApiBacktestData? _cachedData;
   ApiBacktestSummary? _summary;
   Map<String, List<ApiBacktestTrade>> _groupedTrades = {};
 
@@ -59,6 +65,108 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     }
   }
 
+  Future<void> _selectStartTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime,
+    );
+    if (picked != null && picked != _startTime) {
+      setState(() {
+        _startTime = picked;
+      });
+      _applyFilters();
+    }
+  }
+
+  Future<void> _selectEndTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime,
+    );
+    if (picked != null && picked != _endTime) {
+      setState(() {
+        _endTime = picked;
+      });
+      _applyFilters();
+    }
+  }
+
+  void _applyFilters() {
+    if (_cachedData == null) return;
+
+    setState(() {
+      int? maxTrades = int.tryParse(_maxTradesController.text);
+
+      var filteredTrades = _cachedData!.trades.where((trade) {
+        String cleanName =
+            trade.stockName.replaceAll("NSE:", "").split("-").first;
+        if (Utilities.blockedSymbols.contains(cleanName)) {
+          return false;
+        }
+        if (trade.entryTime != null) {
+          try {
+            DateTime dt = DateTime.parse(trade.entryTime!).toLocal();
+            int tradeMinutes = dt.hour * 60 + dt.minute;
+            int startMinutes = _startTime.hour * 60 + _startTime.minute;
+            int endMinutes = _endTime.hour * 60 + _endTime.minute;
+            if (tradeMinutes < startMinutes || tradeMinutes > endMinutes) {
+              return false;
+            }
+          } catch (e) {
+            print("Error parsing time: ${trade.entryTime} - $e");
+          }
+        }
+        return true;
+      }).toList();
+
+      var tempGrouped = _groupBy(filteredTrades, (trade) => trade.date);
+
+      int totalTrades = 0;
+      int wins = 0;
+      int losses = 0;
+      double totalPnl = 0.0;
+
+      _groupedTrades = {};
+
+      for (var entry in tempGrouped.entries) {
+        var dateTrades = entry.value;
+
+        // Sort chronologically
+        dateTrades
+            .sort((a, b) => (a.entryTime ?? '').compareTo(b.entryTime ?? ''));
+
+        // Apply max trades filter per day
+        if (maxTrades != null && dateTrades.length > maxTrades) {
+          dateTrades = dateTrades.sublist(0, maxTrades);
+        }
+
+        _groupedTrades[entry.key] = dateTrades;
+
+        for (var trade in dateTrades) {
+          totalTrades++;
+          if (trade.pnlPercent > 0) {
+            wins++;
+          } else if (trade.pnlPercent < 0) {
+            losses++;
+          }
+          totalPnl += trade.pnlPercent;
+        }
+      }
+
+      String accuracy = totalTrades > 0
+          ? ((wins / totalTrades) * 100).toStringAsFixed(2) + "%"
+          : "0.00%";
+
+      _summary = ApiBacktestSummary(
+        totalTrades: totalTrades,
+        wins: wins,
+        losses: losses,
+        accuracy: accuracy,
+        totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
+      );
+    });
+  }
+
   Future<void> _runBacktest() async {
     String startStr = DateFormat('yyyy-MM-dd').format(_startDate);
     String endStr = DateFormat('yyyy-MM-dd').format(_endDate);
@@ -71,55 +179,9 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     try {
       var result = await BackendOrderService.runBacktest(startStr, endStr);
       if (result != null && result.success) {
-        var data = result.data;
-        if (data != null) {
-          setState(() {
-            var tempGrouped = _groupBy(data.trades, (trade) => trade.date);
-
-            int totalTrades = 0;
-            int wins = 0;
-            int losses = 0;
-            double totalPnl = 0.0;
-
-            _groupedTrades = {};
-
-            for (var entry in tempGrouped.entries) {
-              var dateTrades = entry.value;
-
-              // Sort chronologically
-              dateTrades.sort(
-                  (a, b) => (a.entryTime ?? '').compareTo(b.entryTime ?? ''));
-
-              // Take only first 5 trades max
-              if (dateTrades.length > 5) {
-                dateTrades = dateTrades.sublist(0, 5);
-              }
-
-              _groupedTrades[entry.key] = dateTrades;
-
-              for (var trade in dateTrades) {
-                totalTrades++;
-                if (trade.pnlPercent > 0) {
-                  wins++;
-                } else if (trade.pnlPercent < 0) {
-                  losses++;
-                }
-                totalPnl += trade.pnlPercent;
-              }
-            }
-
-            String accuracy = totalTrades > 0
-                ? ((wins / totalTrades) * 100).toStringAsFixed(2) + "%"
-                : "0.00%";
-
-            _summary = ApiBacktestSummary(
-              totalTrades: totalTrades,
-              wins: wins,
-              losses: losses,
-              accuracy: accuracy,
-              totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
-            );
-          });
+        if (result.data != null) {
+          _cachedData = result.data;
+          _applyFilters();
         }
       } else {
         if (mounted) {
@@ -167,7 +229,8 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Start Date',
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
                       child: Text(DateFormat('yyyy-MM-dd').format(_startDate)),
                     ),
@@ -181,7 +244,8 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       decoration: const InputDecoration(
                         labelText: 'End Date',
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
                       child: Text(DateFormat('yyyy-MM-dd').format(_endDate)),
                     ),
@@ -196,6 +260,54 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Run'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectStartTime(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Start Time',
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      child: Text(_startTime.format(context)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectEndTime(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'End Time',
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      child: Text(_endTime.format(context)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _maxTradesController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (val) => _applyFilters(),
+                    decoration: const InputDecoration(
+                      labelText: 'Max Trades',
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -7,8 +7,9 @@ import 'package:stock_demo/model/executed_order.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
 
 class BackendOrderService {
-  static const String baseUrl = 'http://200.97.163.130:8080';
-
+  static const String baseUrl = 'http://localhost:8080';
+  // LOCAL:  http://localhost:8080
+  // LIVE http://200.97.163.130:8080
   /// Health Check
   /// Verifies if the backend is running.
   static Future<bool> healthCheck() async {
@@ -136,7 +137,8 @@ class BackendOrderService {
       'X-Backend-Key': 'my_super_secret_key',
     };
 
-    log("Attempting to call backend API: POST $url", name: "BackendOrderService");
+    log("Attempting to call backend API: POST $url",
+        name: "BackendOrderService");
 
     try {
       final response = await http
@@ -144,7 +146,8 @@ class BackendOrderService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        log("Auto Trail SL Successful on Backend!", name: "BackendOrderService");
+        log("Auto Trail SL Successful on Backend!",
+            name: "BackendOrderService");
         return true;
       } else {
         log("Failed to auto trail SL on Backend: ${response.statusCode}, Body: ${response.body}",
@@ -184,8 +187,10 @@ class BackendOrderService {
   }
 
   /// Run Backtest via Backend API
-  static Future<ApiBacktestResponse?> runBacktest(String startDate, String endDate) async {
-    final url = Uri.parse('$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate');
+  static Future<ApiBacktestResponse?> runBacktest(
+      String startDate, String endDate) async {
+    final url = Uri.parse(
+        '$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate');
     final headers = {
       'Content-Type': 'application/json',
       'X-Backend-Key': 'my_super_secret_key',

@@ -39,8 +39,6 @@ class FilterUtils {
       {bool isHistoryCheck = false}) {
     if (candles.last.timestamp.hour == 9 &&
         candles.last.timestamp.minute < 35) {
-      debugPrint(
-          "Failed: $token at ${candles.last.timestamp} - Reason: Market Open Time");
       return false;
     }
 
@@ -88,7 +86,7 @@ class FilterUtils {
     if (!isHistoryCheck) {
       var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
       if (!isPercentChange) {
-        logMsg("Failed: $token at $timeStr - Reason: Price Change > 13%");
+        debugPrint("Failed: $token at $timeStr - Reason: Price Change > 13%");
         return false;
       }
     }
@@ -106,6 +104,7 @@ class FilterUtils {
     // 5. VolumeSpike
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
     if (!volumeStrength.isVolumeSpike40x) {
+      debugPrint("Failed: $token at $timeStr - Reason: Volume Spike < 40x");
       return false;
     }
 
@@ -180,8 +179,123 @@ class FilterUtils {
         return false;
       }
     }
+
+    // if (IndicatorUtils.getAtrPercent(Utilities.convertToDaily(candles ?? [])) <
+    //     2) {
+    //   return false;
+    // }
+    //
+    // if (IndicatorUtils.isEfficiencyRatioGood(candles)) {
+    //   return false;
+    // }
+
     logMsg("Passed : $token");
     return true;
+  }
+
+  /// Identifies whether a stock has already made a significant move in the last
+  /// 5-6 candles and should be avoided for a fresh breakout entry.
+  /// Simplified to check only:
+  /// ✓ Move >5%
+  /// ✓ Distance from EMA >6%
+  /// ✓ Distance from Supertrend >5%
+  /// ✓ Last 3 candles >1.5 ATR
+  /// ✓ 4 consecutive green candle
+  static bool isStockAlreadyExtended(
+    List<HistoricalDataModel> candles,
+    String token,
+  ) {
+    if (candles.length < 20) {
+      return false; // Not enough data to assess, assume healthy
+    }
+
+    final last6 = candles.sublist(candles.length - 6);
+
+    // 1. Move > 5%
+    final lowestLow = last6.map((e) => e.low).reduce(min);
+    final highestHigh = last6.map((e) => e.high).reduce(max);
+    if (lowestLow > 0) {
+      final movePercent = ((highestHigh - lowestLow) / lowestLow) * 100;
+      if (movePercent > 5) {
+        debugPrint("Reject $token: Move >5% ($movePercent%)");
+        return true;
+      }
+    }
+
+    // 2. Distance from EMA > 6%
+    final closes = candles.map((e) => e.close).toList();
+    final ema20List = MathUtils.emaAligned(closes, 20);
+    if (ema20List.isNotEmpty && ema20List.last != null) {
+      final ema20 = ema20List.last!;
+      final distanceEma = ((candles.last.close - ema20) / ema20) * 100;
+      if (distanceEma > 6) {
+        debugPrint("Reject $token: Distance from EMA20 >6% ($distanceEma%)");
+        return true;
+      }
+    }
+
+    // 3. Distance from Supertrend > 5%
+    final engine = IndicatorEngine(candles);
+    final stRes = IndicatorUtils.isCloseAboveSupertrend(
+      engine,
+      atrPeriod: 10,
+      multiplier: 3.0,
+    );
+    final supertrend = stRes.value;
+    if (supertrend != null && supertrend > 0) {
+      final distanceSupertrend =
+          ((candles.last.close - supertrend) / supertrend) * 100;
+      if (distanceSupertrend > 5) {
+        debugPrint(
+            "Reject $token: Distance from Supertrend >5% ($distanceSupertrend%)");
+        return true;
+      }
+    }
+
+    // 4. Last 3 candles each > 1.5 ATR
+    final highs = candles.map((e) => e.high).toList();
+    final lows = candles.map((e) => e.low).toList();
+    final atrSeries = IndicatorUtils.atrSeries(highs, lows, closes, period: 14);
+    if (atrSeries.length >= 3) {
+      bool last3EachAbove1_5Atr = true;
+      for (int i = candles.length - 3; i < candles.length; i++) {
+        final size = candles[i].high - candles[i].low;
+        final atrAtI = atrSeries[i];
+        if (size <= 1.5 * atrAtI) {
+          last3EachAbove1_5Atr = false;
+          break;
+        }
+      }
+      if (last3EachAbove1_5Atr) {
+        debugPrint("Reject $token: Last 3 candles each >1.5 ATR");
+        return true;
+      }
+    }
+
+    // 5. 4 consecutive green candle
+    int consecutiveGreen = 0;
+    for (int i = candles.length - 1; i >= 0; i--) {
+      if (candles[i].close > candles[i].open) {
+        consecutiveGreen++;
+      } else {
+        break;
+      }
+    }
+    if (consecutiveGreen >= 4) {
+      debugPrint(
+          "Reject $token: 4+ consecutive green candles ($consecutiveGreen)");
+      return true;
+    }
+
+    // 6. Current candle should be above the last candle high
+    final lastCandle = candles[candles.length - 2];
+    if (candles.last.close <= lastCandle.high) {
+      debugPrint(
+          "Reject $token: Current candle close (${candles.last.close}) is not above last candle high (${lastCandle.high})");
+      return true;
+    }
+
+    return false;
   }
 
   static bool isHealthyBreakoutRetest(

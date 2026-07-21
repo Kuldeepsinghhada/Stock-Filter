@@ -12,6 +12,82 @@ import 'math_utils.dart';
 class IndicatorUtils {
   /// Returns true if stock has NOT moved more than [maxMovePercent]
   /// in the last [lookbackCandles] engine.candles.
+
+  static double getAtrPercent(List<HistoricalDataModel> dailyCandles,
+      {int period = 20}) {
+    if (dailyCandles.length < period) return 0.0;
+
+    final atrList = _atrSeries(dailyCandles, period);
+    if (atrList.isEmpty) return 0.0;
+
+    final atr = atrList.last;
+    final close = dailyCandles.last.close;
+
+    if (close == 0) return 0.0;
+    return (atr / close) * 100;
+  }
+
+  static List<double> _atrSeries(
+      List<HistoricalDataModel> candles, int period) {
+    final n = candles.length;
+    if (n < period + 1) return [];
+
+    final tr = List<double>.filled(n, 0.0);
+    for (int i = 0; i < n; i++) {
+      if (i == 0) {
+        tr[i] = candles[i].high - candles[i].low;
+      } else {
+        tr[i] = max(
+          candles[i].high - candles[i].low,
+          max(
+            (candles[i].high - candles[i - 1].close).abs(),
+            (candles[i].low - candles[i - 1].close).abs(),
+          ),
+        );
+      }
+    }
+
+    final atr = List<double>.filled(n, 0.0);
+    double initialAtr = 0.0;
+    for (int i = 0; i < period; i++) {
+      initialAtr += tr[i];
+    }
+    initialAtr /= period;
+    atr[period - 1] = initialAtr;
+
+    for (int i = period; i < n; i++) {
+      atr[i] = ((atr[i - 1] * (period - 1)) + tr[i]) / period;
+    }
+
+    return atr;
+  }
+
+  static bool isEfficiencyRatioGood(
+    List<HistoricalDataModel> candles, {
+    int period = 10,
+    double minEfficiency = 0.40,
+  }) {
+    if (candles.length < period + 1) return false;
+
+    final recent = candles.sublist(candles.length - period - 1);
+
+    // Net movement
+    final netMove = (recent.last.close - recent.first.close).abs();
+
+    // Total movement
+    double totalMove = 0;
+
+    for (int i = 1; i < recent.length; i++) {
+      totalMove += (recent[i].close - recent[i - 1].close).abs();
+    }
+
+    if (totalMove == 0) return false;
+
+    final efficiency = netMove / totalMove;
+
+    return efficiency >= minEfficiency;
+  }
+
   static bool isNotAlreadyMoved(
     IndicatorEngine engine, {
     int lookbackCandles = 3,
@@ -885,7 +961,6 @@ class IndicatorUtils {
     final basePassed = lastCandleX >= 5.0 && otherCandlesAvgX >= 2.0;
 
     final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
-
     debugPrint("${engine.candles.last.timestamp} -> "
         "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
         "LastX: ${lastCandleX.toStringAsFixed(2)}, "
@@ -1863,6 +1938,87 @@ Final Score    : $score / 100
     final volume = dayVolume[previousDay]!;
 
     return volume > 1000000;
+  }
+
+  static List<double> calculateRSISeries(
+    List<double> closes, {
+    int period = 14,
+  }) {
+    if (closes.length <= period) return [];
+
+    final rsi = <double>[];
+
+    double gain = 0;
+    double loss = 0;
+
+    for (int i = 1; i <= period; i++) {
+      final diff = closes[i] - closes[i - 1];
+      if (diff > 0) {
+        gain += diff;
+      } else {
+        loss += -diff;
+      }
+    }
+
+    double avgGain = gain / period;
+    double avgLoss = loss / period;
+
+    rsi.add(
+      avgLoss == 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss))),
+    );
+
+    for (int i = period + 1; i < closes.length; i++) {
+      final diff = closes[i] - closes[i - 1];
+
+      final currentGain = diff > 0 ? diff : 0.0;
+      final currentLoss = diff < 0 ? -diff : 0.0;
+
+      avgGain = ((avgGain * (period - 1)) + currentGain) / period;
+      avgLoss = ((avgLoss * (period - 1)) + currentLoss) / period;
+
+      final value =
+          avgLoss == 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss)));
+
+      rsi.add(value.toDouble());
+    }
+
+    return rsi;
+  }
+
+  /// Returns true if RSI crossed above [threshold] in the last [lookback] candles.
+  ///
+  /// Example:
+  /// if (hasRsiAboveThreshold(candles)) {
+  ///   return true; // Reject
+  /// }
+  static bool hasRsiAboveThreshold(
+    List<HistoricalDataModel> candles, {
+    int period = 14,
+    int lookback = 20,
+    double threshold = 80.0,
+  }) {
+    if (candles.length < period + lookback) {
+      return false;
+    }
+
+    final closes = candles.map((e) => e.close).toList();
+    final rsiSeries = calculateRSISeries(closes, period: period);
+
+    if (rsiSeries.isEmpty) return false;
+
+    final startIndex = max(0, rsiSeries.length - lookback);
+
+    for (int i = startIndex; i < rsiSeries.length; i++) {
+      if (rsiSeries[i] >= threshold) {
+        debugPrint(
+          "Reject: RSI crossed ${threshold.toStringAsFixed(0)} "
+          "(${rsiSeries[i].toStringAsFixed(2)}) at candle $i",
+        );
+        return true;
+      }
+    }
+
+    return false;
   }
 }
 
