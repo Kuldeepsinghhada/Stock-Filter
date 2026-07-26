@@ -115,31 +115,6 @@ class TradingManager {
       })(),
     );
 
-    // Check daily trade limit BEFORE sending to backend
-    final maxTradesPerDay =
-        await SharedPreferenceHelper.instance.getMaxTradesPerDay();
-    String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    String lastDate =
-        await SharedPreferenceHelper.instance.getLastTradeExecutionDate();
-    int currentCount =
-        await SharedPreferenceHelper.instance.getTodayExecutedTradesCount();
-
-    if (lastDate != todayStr) {
-      currentCount = 0;
-      await SharedPreferenceHelper.instance.setLastTradeExecutionDate(todayStr);
-    }
-
-    if (currentCount >= maxTradesPerDay) {
-      developer.log(
-          'Max trades per day ($maxTradesPerDay) reached. Ignoring backend execution for $symbol.',
-          name: 'TradingManager');
-      return;
-    }
-
-    // Increment count before execution
-    await SharedPreferenceHelper.instance
-        .setTodayExecutedTradesCount(currentCount + 1);
-
     // Execute the trade via custom backend
     BackendOrderService.placeStockOrder(
       symbol: symbol,
