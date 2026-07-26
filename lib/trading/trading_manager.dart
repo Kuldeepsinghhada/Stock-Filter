@@ -149,6 +149,8 @@ class TradingManager {
           ? calculatedQuantity
           : 1, // Fallback to 1 if calculation fails
       product: "MIS", // Executing as MIS for intraday trading
+      // entryPrice is the latest price received when this stock triggered.
+      buyingPrice: entryPrice,
       stopLoss: stoploss,
       target: target,
     ).catchError((e) {

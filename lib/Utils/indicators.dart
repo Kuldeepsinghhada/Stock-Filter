@@ -13,6 +13,191 @@ class IndicatorUtils {
   /// Returns true if stock has NOT moved more than [maxMovePercent]
   /// in the last [lookbackCandles] engine.candles.
 
+  static bool isStockAlreadyExtended(
+    List<HistoricalDataModel> candles,
+    List<double> ema20,
+    List<double> rsi,
+    List<double> atr,
+  ) {
+    if (candles.length < 20 || ema20.isEmpty || rsi.isEmpty || atr.isEmpty) {
+      return false;
+    }
+
+    final current = candles.last;
+
+    int score = 0;
+
+    // -------------------------------------------------
+    // 1. Distance from EMA20
+    // -------------------------------------------------
+    final emaDistance = ((current.close - ema20.last) / ema20.last) * 100;
+
+    if (emaDistance > 5.0)
+      score += 2;
+    else if (emaDistance > 4.0) score++;
+
+    // -------------------------------------------------
+    // 2. ATR Extension
+    // -------------------------------------------------
+    final atrExtension = (current.close - ema20.last) / atr.last;
+    print("ATR Extension: ${candles.last.timestamp} $atrExtension");
+    if (atrExtension > 2.5)
+      score += 2;
+    else if (atrExtension > 2.0) score++;
+
+    // -------------------------------------------------
+    // 3. Last 6 Candle Gain
+    // -------------------------------------------------
+    final sixGain = ((current.close - candles[candles.length - 6].close) /
+            candles[candles.length - 6].close) *
+        100;
+
+    if (sixGain > 6)
+      score += 2;
+    else if (sixGain > 4) score++;
+
+    // -------------------------------------------------
+    // 4. Last 10 Candle Gain
+    // -------------------------------------------------
+    final tenGain = ((current.close - candles[candles.length - 10].close) /
+            candles[candles.length - 10].close) *
+        100;
+
+    if (tenGain > 8)
+      score += 2;
+    else if (tenGain > 6) score++;
+
+    // -------------------------------------------------
+    // 5. RSI
+    // -------------------------------------------------
+    if (rsi.last > 80)
+      score += 2;
+    else if (rsi.last > 75) score++;
+
+    // -------------------------------------------------
+    // 6. Consecutive Green Candles
+    // -------------------------------------------------
+    int consecutiveGreen = 0;
+
+    for (int i = candles.length - 1; i >= 1; i--) {
+      if (candles[i].close > candles[i].open) {
+        consecutiveGreen++;
+      } else {
+        break;
+      }
+    }
+
+    if (consecutiveGreen >= 6)
+      score += 2;
+    else if (consecutiveGreen >= 4) score++;
+
+    // -------------------------------------------------
+    // Final Decision
+    // -------------------------------------------------
+
+    return score >= 5;
+  }
+
+  static bool isChoppyStock(
+    List<HistoricalDataModel> candles,
+    List<double> ema20,
+    List<double> adx, {
+    int period = 20,
+  }) {
+    if (candles.length < period + 6 ||
+        ema20.length < period + 6 ||
+        adx.length < 2) {
+      return false;
+    }
+
+    int score = 0;
+
+    final recent = candles.sublist(candles.length - period);
+
+    // -------------------------------------------------
+    // 1. Kaufman Efficiency Ratio (Most Important)
+    // -------------------------------------------------
+    final netMove = (recent.last.close - recent.first.close).abs();
+
+    double totalMove = 0;
+    for (int i = 1; i < recent.length; i++) {
+      totalMove += (recent[i].close - recent[i - 1].close).abs();
+    }
+
+    final er = totalMove == 0 ? 0 : netMove / totalMove;
+
+    if (er < 0.35) score += 2;
+
+    // -------------------------------------------------
+    // 2. EMA20 Flat
+    // -------------------------------------------------
+    final emaSlope =
+        ((ema20.last - ema20[ema20.length - 6]) / ema20[ema20.length - 6])
+                .abs() *
+            100;
+
+    if (emaSlope < 0.35) score++;
+
+    // -------------------------------------------------
+    // 3. ADX Weak / Falling
+    // -------------------------------------------------
+    if (adx.last < 25) score++;
+
+    if (adx.last < adx[adx.length - 2]) score++;
+
+    // -------------------------------------------------
+    // 4. Small Trading Range
+    // -------------------------------------------------
+    double hh = recent.first.high;
+    double ll = recent.first.low;
+
+    for (final c in recent) {
+      if (c.high > hh) hh = c.high;
+      if (c.low < ll) ll = c.low;
+    }
+
+    final rangePct = ((hh - ll) / ll) * 100;
+
+    if (rangePct < 4) score++;
+
+    // -------------------------------------------------
+    // 5. Alternating Candle Count
+    // -------------------------------------------------
+    int alternating = 0;
+
+    for (int i = 1; i < recent.length; i++) {
+      bool prevGreen = recent[i - 1].close > recent[i - 1].open;
+      bool currGreen = recent[i].close > recent[i].open;
+
+      if (prevGreen != currGreen) {
+        alternating++;
+      }
+    }
+
+    if (alternating >= 12) score++;
+
+    // -------------------------------------------------
+    // 6. EMA Touch Count
+    // -------------------------------------------------
+    int touchCount = 0;
+
+    for (int i = 0; i < recent.length; i++) {
+      final ema = ema20[ema20.length - period + i];
+
+      if (recent[i].low <= ema && recent[i].high >= ema) {
+        touchCount++;
+      }
+    }
+
+    if (touchCount >= 8) score++;
+
+    // -------------------------------------------------
+    // Final Decision
+    // -------------------------------------------------
+    print("SCORE: $score");
+    return score > 5;
+  }
+
   static double getAtrPercent(List<HistoricalDataModel> dailyCandles,
       {int period = 20}) {
     if (dailyCandles.length < period) return 0.0;
@@ -65,7 +250,7 @@ class IndicatorUtils {
   static bool isEfficiencyRatioGood(
     List<HistoricalDataModel> candles, {
     int period = 10,
-    double minEfficiency = 0.40,
+    double minEfficiency = 0.30,
   }) {
     if (candles.length < period + 1) return false;
 

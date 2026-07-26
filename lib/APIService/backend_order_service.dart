@@ -63,6 +63,7 @@ class BackendOrderService {
     required String transactionType,
     required int quantity,
     required String product,
+    required double buyingPrice,
     required double stopLoss,
     required double target,
   }) async {
@@ -84,6 +85,7 @@ class BackendOrderService {
       "transactionType": transactionType,
       "quantity": quantity,
       "product": product,
+      "buyingPrice": buyingPrice,
       "stopLoss": roundedSL,
       "target": roundedTarget,
     });
@@ -123,6 +125,7 @@ class BackendOrderService {
       transactionType: "BUY",
       quantity: 1,
       product: "MIS",
+      buyingPrice: 1050.0,
       stopLoss: 1000.0,
       target: 1100.0,
     );

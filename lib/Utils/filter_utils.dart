@@ -42,6 +42,12 @@ class FilterUtils {
       return false;
     }
 
+    final lastTime = candles.last.timestamp;
+    if ((lastTime.hour == 11 && lastTime.minute >= 15) ||
+        (lastTime.hour == 12 && lastTime.minute <= 15)) {
+      return false;
+    }
+
     if (candles.isEmpty) return false;
 
     final secondLast = candles.elementAt(candles.length - 2);
@@ -55,6 +61,40 @@ class FilterUtils {
     void logMsg(String msg) {
       if (!isHistoryCheck) {
         debugPrint(msg);
+      }
+    }
+
+    // 0. Morning Volatility Check (9:15 to 9:40)
+    final today = candles.last.timestamp;
+    final morningCandles = candles
+        .where((c) =>
+            c.timestamp.year == today.year &&
+            c.timestamp.month == today.month &&
+            c.timestamp.day == today.day &&
+            c.timestamp.hour == 9 &&
+            c.timestamp.minute >= 15 &&
+            c.timestamp.minute <= 40)
+        .toList();
+
+    final totalMinutes =
+        candles.last.timestamp.hour * 60 + candles.last.timestamp.minute;
+
+    if (totalMinutes < 590 && morningCandles.isNotEmpty) {
+      if (morningCandles.isNotEmpty) {
+        double minLow = morningCandles.first.low;
+        double maxHigh = morningCandles.first.high;
+        for (var c in morningCandles) {
+          if (c.low < minLow) minLow = c.low;
+          if (c.high > maxHigh) maxHigh = c.high;
+        }
+        var percent = (maxHigh - minLow) / minLow * 100;
+        if (percent > 7) {
+          debugPrint(
+              "Failed: $percent $token at $timeStr - Reason: Morning volatility > 7%");
+          return false;
+        }
+      } else {
+        debugPrint("Failed: $token at $timeStr - Reason: Time");
       }
     }
 
@@ -91,16 +131,6 @@ class FilterUtils {
       }
     }
 
-    // final isNearBuyingZone = IndicatorUtils.isNearEMA20OrSupertrendAuto(engine);
-    // if (!isNearBuyingZone) {
-    //   return false;
-    // }
-
-    // final isPatternFound = BullishPatternDetector.detect(engine.candles);
-    // if (isPatternFound.found) {
-    //   return false;
-    // }
-
     // 5. VolumeSpike
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
     if (!volumeStrength.isVolumeSpike40x) {
@@ -114,14 +144,6 @@ class FilterUtils {
       debugPrint("Failed: $token at $timeStr - Reason: Below EMA20");
       return false;
     }
-
-    // if (ema20Res.value != null) {
-    //   double maxLow = ema20Res.value! * 1.05;
-    //   if (engine.last.low > maxLow) {
-    //     debugPrint("Failed: $token at $timeStr - Reason: Low > 5% above EMA20");
-    //     return false;
-    //   }
-    // }
 
     // 7. ATR
     bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(engine);
@@ -156,22 +178,6 @@ class FilterUtils {
       return false;
     }
 
-    // 11. Pattern
-    // if (cachedIsPatternEnabled) {
-    //   var isPattern = BullishPatternDetector.isBullishStructure(engine.dailyCandles);
-    //   if (!isPattern.bullish) {
-    //     logMsg("Failed: $token at $timeStr - Reason: No Bullish Pattern");
-    //     return false;
-    //   }
-    // }
-
-    // 12. Custom Strategy
-    // bool customPassed = IndicatorUtils.isCustomStrategyPassed(engine);
-    // if (!customPassed) {
-    //   logMsg("Failed: $token at $timeStr - Reason: Custom Strategy Failed");
-    //   return false;
-    // }
-
     // 13. Candle Extended Check
     if (cachedIsCandleExtendedEnabled) {
       if (!IndicatorUtils.isCurrentCandleNotExtended(engine)) {
@@ -179,15 +185,6 @@ class FilterUtils {
         return false;
       }
     }
-
-    // if (IndicatorUtils.getAtrPercent(Utilities.convertToDaily(candles ?? [])) <
-    //     2) {
-    //   return false;
-    // }
-    //
-    // if (IndicatorUtils.isEfficiencyRatioGood(candles)) {
-    //   return false;
-    // }
 
     logMsg("Passed : $token");
     return true;
