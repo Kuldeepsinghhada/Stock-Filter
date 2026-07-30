@@ -80,9 +80,9 @@ class TradingManager {
     }
 
     if (calculatedQuantity <= 0) {
-      developer.log('Calculated quantity is 0 or less. Aborting trade.',
+      developer.log('Calculated quantity is 0 or less. Using fallback quantity of 1.',
           name: 'TradingManager');
-      return;
+      calculatedQuantity = 1;
     }
 
     // Calculate actual points based on the entry price and provided target/stoploss

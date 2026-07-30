@@ -36,22 +36,21 @@ class FilterUtils {
   }
 
   static bool passesFilter(List<HistoricalDataModel> candles, String token,
-      {bool isHistoryCheck = false}) {
-    if (candles.last.timestamp.hour == 9 &&
-        candles.last.timestamp.minute < 35) {
+      {bool isHistoryCheck = false, bool niftyGreen = false}) {
+    if (candles.isEmpty) return false;
+
+    if (!(candles.last.close > 30 && candles.last.close < 1000)) {
       return false;
     }
+
+    final secondLast = candles.elementAt(candles.length - 2);
+    if (secondLast.volume < 5000) return false;
+
+    final current = candles.last;
 
     final lastTime = candles.last.timestamp;
     if ((lastTime.hour == 11 && lastTime.minute >= 15) ||
         (lastTime.hour == 12 && lastTime.minute <= 15)) {
-      return false;
-    }
-
-    if (candles.isEmpty) return false;
-
-    final secondLast = candles.elementAt(candles.length - 2);
-    if (secondLast.volume < 5000) {
       return false;
     }
 
@@ -67,15 +66,16 @@ class FilterUtils {
     // 0. Morning Volatility Check (9:15 to 9:40)
     final today = candles.last.timestamp;
     final morningCandles = candles
-        .where((c) =>
-            c.timestamp.year == today.year &&
-            c.timestamp.month == today.month &&
-            c.timestamp.day == today.day &&
-            c.timestamp.hour == 9 &&
-            c.timestamp.minute >= 15 &&
-            c.timestamp.minute <= 40)
+        .where(
+          (c) =>
+              c.timestamp.year == today.year &&
+              c.timestamp.month == today.month &&
+              c.timestamp.day == today.day &&
+              c.timestamp.hour == 9 &&
+              c.timestamp.minute >= 15 &&
+              c.timestamp.minute <= 40,
+        )
         .toList();
-
     final totalMinutes =
         candles.last.timestamp.hour * 60 + candles.last.timestamp.minute;
 
@@ -87,49 +87,22 @@ class FilterUtils {
           if (c.low < minLow) minLow = c.low;
           if (c.high > maxHigh) maxHigh = c.high;
         }
-        var percent = (maxHigh - minLow) / minLow * 100;
-        if (percent > 7) {
-          debugPrint(
-              "Failed: $percent $token at $timeStr - Reason: Morning volatility > 7%");
+        if ((maxHigh - minLow) / minLow * 100 > 7) {
+          // debugPrint(
+          //     "Failed: $token at $timeStr - Reason: Morning volatility > 6%");
           return false;
         }
-      } else {
-        debugPrint("Failed: $token at $timeStr - Reason: Time");
       }
     }
 
     // 1. Volume
-    int minVolume = 30000;
-    if (engine.last.volume < minVolume) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Low Volume (${engine.last.volume})");
-      return false;
-    }
-
-    // 2. AlreadyMoved
-    // var isLaseChanged = IndicatorUtils.isNotAlreadyMoved(engine);
-    // if (!isLaseChanged) {
-    //   logMsg(
-    //       "Failed: $token at $timeStr - Reason: Last Candle Already Moved Significantly");
-    //   return false;
-    // }
+    if (current.volume < 30000) return false;
 
     // 3. RangeExpansion
-    var rangeExpansion = IndicatorUtils.getRangeExpansion(engine);
-    if (rangeExpansion > 6) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Range Expansion ($rangeExpansion)");
-      return false;
-    }
+    if (IndicatorUtils.getRangeExpansion(engine) > 6) return false;
 
     // 4. PriceChange
-    if (!isHistoryCheck) {
-      var isPercentChange = IndicatorUtils.isNotAbove10Percent(engine);
-      if (!isPercentChange) {
-        debugPrint("Failed: $token at $timeStr - Reason: Price Change > 13%");
-        return false;
-      }
-    }
+    if (!IndicatorUtils.isNotAbove10Percent(engine)) return false;
 
     // 5. VolumeSpike
     final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
@@ -146,11 +119,7 @@ class FilterUtils {
     }
 
     // 7. ATR
-    bool atrOk = IndicatorUtils.isAtrGreaterThanAdaptive(engine);
-    if (!atrOk) {
-      debugPrint("Failed: $token at $timeStr - Reason: Low ATR");
-      return false;
-    }
+    if (!IndicatorUtils.isAtrGreaterThanAdaptive(engine)) return false;
 
     // 8. Supertrend
     bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
@@ -170,23 +139,12 @@ class FilterUtils {
       return false;
     }
 
-    // 10. History
-    final isDayPass = isPassHistoryChart(engine.dailyCandles, token, 1);
-    if (!isDayPass) {
-      debugPrint(
-          "Failed: $token at $timeStr - Reason: Day History Chart Failed");
-      return false;
-    }
-
-    // 13. Candle Extended Check
-    if (cachedIsCandleExtendedEnabled) {
+    // 11. Nifty Green condition -> Candle Extended Check
+    if (niftyGreen) {
       if (!IndicatorUtils.isCurrentCandleNotExtended(engine)) {
-        debugPrint("Failed: $token at $timeStr - Extended Candle");
         return false;
       }
     }
-
-    logMsg("Passed : $token");
     return true;
   }
 

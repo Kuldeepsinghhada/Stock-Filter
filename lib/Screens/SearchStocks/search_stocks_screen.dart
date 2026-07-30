@@ -189,7 +189,8 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                               notificationList.add(
                                 NotificationModel(
                                   stocksNameList: obj.symbol,
-                                  time: Utilities.formatDDMMMHHMMDateTime(DateTime.now()),
+                                  time: Utilities.formatDDMMMHHMMDateTime(
+                                      DateTime.now()),
                                 ),
                               );
                             }

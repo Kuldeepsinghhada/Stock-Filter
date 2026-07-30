@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:stock_demo/Screens/history/history_screen.dart';
@@ -59,6 +61,11 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           item,
         );
         if (result.isNotEmpty) {
+          for (var i = 0; i < result.length; i++) {
+            checkDailyTimeframeAPI(result[i], item).then((_) {
+              if (mounted) setState(() {});
+            });
+          }
           quoteList.add(item);
           historyList.add(result);
 
@@ -117,6 +124,43 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
         totalPnL = tPnL;
       });
     });
+  }
+
+  Future<void> checkDailyTimeframeAPI(HistoryModel item, StockModel stock) async {
+    try {
+      final url = Uri.parse('http://200.97.163.130:8080/api/checkDailyTimeframe');
+      
+      final body = jsonEncode({
+        "symbol": stock.symbol?.replaceAll("NSE:", "").replaceAll("BSE:", "") ?? "",
+        "stockPrice": item.price ?? 0.0,
+        "targetPrice": (item.price ?? 0.0) * 1.02,
+        "date": item.dateTime?.toIso8601String().split('T')[0] ?? DateTime.now().toIso8601String().split('T')[0]
+      });
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['success'] == true && decoded['data'] != null) {
+           item.apiPassed = decoded['data']['passed'];
+           List reasons = decoded['data']['reasons'] ?? [];
+           item.apiReason = reasons.join("\n");
+        } else {
+           item.apiPassed = false;
+           item.apiReason = decoded['message'] ?? "Unknown error";
+        }
+      } else {
+         item.apiPassed = false;
+         item.apiReason = "API Failed: ${response.statusCode}";
+      }
+    } catch (e) {
+      item.apiPassed = false;
+      item.apiReason = "Error: $e";
+    }
   }
 
   @override

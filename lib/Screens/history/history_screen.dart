@@ -20,12 +20,28 @@ class HistoryScreen extends StatelessWidget {
               itemCount: historyModel.length,
               itemBuilder: (context, position) {
                 return ListTile(
-                  title: Text(
-                    "Time: ${Utilities.formatDDMMMHHMMDateTime(historyModel[position].dateTime ?? DateTime.now())}",
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Time: ${Utilities.formatDDMMMHHMMDateTime(historyModel[position].dateTime ?? DateTime.now())}",
+                      ),
+                      if (historyModel[position].apiPassed != null)
+                        Text(
+                          historyModel[position].apiPassed! ? "API: Passed" : "API: Rejected",
+                          style: TextStyle(
+                            color: historyModel[position].apiPassed! ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      if (historyModel[position].apiPassed == false && historyModel[position].apiReason != null && historyModel[position].apiReason!.isNotEmpty)
+                        Text(
+                          historyModel[position].apiReason!,
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                    ],
                   ),
-                  // subtitle: Text(
-                  //   "Trigger Price is : ${historyModel[position].price.toString()}",
-                  // ),
                   trailing: Text(
                     " Price: ${historyModel[position].price.toString()}",
                     style: TextStyle(fontSize: 16),

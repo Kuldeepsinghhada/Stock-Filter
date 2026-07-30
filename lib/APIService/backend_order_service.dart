@@ -7,7 +7,7 @@ import 'package:stock_demo/model/executed_order.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
 
 class BackendOrderService {
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = 'http://200.97.163.130:8080';
   // LOCAL:  http://localhost:8080
   // LIVE http://200.97.163.130:8080
   /// Health Check
@@ -120,7 +120,7 @@ class BackendOrderService {
   static Future<void> testPlaceStockOrder() async {
     print("Testing BackendOrderService.placeStockOrder...");
     await placeStockOrder(
-      symbol: "INFY",
+      symbol: "COMSYN",
       exchange: "NSE",
       transactionType: "BUY",
       quantity: 1,

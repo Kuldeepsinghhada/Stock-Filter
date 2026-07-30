@@ -893,12 +893,11 @@ class IndicatorUtils {
     final plusDIFinal = 100 * (pdm / (atr + 1e-9));
     final minusDIFinal = 100 * (mdm / (atr + 1e-9));
 
-    final bullish = adxLast > minAdx && plusDIFinal > minusDIFinal;
-    final adxRising = adxLast > adxPrev;
+    if (adxLast < minAdx || plusDIFinal <= minusDIFinal) {
+      return false;
+    }
 
-    final result = bullish && adxRising;
-
-    return result;
+    return true;
   }
 
   /// ---------- Supertrend ----------
@@ -1143,8 +1142,6 @@ class IndicatorUtils {
 
     // final has200k = has200KVolumeInLast3Candles(engine.candles);
 
-    final basePassed = lastCandleX >= 5.0 && otherCandlesAvgX >= 2.0;
-
     final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
     debugPrint("${engine.candles.last.timestamp} -> "
         "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
@@ -1152,7 +1149,7 @@ class IndicatorUtils {
         "OtherX: ${otherCandlesAvgX.toStringAsFixed(2)}");
 
     return (
-      baseVolumeOk: basePassed,
+      baseVolumeOk: spikePassed,
       isVolumeSpike40x: spikePassed,
     );
   }
@@ -1707,8 +1704,8 @@ Final Score    : $score / 100
     /// % change from yesterday close using today's HIGH
     final percentChange = ((todayHigh - yesterdayClose) / yesterdayClose) * 100;
 
-    /// Reject if today's high is above 10%
-    if (percentChange > 12) {
+    /// Reject if today's high is above 13%
+    if (percentChange > 13) {
       debugPrint(
         "Rejected: Today's High is ${percentChange.toStringAsFixed(2)}% above yesterday's close",
       );
