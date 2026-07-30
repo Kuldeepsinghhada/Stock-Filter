@@ -721,7 +721,7 @@ class IndicatorUtils {
     int atrPeriod = 14,
     double multiplier = 1.5,
   }) {
-    if (engine.candles.length < 21) return false;
+    if (engine.candles.length <= atrPeriod) return false;
 
     final current = engine.candles.last;
     final closes = engine.candles.map((e) => e.close).toList();
