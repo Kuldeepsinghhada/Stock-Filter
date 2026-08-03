@@ -40,6 +40,9 @@ class ApiBacktestSummary {
   final int totalTrades;
   final int wins;
   final int losses;
+  final int targetHits;
+  final int stoplossHits;
+  final int squareOffHits;
   final String accuracy;
   final String totalPnlPercent;
 
@@ -47,6 +50,9 @@ class ApiBacktestSummary {
     required this.totalTrades,
     required this.wins,
     required this.losses,
+    this.targetHits = 0,
+    this.stoplossHits = 0,
+    this.squareOffHits = 0,
     required this.accuracy,
     required this.totalPnlPercent,
   });
@@ -56,6 +62,9 @@ class ApiBacktestSummary {
       totalTrades: json['totalTrades'] ?? 0,
       wins: json['wins'] ?? 0,
       losses: json['losses'] ?? 0,
+      targetHits: json['targetHits'] ?? json['target_hits'] ?? json['targetHitsCount'] ?? 0,
+      stoplossHits: json['stoplossHits'] ?? json['stoploss_hits'] ?? json['stopLossHitsCount'] ?? 0,
+      squareOffHits: json['squareOffHits'] ?? json['square_off_hits'] ?? json['squareOffHitsCount'] ?? 0,
       accuracy: json['accuracy'] ?? '0.00%',
       totalPnlPercent: json['totalPnlPercent'] ?? '0.00%',
     );

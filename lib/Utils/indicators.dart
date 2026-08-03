@@ -1142,7 +1142,7 @@ class IndicatorUtils {
 
     // final has200k = has200KVolumeInLast3Candles(engine.candles);
 
-    final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
+    final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 1.5;
     debugPrint("${engine.candles.last.timestamp} -> "
         "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
         "LastX: ${lastCandleX.toStringAsFixed(2)}, "

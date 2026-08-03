@@ -124,6 +124,9 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       int totalTrades = 0;
       int wins = 0;
       int losses = 0;
+      int targetHits = 0;
+      int stoplossHits = 0;
+      int squareOffHits = 0;
       double totalPnl = 0.0;
 
       _groupedTrades = {};
@@ -150,6 +153,28 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
             losses++;
           }
           totalPnl += trade.pnlPercent;
+
+          String reason = trade.exitReason.toLowerCase().trim();
+          if (reason.contains('target') || reason.contains('tgt')) {
+            targetHits++;
+          } else if (reason.contains('stoploss') ||
+              reason.contains('stop loss') ||
+              reason.contains('sl')) {
+            stoplossHits++;
+          } else if (reason.contains('square') ||
+              reason.contains('sqr') ||
+              reason.contains('eod') ||
+              reason.contains('time')) {
+            squareOffHits++;
+          } else {
+            if (trade.pnlPercent > 0) {
+              targetHits++;
+            } else if (trade.pnlPercent < 0) {
+              stoplossHits++;
+            } else {
+              squareOffHits++;
+            }
+          }
         }
       }
 
@@ -161,6 +186,9 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
         totalTrades: totalTrades,
         wins: wins,
         losses: losses,
+        targetHits: targetHits,
+        stoplossHits: stoplossHits,
+        squareOffHits: squareOffHits,
         accuracy: accuracy,
         totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
       );
@@ -336,6 +364,20 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                               "Losses", "${_summary!.losses}", Colors.red),
                           _buildSummaryItem(
                               "Accuracy", "${_summary!.accuracy}"),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1, color: Colors.white24),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildSummaryItem(
+                              "Target Hit", "${_summary!.targetHits}", Colors.green),
+                          _buildSummaryItem(
+                              "Stoploss Hit", "${_summary!.stoplossHits}", Colors.red),
+                          _buildSummaryItem(
+                              "Square Off", "${_summary!.squareOffHits}", Colors.orange),
                         ],
                       ),
                     ],
