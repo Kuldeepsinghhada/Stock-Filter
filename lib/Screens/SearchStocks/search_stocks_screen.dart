@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:stock_demo/Screens/PreFilteredStocks/passed_daily_stocks_screen.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/model/notification_model.dart';
@@ -99,6 +100,18 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
       appBar: AppBar(
         title: const Text('Search Stocks'),
         actions: [
+          IconButton(
+            tooltip: 'Passed Daily Stocks',
+            icon: const Icon(Icons.fact_check_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PassedDailyStocksScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: _sortDescending ? 'Sort by % (desc)' : 'Sort by % (asc)',
             icon: Icon(

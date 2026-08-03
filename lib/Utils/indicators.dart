@@ -1705,7 +1705,7 @@ Final Score    : $score / 100
     final percentChange = ((todayHigh - yesterdayClose) / yesterdayClose) * 100;
 
     /// Reject if today's high is above 13%
-    if (percentChange > 13) {
+    if (percentChange > 13 || percentChange < 1) {
       debugPrint(
         "Rejected: Today's High is ${percentChange.toStringAsFixed(2)}% above yesterday's close",
       );

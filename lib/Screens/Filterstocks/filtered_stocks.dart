@@ -1,7 +1,6 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:http/http.dart' as http;
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
@@ -12,9 +11,6 @@ import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
-import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
-import 'package:stock_demo/Utils/indicators.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class FilteredStockScreen extends StatefulWidget {
@@ -145,11 +141,6 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
           }
         }
       }
-
-      // ---------------- NEW TRAILING SL LOGIC ----------------
-      final prefs = SharedPreferenceHelper.instance;
-      final stPeriod = await prefs.getSupertrendPeriod();
-      final stMult = await prefs.getSupertrendMultiplier();
 
       // ---------------- END NEW TRAILING SL LOGIC ----------------
 
@@ -421,9 +412,9 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
             child: Text(isTaskRunning ? "STOP" : "START"),
             onPressed: () async {
               // Only allow starting the task after 9:28 AM local time.
-              final now = DateTime.now();
-              final startAllowedAt =
-                  DateTime(now.year, now.month, now.day, 9, 30);
+              // final now = DateTime.now();
+              // final startAllowedAt =
+              //     DateTime(now.year, now.month, now.day, 9, 30);
               // If currently not running (we're trying to START) and time is before allowed time, block it.
               // if (!isTaskRunning && now.isBefore(startAllowedAt)) {
               //   Fluttertoast.showToast(msg: "Start allowed after 9:30 AM");

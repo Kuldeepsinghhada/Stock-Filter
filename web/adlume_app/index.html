@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adlume — KI-Werbekampagnen & Recruiting Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+
+  <div class="device-container">
+    <!-- Top Notch Status Bar -->
+    <div class="top-status-bar">
+      <span>9:41</span>
+      <div class="notch"></div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <i class="ri-wifi-line"></i>
+        <i class="ri-battery-fill"></i>
+      </div>
+    </div>
+
+    <!-- Header Bar -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo">A+</div>
+        <span class="screen-title-header" id="current-screen-name" data-i18n="home_title">Startseite</span>
+      </div>
+      <div class="header-actions">
+        <button class="lang-toggle-btn" id="lang-toggle">
+          <i class="ri-global-line"></i>
+          <span id="lang-label">DE 🇩🇪</span>
+        </button>
+        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="User Profile" class="avatar-img">
+      </div>
+    </header>
+
+    <!-- Scrollable Screen Content Container -->
+    <main class="screen-scroll-container">
+
+      <!-- ========================================== -->
+      <!-- SCREEN 1: STARTSEITE (HOME)                -->
+      <!-- ========================================== -->
+      <section class="screen-page active" id="page-home">
+        <div class="hero-card">
+          <h1 class="hero-title" data-i18n="greeting">Guten Morgen, Julian.</h1>
+          <p class="hero-subtitle" data-i18n="hero_text">
+            Ihre Kampagnen erzielen 12 % bessere Ergebnisse als letzte Woche. Adlume AI hat 3 neue Optimierungsmöglichkeiten für Sie gefunden.
+          </p>
+          <div class="ai-insight-pill">
+            <div class="ai-icon-bubble">
+              <i class="ri-robot-line"></i>
+            </div>
+            <div class="ai-pill-content">
+              <span class="ai-pill-tag" data-i18n="ai_tag">KI-ERKENNTNIS</span>
+              <p class="ai-pill-text" data-i18n="ai_insight_home">
+                Der ROAS der Kampagne „Sommeraktion“ ist um 14 % gestiegen. Budget um 200 € erhöhen?
+              </p>
+            </div>
+            <button class="action-arrow-btn" onclick="triggerAction('KI-Optimierung')">
+              <i class="ri-arrow-right-line"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-header-flex">
+            <span class="status-badge active">
+              <span class="dot-indicator"></span>
+              <span data-i18n="status_active">AKTIV</span>
+            </span>
+            <span class="card-title-sm" style="font-weight: 800; color: var(--primary-purple);">97%</span>
+          </div>
+          <h3 class="campaign-card-title" data-i18n="active_campaign_title">Sommer-Zahnarztkampagne</h3>
+          <div class="progress-info">
+            <span data-i18n="budget_progress">Budgetfortschritt</span>
+            <span style="font-weight: 700;">4.850 € / 5.000 €</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" style="width: 97%;"></div>
+          </div>
+        </div>
+
+        <div class="stats-grid-2x2">
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_reach">Reichweite</span>
+              <div class="stat-icon-wrapper"><i class="ri-share-line"></i></div>
+            </div>
+            <div class="stat-value">12,8 Tsd.</div>
+            <div class="stat-change up"><i class="ri-arrow-up-line"></i> +12%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_clicks">Klicks</span>
+              <div class="stat-icon-wrapper"><i class="ri-cursor-line"></i></div>
+            </div>
+            <div class="stat-value">934</div>
+            <div class="stat-change up"><i class="ri-arrow-up-line"></i> +5,4%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_leads">Leads</span>
+              <div class="stat-icon-wrapper"><i class="ri-user-add-line"></i></div>
+            </div>
+            <div class="stat-value">42</div>
+            <div class="stat-change up"><i class="ri-arrow-up-line"></i> +22%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_ctr">CTR</span>
+              <div class="stat-icon-wrapper"><i class="ri-target-line"></i></div>
+            </div>
+            <div class="stat-value">7,3%</div>
+            <div class="stat-change down"><i class="ri-arrow-down-line"></i> -0,2%</div>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-header-flex">
+            <h3 class="card-title-sm" data-i18n="perf_trends">Leistungstrends</h3>
+            <div style="display: flex; gap: 8px;">
+              <i class="ri-calendar-line" style="color: var(--text-muted); cursor: pointer;"></i>
+              <i class="ri-download-2-line" style="color: var(--text-muted); cursor: pointer;"></i>
+            </div>
+          </div>
+          <div style="height: 120px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding-top: 20px; position: relative;">
+            <div style="position: absolute; top: 0; right: 35px; background: #ffffff; border: 1px solid var(--border-color); padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; box-shadow: var(--shadow-sm);" data-i18n="highest_roas">
+              HÖCHSTER ROAS 1.240 €
+            </div>
+            <div style="width: 12%; height: 35%; background: #cbd5e1; border-radius: 4px;"></div>
+            <div style="width: 12%; height: 55%; background: #cbd5e1; border-radius: 4px;"></div>
+            <div style="width: 12%; height: 48%; background: #cbd5e1; border-radius: 4px;"></div>
+            <div style="width: 12%; height: 75%; background: #cbd5e1; border-radius: 4px;"></div>
+            <div style="width: 12%; height: 40%; background: #cbd5e1; border-radius: 4px;"></div>
+            <div style="width: 12%; height: 95%; background: var(--primary-purple); border-radius: 4px;"></div>
+            <div style="width: 12%; height: 68%; background: #cbd5e1; border-radius: 4px;"></div>
+          </div>
+        </div>
+
+        <h3 class="card-title-sm" style="margin-bottom: 10px;" data-i18n="quick_actions">Schnellaktionen</h3>
+        <div class="quick-actions-flex">
+          <button class="quick-action-btn primary" onclick="triggerAction('Erstellen')">
+            <i class="ri-add-circle-line qa-icon"></i>
+            <span class="qa-text" data-i18n="qa_create">Erstellen</span>
+          </button>
+          <button class="quick-action-btn" onclick="triggerAction('Duplizieren')">
+            <i class="ri-file-copy-line qa-icon"></i>
+            <span class="qa-text" data-i18n="qa_duplicate">Duplizieren</span>
+          </button>
+          <button class="quick-action-btn" onclick="triggerAction('Landingpages')">
+            <i class="ri-layout-grid-line qa-icon"></i>
+            <span class="qa-text" data-i18n="qa_landing">Landingpages</span>
+          </button>
+        </div>
+
+        <div class="card-header-flex" style="margin-top: 10px;">
+          <h3 class="card-title-sm" data-i18n="ai_recs">KI-Empfehlungen</h3>
+          <span class="card-action-link" data-i18n="see_all">Alle anzeigen</span>
+        </div>
+
+        <div class="recommendation-card">
+          <div class="rec-icon"><i class="ri-sparkling-fill"></i></div>
+          <div class="rec-details">
+            <div class="rec-title" data-i18n="rec1_title">Zielgruppe aktualisieren</div>
+            <div class="rec-sub" data-i18n="rec1_sub">„Lookalike“-Zielgruppe aktualisieren</div>
+          </div>
+          <button class="apply-btn" onclick="triggerAction('Zielgruppe aktualisieren')" data-i18n="apply_btn">Anwenden</button>
+        </div>
+
+        <div class="recommendation-card">
+          <div class="rec-icon"><i class="ri-film-line"></i></div>
+          <div class="rec-details">
+            <div class="rec-title" data-i18n="rec2_title">Anzeigenmotiv (Creative) austauschen</div>
+            <div class="rec-sub" data-i18n="rec2_sub">Neues Video-Creative per A/B-Test testen</div>
+          </div>
+          <button class="apply-btn" onclick="triggerAction('Creative austauschen')" data-i18n="apply_btn">Anwenden</button>
+        </div>
+
+        <h3 class="card-title-sm" style="margin: 16px 0 12px 0;" data-i18n="recent_activities">Letzte Aktivitäten</h3>
+        <div class="content-card">
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+              <div class="tl-title" data-i18n="act1_title">Kampagne optimiert</div>
+              <div class="tl-desc" data-i18n="act1_desc">Budget auf „Sommeraktion“ verschoben (hoher ROAS)</div>
+              <div class="tl-time" data-i18n="act1_time">VOR 12 MIN.</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot light"></div>
+            <div class="timeline-content">
+              <div class="tl-title" data-i18n="act2_title">Neues Asset hochgeladen</div>
+              <div class="tl-desc" data-i18n="act2_desc">3 Video-Creatives zur Zahnarztkampagne hinzugefügt</div>
+              <div class="tl-time" data-i18n="act2_time">VOR 2 STD.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cta-button-group">
+          <button class="btn-primary-full" onclick="triggerAction('Anzeigenvorschau')">
+            <span data-i18n="btn_preview">Weiter zur Anzeigenvorschau</span>
+            <i class="ri-arrow-right-line"></i>
+          </button>
+          <button class="btn-secondary-full" onclick="triggerAction('Entwurf speichern')" data-i18n="btn_draft">
+            Als Entwurf speichern
+          </button>
+        </div>
+      </section>
+
+
+      <!-- ========================================== -->
+      <!-- SCREEN 2: RECRUITING-DASHBOARD            -->
+      <!-- ========================================== -->
+      <section class="screen-page" id="page-recruiting">
+        <div class="hero-card">
+          <div class="hero-greeting" data-i18n="rec_greeting">GUTEN MORGEN, SEBASTIAN! 👋</div>
+          <h1 class="hero-title" data-i18n="rec_hero_heading">„Mitarbeitergewinnung“ in Ihrer Region!</h1>
+          <p class="hero-subtitle" data-i18n="rec_hero_sub">So läuft deine Recruiting-Kampagne.</p>
+          
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 14px;">
+            <div style="background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;" data-i18n="time_last_30">
+              Letzte 30 Tage ▾
+            </div>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.95); color: #0f172a; padding: 12px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+              <div>
+                <div style="font-size: 12px; font-weight: 800;" data-i18n="badge_2of3">2 von 3 Kampagnen aktiv</div>
+                <div style="font-size: 10px; color: #64748b;" data-i18n="since_date">Seit dem 12. Juni 2025</div>
+              </div>
+            </div>
+            <span style="font-size: 11px; font-weight: 700; color: var(--primary-purple); cursor: pointer;" data-i18n="view_campaign">Kampagne ansehen ›</span>
+          </div>
+        </div>
+
+        <div class="content-card" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--primary-purple); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: var(--primary-purple);">
+              2/3
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 800;" data-i18n="badge_2of3">2 von 3 Kampagnen aktiv</div>
+              <div style="font-size: 11px; color: var(--text-muted);" data-i18n="comp_avail">1 Kampagne verfügbar</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary-full" style="margin-bottom: 16px;" onclick="triggerAction('Kampagne starten')" data-i18n="btn_new_campaign">
+          + Weitere Kampagne starten
+        </button>
+
+        <div class="applicant-dark-card">
+          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 16px;" data-i18n="applicant_overview">Bewerberübersicht</h3>
+          <div class="applicant-grid">
+            <div>
+              <div class="app-stat-num">29</div>
+              <div class="app-stat-lbl" data-i18n="app_num_applications">Bewerbungen</div>
+              <div class="stat-change up" style="font-size: 10px; margin-top: 2px;">+18%</div>
+            </div>
+            <div>
+              <div class="app-stat-num">11</div>
+              <div class="app-stat-lbl" data-i18n="app_num_qualified">Qualifizierte Bewerber</div>
+            </div>
+            <div>
+              <div class="app-stat-num">5</div>
+              <div class="app-stat-lbl" data-i18n="app_num_interviews">geplante Vorstellungsgespräche</div>
+              <div class="stat-change up" style="font-size: 10px; margin-top: 2px;">+25%</div>
+            </div>
+            <div>
+              <div class="app-stat-num">1</div>
+              <div class="app-stat-lbl" data-i18n="app_num_hired">Eingestellt</div>
+              <div class="stat-change up" style="font-size: 10px; margin-top: 2px;">+18%</div>
+            </div>
+          </div>
+
+          <div style="height: 60px; margin: 16px 0 8px 0; display: flex; align-items: flex-end; justify-content: space-between; position: relative;">
+            <svg style="position: absolute; width: 100%; height: 100%; overflow: visible;" viewBox="0 0 300 60">
+              <path d="M0,50 Q75,40 150,30 T300,10" fill="none" stroke="#a855f7" stroke-width="3" />
+            </svg>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8;">
+            <span>Woche 1</span><span>Woche 2</span><span>Woche 3</span><span>Woche 4</span>
+          </div>
+
+          <button class="btn-secondary-full" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); margin-top: 16px;" onclick="triggerAction('Bewerbungen ansehen')" data-i18n="btn_view_apps">
+            Bewerbungen ansehen
+          </button>
+        </div>
+
+        <div class="content-card">
+          <div class="card-header-flex">
+            <h3 class="card-title-sm" data-i18n="latest_apps">Neueste Bewerbungen</h3>
+            <span class="card-action-link" data-i18n="see_all">Alle ansehen</span>
+          </div>
+
+          <div class="applicant-list-item">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80" alt="Lukas" class="applicant-avatar">
+            <div class="applicant-info">
+              <div class="applicant-name">Lukas Weber</div>
+              <div class="applicant-meta">Dachdecker • Vor 2 Stunden</div>
+            </div>
+            <span class="tag-badge purple" data-i18n="tag_new">Neu</span>
+          </div>
+
+          <div class="applicant-list-item">
+            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80" alt="Sarah" class="applicant-avatar">
+            <div class="applicant-info">
+              <div class="applicant-name">Sarah Schmidt</div>
+              <div class="applicant-meta">Zimmermann • Vor 2 Stunden</div>
+            </div>
+            <span class="tag-badge green" data-i18n="tag_qualified">Qualifiziert</span>
+          </div>
+
+          <div class="applicant-list-item">
+            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80" alt="Markus" class="applicant-avatar">
+            <div class="applicant-info">
+              <div class="applicant-name">Markus Wagner</div>
+              <div class="applicant-meta">Meister • Vor 2 Stunden</div>
+            </div>
+            <span class="tag-badge gray" data-i18n="tag_interview">Vorstellungsgespräch</span>
+          </div>
+        </div>
+
+        <div class="ai-coach-card">
+          <div class="ai-coach-header">
+            <i class="ri-sparkling-fill"></i>
+            <span data-i18n="ai_coach_title">KI-Coach</span>
+          </div>
+          <p class="ai-coach-text" data-i18n="ai_coach_msg">
+            Deine Recruiting-Kampagne läuft hervorragend! 🚀 Erhöhe dein Tagesbudget um 10 %, um mehr qualifizierte Bewerber zu erreichen.
+          </p>
+          <button class="btn-mint" onclick="triggerAction('Budget um 10% erhöhen')" data-i18n="btn_increase_budget">Budget um 10 % erhöhen</button>
+          <button class="btn-mint-outline" onclick="triggerAction('Empfehlungen ansehen')" data-i18n="btn_see_recs">Empfehlungen ansehen</button>
+        </div>
+
+        <div class="content-card">
+          <h3 class="card-title-sm" style="margin-bottom: 14px;" data-i18n="app_by_source">Bewerbungen nach Quelle</h3>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 100px; height: 100px; position: relative;">
+              <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3.8"/>
+                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#6366f1" stroke-dasharray="68, 100" stroke-width="3.8"/>
+                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#d946ef" stroke-dasharray="18, 100" stroke-dashoffset="-68" stroke-width="3.8"/>
+              </svg>
+              <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <span style="font-size: 18px; font-weight: 900;">29</span>
+                <span style="font-size: 9px; color: var(--text-muted);" data-i18n="total_lbl">Gesamt</span>
+              </div>
+            </div>
+            <div style="flex: 1;">
+              <div class="donut-legend-item">
+                <span class="legend-dot-label"><span class="legend-dot" style="background: #6366f1;"></span> IG & FB-Anzeigen</span>
+                <span class="legend-pct">68%</span>
+              </div>
+              <div class="donut-legend-item">
+                <span class="legend-dot-label"><span class="legend-dot" style="background: #d946ef;"></span> Instagram</span>
+                <span class="legend-pct">18%</span>
+              </div>
+              <div class="donut-legend-item">
+                <span class="legend-dot-label"><span class="legend-dot" style="background: #3b82f6;"></span> Facebook</span>
+                <span class="legend-pct">10%</span>
+              </div>
+              <div class="donut-legend-item">
+                <span class="legend-dot-label"><span class="legend-dot" style="background: #94a3b8;"></span> Andere</span>
+                <span class="legend-pct">4%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ========================================== -->
+      <!-- SCREEN 3: KAMPAGNEN (CAMPAIGNS)           -->
+      <!-- ========================================== -->
+      <section class="screen-page" id="page-campaigns">
+        <!-- Hero Banner -->
+        <div class="hero-card">
+          <h1 class="hero-title" data-i18n="campaigns_title">Kampagnen</h1>
+          <p class="hero-subtitle" data-i18n="campaigns_hero">
+            Verwalten, überwachen und optimieren Sie alle Ihre KI-gestützten Werbekampagnen.
+          </p>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="search-filter-box">
+          <div class="search-input-wrapper">
+            <i class="ri-search-line" style="color: var(--text-muted);"></i>
+            <input type="text" placeholder="Kampagnen suchen..." data-i18n-placeholder="search_placeholder">
+          </div>
+          <button class="icon-btn-filter" onclick="triggerAction('Filter')">
+            <i class="ri-filter-3-line"></i>
+          </button>
+        </div>
+
+        <!-- 5 Status Filter Tabs (Fully German) -->
+        <div class="tabs-pill-row">
+          <span class="tab-pill active" data-status="all" data-i18n="tab_all">Alle</span>
+          <span class="tab-pill" data-status="active" data-i18n="tab_active">Aktiv</span>
+          <span class="tab-pill" data-status="paused" data-i18n="tab_paused">Pausiert</span>
+          <span class="tab-pill" data-status="draft" data-i18n="tab_draft">Entwurf</span>
+          <span class="tab-pill" data-status="completed" data-i18n="tab_completed">Abgeschlossen</span>
+        </div>
+
+        <!-- 3 Stats Cards Row -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+          <div class="stat-card" style="padding: 10px;">
+            <span class="stat-label" style="font-size: 10px;" data-i18n="stat_total">GESAMT</span>
+            <div class="stat-value" style="font-size: 18px; margin: 2px 0 0 0;">12</div>
+          </div>
+          <div class="stat-card" style="padding: 10px;">
+            <span class="stat-label" style="font-size: 10px; color: #10b981;" data-i18n="status_active">AKTIV</span>
+            <div class="stat-value" style="font-size: 18px; margin: 2px 0 0 0;">8</div>
+          </div>
+          <div class="stat-card" style="padding: 10px;">
+            <span class="stat-label" style="font-size: 10px;" data-i18n="stat_paused">PAUSIERT</span>
+            <div class="stat-value" style="font-size: 18px; margin: 2px 0 0 0;">2</div>
+          </div>
+        </div>
+
+        <!-- AI Strategic Insight Card -->
+        <div style="background: linear-gradient(135deg, #2e1093 0%, #581c87 100%); color: white; border-radius: var(--radius-lg); padding: 18px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <i class="ri-sparkling-fill" style="color: #c084fc;"></i>
+            <span style="font-size: 12px; font-weight: 800; color: #e9d5ff;" data-i18n="ai_strat_insight">KI-Strategische Erkenntnis</span>
+          </div>
+          <p style="font-size: 12px; line-height: 1.4; color: #cbd5e1; margin-bottom: 12px;" data-i18n="ai_strat_msg">
+            Ihre Kampagne „Sommeraktion“ erzielt 24 % bessere Ergebnisse als vergleichbare lokale Kampagnen.
+          </p>
+          <button class="btn-primary-full" style="background: white; color: var(--primary-purple); padding: 10px;" onclick="triggerAction('Jetzt optimieren')" data-i18n="btn_optimize_now">
+            Jetzt optimieren 📈
+          </button>
+        </div>
+
+        <!-- Campaign Items List -->
+        <div class="card-header-flex">
+          <h3 class="card-title-sm" data-i18n="active_campaigns_sec">Aktive Kampagnen</h3>
+          <span class="card-action-link" data-i18n="see_all">Alle anzeigen</span>
+        </div>
+
+        <!-- Campaign Card 1 (Aktiv) -->
+        <div class="campaign-item-card" data-status="active">
+          <div class="campaign-meta-row">
+            <span class="status-badge active"><span class="dot-indicator"></span> FB + IG • <span data-i18n="badge_active">AKTIV</span></span>
+            <span class="campaign-perf-val"><span data-i18n="perf_lbl">Leistung</span> 96% ⚡</span>
+          </div>
+          <h4 class="campaign-title-main">Sommeraktion</h4>
+          <div class="progress-info">
+            <span data-i18n="spent_lbl">Ausgaben</span>
+            <span>132,00 € / 250,00 € (53%)</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" style="width: 53%;"></div>
+          </div>
+        </div>
+
+        <!-- Campaign Card 2 (Pausiert) -->
+        <div class="campaign-item-card" data-status="paused">
+          <div class="campaign-meta-row">
+            <span class="status-badge paused"><span class="dot-indicator"></span> Google Ads • <span data-i18n="badge_paused">PAUSIERT</span></span>
+            <span class="campaign-perf-val" style="color: var(--text-dark);"><span data-i18n="perf_lbl">Leistung</span> 89%</span>
+          </div>
+          <h4 class="campaign-title-main">Restaurant-Sonderangebot</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px; color: var(--text-muted);">
+              <span data-i18n="budget_lbl">BUDGET</span>: <strong>180,00 € gesamt</strong>
+            </div>
+            <button class="action-arrow-btn" style="width: 28px; height: 28px;" onclick="triggerAction('Kampagne fortsetzen')">
+              <i class="ri-play-fill" style="font-size: 14px;"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Campaign Card 3 (Entwurf) -->
+        <div class="campaign-item-card" data-status="draft">
+          <div class="campaign-meta-row">
+            <span class="status-badge draft"><span class="dot-indicator"></span> Mehrkanal • <span data-i18n="badge_draft">ENTWURF</span></span>
+            <span class="campaign-perf-val" style="color: var(--text-light);"><span data-i18n="perf_lbl">Leistung</span> --</span>
+          </div>
+          <h4 class="campaign-title-main">Eröffnungsveranstaltung</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px; color: var(--text-muted);">
+              <span data-i18n="set_budget_lbl">BUDGET FESTLEGEN</span>: <strong>320,00 € <span data-i18n="target_budget">Zielbudget</span></strong>
+            </div>
+            <i class="ri-pencil-line" style="cursor: pointer; color: var(--text-muted);" onclick="triggerAction('Kampagne bearbeiten')"></i>
+          </div>
+        </div>
+
+        <!-- Campaign Card 4 (Abgeschlossen) -->
+        <div class="campaign-item-card" data-status="completed">
+          <div class="campaign-meta-row">
+            <span class="status-badge paused" style="background: #e2e8f0; color: #475569;"><span class="dot-indicator"></span> Social Media • <span data-i18n="badge_completed">ABGESCHLOSSEN</span></span>
+            <span class="campaign-perf-val" style="color: #10b981;"><span data-i18n="perf_lbl">Leistung</span> 100%</span>
+          </div>
+          <h4 class="campaign-title-main">Frühlingsangebot 2026</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px; color: var(--text-muted);">
+              <span data-i18n="spent_lbl">Ausgaben</span>: <strong>500,00 € / 500,00 €</strong>
+            </div>
+            <i class="ri-check-double-line" style="color: #10b981;"></i>
+          </div>
+        </div>
+
+        <button class="fab-btn" onclick="triggerAction('Neue Kampagne')">+</button>
+      </section>
+
+
+      <!-- ========================================== -->
+      <!-- SCREEN 4: ANALYSEN (ANALYTICS)             -->
+      <!-- ========================================== -->
+      <section class="screen-page" id="page-analytics">
+        <div class="hero-card">
+          <h1 class="hero-title" data-i18n="analytics_title">Analysen</h1>
+          <p class="hero-subtitle" data-i18n="analytics_hero">
+            Verfolgen Sie die Kampagnenleistung mit KI-gestützten Erkenntnissen.
+          </p>
+
+          <div class="time-filter-row">
+            <span class="time-btn" data-i18n="time_today">Heute</span>
+            <span class="time-btn active" data-i18n="time_7d">7 Tage</span>
+            <span class="time-btn" data-i18n="time_30d">30 Tage</span>
+            <span class="time-btn" data-i18n="time_90d">90 Tage</span>
+          </div>
+        </div>
+
+        <div class="stats-grid-2x2">
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_reach">Reichweite</span>
+              <div class="stat-icon-wrapper"><i class="ri-radar-line"></i></div>
+            </div>
+            <div class="stat-value">42,8 Tsd.</div>
+            <div class="stat-change up"><i class="ri-arrow-up-line"></i> +18%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_clicks">Klicks</span>
+              <div class="stat-icon-wrapper"><i class="ri-cursor-line"></i></div>
+            </div>
+            <div class="stat-value">3,284</div>
+            <div class="stat-change up"><i class="ri-arrow-up-line"></i> +12%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_leads">Leads</span>
+              <div class="stat-icon-wrapper"><i class="ri-group-line"></i></div>
+            </div>
+            <div class="stat-value">184</div>
+            <div class="stat-change up"><i class="ri-arrow-up-line"></i> +26%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-label" data-i18n="stat_roi">ROI</span>
+              <div class="stat-icon-wrapper"><i class="ri-money-dollar-circle-line"></i></div>
+            </div>
+            <div class="stat-value">4.8x</div>
+            <span class="tag-badge purple" data-i18n="roi_excel">Ausgezeichnet</span>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-header-flex">
+            <h3 class="card-title-sm" data-i18n="campaign_perf">Kampagnenleistung</h3>
+            <i class="ri-more-fill" style="color: var(--text-muted);"></i>
+          </div>
+          <div style="height: 140px; display: flex; align-items: flex-end; justify-content: space-around; gap: 8px; padding-top: 10px;">
+            <div style="width: 12px; height: 40%; background: #1e095b; border-radius: 3px;"></div>
+            <div style="width: 12px; height: 60%; background: #1e095b; border-radius: 3px;"></div>
+            <div style="width: 12px; height: 80%; background: #1e095b; border-radius: 3px;"></div>
+            <div style="width: 12px; height: 45%; background: #1e095b; border-radius: 3px;"></div>
+            <div style="width: 12px; height: 85%; background: #1e095b; border-radius: 3px;"></div>
+            <div style="width: 12px; height: 100%; background: #1e095b; border-radius: 3px;"></div>
+          </div>
+        </div>
+
+        <h3 class="card-title-sm" style="margin-bottom: 10px;" data-i18n="platforms">Plattformen</h3>
+        <div class="content-card" style="padding: 12px; display: flex; justify-content: space-around;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="ri-facebook-circle-fill" style="font-size: 24px; color: #1877f2;"></i>
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted);" data-i18n="stat_reach">Reichweite</div>
+              <div style="font-size: 13px; font-weight: 800;">24,5 Tsd.</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="ri-instagram-line" style="font-size: 24px; color: #e1306c;"></i>
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted);" data-i18n="stat_reach">Reichweite</div>
+              <div style="font-size: 13px; font-weight: 800;">18,3 Tsd.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <h3 class="card-title-sm" style="margin-bottom: 12px;" data-i18n="conv_funnel">Conversion-Trichter</h3>
+          <div class="funnel-container">
+            <div class="funnel-step step-1">
+              <span data-i18n="funnel_impressions">Impressionen</span>
+              <span>1,2 Mio.</span>
+            </div>
+            <div class="funnel-step step-2">
+              <span data-i18n="funnel_reach">Reichweite</span>
+              <span>42,8 Tsd.</span>
+            </div>
+            <div class="funnel-step step-3">
+              <span data-i18n="funnel_clicks">Klicks</span>
+              <span>3,284</span>
+            </div>
+            <div class="funnel-step step-4">
+              <span data-i18n="funnel_landing">Landingpage</span>
+              <span>1,105</span>
+            </div>
+            <div class="funnel-step step-5">
+              <span data-i18n="funnel_leads">Leads</span>
+              <span>184</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #0f0728; color: white; border-radius: var(--radius-lg); padding: 18px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <i class="ri-sparkling-fill" style="color: #c084fc;"></i>
+            <span style="font-weight: 800; font-size: 13px;" data-i18n="ai_intel_insights">KI-Intelligenz-Einblicke</span>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.08); padding: 12px; border-radius: var(--radius-md); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 10px; color: #cbd5e1;" data-i18n="best_audience">Am besten performende Zielgruppe</div>
+              <div style="font-size: 12px; font-weight: 700;" data-i18n="audience_val">Technologie-Innovatoren (25–34)</div>
+            </div>
+            <button class="apply-btn" onclick="triggerAction('Zielgruppe')" data-i18n="apply_btn">Anwenden</button>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.08); padding: 12px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 10px; color: #cbd5e1;" data-i18n="best_creative">Bestes Anzeigen-Creative</div>
+              <div style="font-size: 12px; font-weight: 700;" data-i18n="creative_val">Produktpräsentationsvideo A</div>
+            </div>
+            <button class="apply-btn" onclick="triggerAction('Creative')" data-i18n="apply_btn">Anwenden</button>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-header-flex">
+            <h3 class="card-title-sm" data-i18n="top_locs">Top-Standorte</h3>
+            <i class="ri-earth-line" style="color: var(--primary-purple);"></i>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+              <span><strong>Berlin</strong></span>
+              <span>84 Leads | <strong>3,2% CTR</strong></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+              <span><strong>Hamburg</strong></span>
+              <span>42 Leads | <strong>2,8% CTR</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary-full" style="margin-bottom: 16px;" onclick="triggerAction('KI-Bericht')" data-i18n="btn_create_ai_report">
+          ✨ KI-Bericht erstellen
+        </button>
+      </section>
+
+
+      <!-- ========================================== -->
+      <!-- SCREEN 5: ABRECHNUNG (BILLING)            -->
+      <!-- ========================================== -->
+      <section class="screen-page" id="page-billing">
+        <div class="hero-card">
+          <h1 class="hero-title" data-i18n="billing_title">Abrechnung</h1>
+          <p class="hero-subtitle" data-i18n="billing_hero">
+            Abrechnung & Abonnement — Verwalten Sie Ihr Abonnement, Ihre Zahlungen und Ihre KI-Nutzung.
+          </p>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #1e095b 0%, #3b0764 100%); color: white; border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow-lg);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 16px; font-weight: 800;" data-i18n="plan_pro">Professional-Tarif</span>
+            <span class="plan-active-badge" data-i18n="plan_active">aktiv</span>
+          </div>
+          <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;" data-i18n="next_renew">Nächste Verlängerung: 15. Aug. 2026</div>
+
+          <div class="plan-price-row">
+            <span class="price-big">79 €</span>
+            <span class="price-unit" data-i18n="per_month">/ Monat</span>
+          </div>
+
+          <ul class="plan-feature-list">
+            <li class="plan-feature-item"><i class="ri-checkbox-circle-fill" style="color: #c084fc;"></i> <span data-i18n="feat_unlimited">Unbegrenzte Kampagnen</span></li>
+            <li class="plan-feature-item"><i class="ri-checkbox-circle-fill" style="color: #c084fc;"></i> <span data-i18n="feat_engine">KI-Optimierungs-Engine</span></li>
+            <li class="plan-feature-item"><i class="ri-checkbox-circle-fill" style="color: #c084fc;"></i> <span data-i18n="feat_analytics">Erweiterte Analysefunktionen</span></li>
+          </ul>
+
+          <button class="btn-white-plan" onclick="triggerAction('Tarif verwalten')" data-i18n="btn_manage_plan">Tarif verwalten</button>
+        </div>
+
+        <div style="background: #f3e8ff; border-radius: var(--radius-md); padding: 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: #7e22ce; color: white; display: flex; align-items: center; justify-content: center;">
+            <i class="ri-sparkling-fill"></i>
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 13px; font-weight: 800; color: #581c87;" data-i18n="ai_savings_title">Ihre KI-Einsparungen</div>
+            <div style="font-size: 11px; color: #7e22ce;" data-i18n="ai_savings_sub">Effizienzsteigerungen in diesem Jahr</div>
+          </div>
+          <span style="font-size: 18px; font-weight: 900; color: #581c87;">2.480 €</span>
+        </div>
+
+        <div class="content-card">
+          <h3 class="card-title-sm" style="margin-bottom: 12px;" data-i18n="ai_usage_title">KI-Nutzung & Kennzahlen</h3>
+          
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin-bottom: 4px;">
+              <span data-i18n="monthly_campaigns">MONATLICHE KAMPAGNEN</span>
+              <span>18 / <span data-i18n="unlimited">Unbegrenzt</span></span>
+            </div>
+            <div class="progress-bar-track"><div class="progress-bar-fill" style="width: 45%;"></div></div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin-bottom: 4px;">
+              <span data-i18n="ai_credits">KI-CREDITS</span>
+              <span>820 / 1000</span>
+            </div>
+            <div class="progress-bar-track"><div class="progress-bar-fill" style="width: 82%;"></div></div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+            <span data-i18n="landing_pages">LANDINGPAGES</span>
+            <span style="color: var(--primary-purple);">14 aktiv</span>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <h3 class="card-title-sm" style="margin-bottom: 10px;" data-i18n="payment_method">Zahlungsmethode</h3>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <i class="ri-visa-line" style="font-size: 28px; color: #1a1f71;"></i>
+              <div>
+                <div style="font-size: 13px; font-weight: 700;" data-i18n="visa_val">Visa endend auf •••• 2458</div>
+                <div style="font-size: 11px; color: var(--text-muted);" data-i18n="valid_thru">Gültig bis 09/28</div>
+              </div>
+            </div>
+            <span style="font-size: 12px; font-weight: 700; color: var(--primary-purple); cursor: pointer;" onclick="triggerAction('Zahlungsmethode ändern')" data-i18n="change_btn">Ändern</span>
+          </div>
+          <button class="btn-secondary-full" style="background: transparent; color: var(--text-dark); border: 1px solid var(--border-color); margin-top: 10px;" onclick="triggerAction('Neue Karte hinzufügen')" data-i18n="btn_add_card">
+            + Neue Karte hinzufügen
+          </button>
+        </div>
+
+        <div class="content-card">
+          <div class="card-header-flex">
+            <h3 class="card-title-sm" data-i18n="invoices">Rechnungen</h3>
+            <span class="card-action-link" data-i18n="see_all">Alle anzeigen</span>
+          </div>
+
+          <div class="invoice-item">
+            <div class="invoice-left">
+              <div class="invoice-icon"><i class="ri-file-text-line"></i></div>
+              <div>
+                <div class="invoice-title">Rechnung Juli 2026</div>
+                <div class="invoice-sub">Professional-Tarif • 79 €</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="invoice-status-badge" data-i18n="paid_badge">BEZAHLT</span>
+              <i class="ri-download-line" style="cursor: pointer;" onclick="triggerAction('Rechnung herunterladen')"></i>
+            </div>
+          </div>
+
+          <div class="invoice-item">
+            <div class="invoice-left">
+              <div class="invoice-icon"><i class="ri-file-text-line"></i></div>
+              <div>
+                <div class="invoice-title">Rechnung Juni 2026</div>
+                <div class="invoice-sub">Professional-Tarif • 79 €</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="invoice-status-badge" data-i18n="paid_badge">BEZAHLT</span>
+              <i class="ri-download-line" style="cursor: pointer;" onclick="triggerAction('Rechnung herunterladen')"></i>
+            </div>
+          </div>
+
+          <div class="invoice-item">
+            <div class="invoice-left">
+              <div class="invoice-icon"><i class="ri-file-text-line"></i></div>
+              <div>
+                <div class="invoice-title">Rechnung Mai 2026</div>
+                <div class="invoice-sub">Professional-Tarif • 79 €</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="invoice-status-badge" data-i18n="paid_badge">BEZAHLT</span>
+              <i class="ri-download-line" style="cursor: pointer;" onclick="triggerAction('Rechnung herunterladen')"></i>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav-bar">
+      <button class="nav-item active" data-tab="home">
+        <i class="ri-home-5-line nav-icon"></i>
+        <span data-i18n="nav_home">Startseite</span>
+      </button>
+      <button class="nav-item" data-tab="campaigns">
+        <i class="ri-megaphone-line nav-icon"></i>
+        <span data-i18n="nav_campaigns">Kampagnen</span>
+      </button>
+      <button class="nav-item" data-tab="recruiting">
+        <i class="ri-user-search-line nav-icon"></i>
+        <span data-i18n="nav_recruiting">Recruiting</span>
+      </button>
+      <button class="nav-item" data-tab="analytics">
+        <i class="ri-bar-chart-2-line nav-icon"></i>
+        <span data-i18n="nav_analytics">Analysen</span>
+      </button>
+      <button class="nav-item" data-tab="billing">
+        <i class="ri-wallet-3-line nav-icon"></i>
+        <span data-i18n="nav_billing">Abrechnung</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

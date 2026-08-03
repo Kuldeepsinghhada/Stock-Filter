@@ -48,12 +48,6 @@ class FilterUtils {
 
     final current = candles.last;
 
-    final lastTime = candles.last.timestamp;
-    if ((lastTime.hour == 11 && lastTime.minute >= 15) ||
-        (lastTime.hour == 12 && lastTime.minute <= 15)) {
-      return false;
-    }
-
     final timeStr = candles.last.timestamp.toString();
     final engine = IndicatorEngine(candles);
 

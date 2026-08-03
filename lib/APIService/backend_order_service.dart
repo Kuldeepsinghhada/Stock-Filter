@@ -5,6 +5,7 @@ import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/model/executed_order.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
+import 'package:stock_demo/model/passed_daily_stock_model.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -210,5 +211,35 @@ class BackendOrderService {
       print("Error calling backtest API: $e");
     }
     return null;
+  }
+
+  /// Get Passed Daily Timeframe Stocks
+  static Future<PassedDailyResponse?> fetchPassedDailyTimeframeStocks(
+      String date) async {
+    final url = Uri.parse('$baseUrl/api/passedDailyTimeframeStocks?date=$date');
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+
+    try {
+      final response = await http.get(url, headers: headers);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return PassedDailyResponse.fromJson(decoded);
+      } else {
+        log("Failed to fetch passed daily timeframe stocks: ${response.statusCode}");
+        return PassedDailyResponse(
+          success: false,
+          message: "API error status code: ${response.statusCode}",
+        );
+      }
+    } catch (e) {
+      log("Error calling passedDailyTimeframeStocks API: $e");
+      return PassedDailyResponse(
+        success: false,
+        message: "Error connecting to server: $e",
+      );
+    }
   }
 }

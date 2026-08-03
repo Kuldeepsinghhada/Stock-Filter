@@ -7,6 +7,7 @@ import 'package:stock_demo/Screens/history/history_screen.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
+import 'package:stock_demo/Screens/PreFilteredStocks/passed_daily_stocks_screen.dart';
 import 'package:stock_demo/model/history_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 
@@ -200,6 +201,18 @@ class _PreFilteredStockState extends State<PreFilteredStock> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Passed Daily Stocks',
+            icon: const Icon(Icons.fact_check_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PassedDailyStocksScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.copy),
             onPressed: () {
