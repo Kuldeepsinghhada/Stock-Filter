@@ -244,7 +244,6 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       ..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
-      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('API Backtest'),
         actions: [
