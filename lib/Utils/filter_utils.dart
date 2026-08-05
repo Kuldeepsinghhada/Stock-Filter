@@ -43,8 +43,8 @@ class FilterUtils {
       return false;
     }
 
-    final secondLast = candles.elementAt(candles.length - 2);
-    if (secondLast.volume < 5000) return false;
+    // final secondLast = candles.elementAt(candles.length - 2);
+    // if (secondLast.volume < 5000) return false;
 
     final current = candles.last;
 
@@ -82,8 +82,8 @@ class FilterUtils {
           if (c.high > maxHigh) maxHigh = c.high;
         }
         if ((maxHigh - minLow) / minLow * 100 > 7) {
-          // debugPrint(
-          //     "Failed: $token at $timeStr - Reason: Morning volatility > 6%");
+          debugPrint(
+              "Failed: $token at $timeStr - Reason: Morning volatility > 6%");
           return false;
         }
       }

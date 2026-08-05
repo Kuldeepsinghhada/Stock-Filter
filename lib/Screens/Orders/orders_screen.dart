@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/model/executed_order.dart';
+import 'package:stock_demo/Widgets/app_drawer.dart';
 
 class OrderScreen extends StatefulWidget {
   const OrderScreen({super.key});
@@ -27,6 +28,7 @@ class _OrderScreenState extends State<OrderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(),
       backgroundColor: const Color(0xff131722),
       appBar: AppBar(
         title: const Text('Executed Orders',

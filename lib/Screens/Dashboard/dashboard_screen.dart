@@ -20,7 +20,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _screens = [
       FilteredStockScreen(),
-      ApiBacktestScreen(),
       const OrderScreen(),
     ];
   }
@@ -42,8 +41,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icon(Icons.filter_center_focus),
             label: "TRADE",
           ),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.data_usage), label: "BACKTEST"),
           BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long), label: "ORDERS"),
         ],

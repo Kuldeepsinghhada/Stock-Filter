@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'trade_setting_screen.dart';
+import 'server_setting_screen.dart';
 import 'package:stock_demo/Screens/StrategyTesting/strategy_testing_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -100,6 +101,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       context,
                       MaterialPageRoute(
                           builder: (context) => const StrategyTestingScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.dns, color: Colors.blueAccent),
+                  title: const Text('Server Settings'),
+                  subtitle: const Text(
+                      'Manage live server trade parameters, square off time & alerts'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const ServerSettingScreen()),
                     );
                   },
                 ),

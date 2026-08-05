@@ -6,6 +6,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/model/executed_order.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
 import 'package:stock_demo/model/passed_daily_stock_model.dart';
+import 'package:stock_demo/model/server_setting_model.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -192,9 +193,14 @@ class BackendOrderService {
 
   /// Run Backtest via Backend API
   static Future<ApiBacktestResponse?> runBacktest(
-      String startDate, String endDate) async {
-    final url = Uri.parse(
-        '$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate');
+      String startDate, String endDate,
+      {bool force = false}) async {
+    String urlStr =
+        '$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate';
+    if (force) {
+      urlStr += '&force=true';
+    }
+    final url = Uri.parse(urlStr);
     final headers = {
       'Content-Type': 'application/json',
       'X-Backend-Key': 'my_super_secret_key',
@@ -238,6 +244,96 @@ class BackendOrderService {
       log("Error calling passedDailyTimeframeStocks API: $e");
       return PassedDailyResponse(
         success: false,
+        message: "Error connecting to server: $e",
+      );
+    }
+  }
+
+  /// Get Live Server Settings (GET /settings)
+  static Future<ServerSettingsResponse> getServerSettings() async {
+    final url = Uri.parse('$baseUrl/settings');
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+
+    try {
+      final response = await http.get(url, headers: headers);
+      log("GET /settings status: ${response.statusCode}, body: ${response.body}");
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return ServerSettingsResponse.fromJson(decoded);
+      } else {
+        String errMsg =
+            "Failed to retrieve settings (Status: ${response.statusCode})";
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded['message'] != null) {
+            errMsg = decoded['message'].toString();
+          }
+        } catch (_) {}
+        return ServerSettingsResponse(
+          isSuccess: false,
+          status: 'error',
+          message: errMsg,
+        );
+      }
+    } catch (e) {
+      log("Error calling getServerSettings API: $e");
+      return ServerSettingsResponse(
+        isSuccess: false,
+        status: 'error',
+        message: "Error connecting to server: $e",
+      );
+    }
+  }
+
+  /// Update Live Server Settings (POST /settings or PUT /settings)
+  static Future<ServerSettingsResponse> updateServerSettings(
+      ServerSettings settings) async {
+    final url = Uri.parse('$baseUrl/settings');
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+    final body = jsonEncode(settings.toJson());
+
+    try {
+      log("POST /settings sending body: $body");
+      http.Response response =
+          await http.post(url, headers: headers, body: body);
+      log("POST /settings response status: ${response.statusCode}, body: ${response.body}");
+
+      // If method not allowed (405) or unsupported method on server, try PUT
+      if (response.statusCode == 405) {
+        log("POST returned 405, retrying with PUT /settings");
+        response = await http.put(url, headers: headers, body: body);
+        log("PUT /settings response status: ${response.statusCode}, body: ${response.body}");
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        return ServerSettingsResponse.fromJson(decoded);
+      } else {
+        String errMsg =
+            "Failed to update settings (Status: ${response.statusCode})";
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded['message'] != null) {
+            errMsg = decoded['message'].toString();
+          }
+        } catch (_) {}
+        return ServerSettingsResponse(
+          isSuccess: false,
+          status: 'error',
+          message: errMsg,
+        );
+      }
+    } catch (e) {
+      log("Error calling updateServerSettings API: $e");
+      return ServerSettingsResponse(
+        isSuccess: false,
+        status: 'error',
         message: "Error connecting to server: $e",
       );
     }

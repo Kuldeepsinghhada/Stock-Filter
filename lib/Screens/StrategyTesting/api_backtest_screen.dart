@@ -3,6 +3,7 @@ import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:intl/intl.dart';
+import 'package:stock_demo/Widgets/app_drawer.dart';
 
 class ApiBacktestScreen extends StatefulWidget {
   const ApiBacktestScreen({super.key});
@@ -19,6 +20,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
   final TextEditingController _maxTradesController =
       TextEditingController(text: '5');
   bool _isLoading = false;
+  bool _forceUpdate = false;
   ApiBacktestData? _cachedData;
   ApiBacktestSummary? _summary;
   Map<String, List<ApiBacktestTrade>> _groupedTrades = {};
@@ -205,7 +207,8 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     });
 
     try {
-      var result = await BackendOrderService.runBacktest(startStr, endStr);
+      var result = await BackendOrderService.runBacktest(startStr, endStr,
+          force: _forceUpdate);
       if (result != null && result.success) {
         if (result.data != null) {
           _cachedData = result.data;
@@ -241,8 +244,44 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       ..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('API Backtest'),
+        actions: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Force',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              Switch(
+                value: _forceUpdate,
+                activeThumbColor: Colors.orangeAccent,
+                onChanged: (val) {
+                  setState(() {
+                    _forceUpdate = val;
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _isLoading ? null : _runBacktest,
+        icon: _isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.play_arrow),
+        label: Text(_isLoading ? "Running..." : "Run Backtest"),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -278,16 +317,6 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       child: Text(DateFormat('yyyy-MM-dd').format(_endDate)),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _runBacktest,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Run'),
                 ),
               ],
             ),
@@ -372,12 +401,12 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildSummaryItem(
-                              "Target Hit", "${_summary!.targetHits}", Colors.green),
-                          _buildSummaryItem(
-                              "Stoploss Hit", "${_summary!.stoplossHits}", Colors.red),
-                          _buildSummaryItem(
-                              "Square Off", "${_summary!.squareOffHits}", Colors.orange),
+                          _buildSummaryItem("Target Hit",
+                              "${_summary!.targetHits}", Colors.green),
+                          _buildSummaryItem("Stoploss Hit",
+                              "${_summary!.stoplossHits}", Colors.red),
+                          _buildSummaryItem("Square Off",
+                              "${_summary!.squareOffHits}", Colors.orange),
                         ],
                       ),
                     ],

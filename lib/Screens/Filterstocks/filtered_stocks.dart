@@ -3,14 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
-import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
-import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
-import 'package:stock_demo/Screens/Settings/trade_setting_screen.dart';
 import 'package:stock_demo/Services/notification_service.dart';
 import 'package:stock_demo/model/final_stock_model.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
+import 'package:stock_demo/Widgets/app_drawer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class FilteredStockScreen extends StatefulWidget {
@@ -280,10 +278,10 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     }
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          // Search button
           if (isLoading && quoteList.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -293,28 +291,6 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => PreFilteredStock()),
-            ),
-            icon: const Icon(Icons.filter_center_focus),
-          ),
-
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => SearchStocksScreen()),
-            ),
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => TradeSettingPage()),
-            ),
-            icon: const Icon(Icons.settings),
-          ),
         ],
       ),
       body: Column(
