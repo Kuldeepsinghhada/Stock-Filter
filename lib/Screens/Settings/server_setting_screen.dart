@@ -24,6 +24,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
   TimeOfDay _squareOffTime = const TimeOfDay(hour: 15, minute: 15);
   bool _enableTelegramAlert = true;
   bool _enableAutoTrading = false;
+  bool _enableScreenerSync = true;
   String? _updatedAt;
 
   @override
@@ -56,6 +57,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
         _squareOffTime = _parseTimeString(settings.squareOffTime);
         _enableTelegramAlert = settings.enableTelegramAlert;
         _enableAutoTrading = settings.enableAutoTrading;
+        _enableScreenerSync = settings.enableScreenerSync;
         _updatedAt = settings.updatedAt;
         _isLoading = false;
       });
@@ -87,6 +89,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
       squareOffTime: _formatTimeOfDay(_squareOffTime),
       enableTelegramAlert: _enableTelegramAlert,
       enableAutoTrading: _enableAutoTrading,
+      enableScreenerSync: _enableScreenerSync,
     );
 
     final response = await BackendOrderService.updateServerSettings(newSettings);
@@ -112,6 +115,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
           _squareOffTime = _parseTimeString(response.data!.squareOffTime);
           _enableTelegramAlert = response.data!.enableTelegramAlert;
           _enableAutoTrading = response.data!.enableAutoTrading;
+          _enableScreenerSync = response.data!.enableScreenerSync;
           _updatedAt = response.data!.updatedAt ?? DateTime.now().toIso8601String();
         });
       } else {
@@ -413,6 +417,37 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                   borderRadius: BorderRadius.circular(12)),
               child: Column(
                 children: [
+                  // Master Switch: Screener Sync
+                  SwitchListTile(
+                    secondary: Icon(
+                      Icons.sync_rounded,
+                      color: _enableScreenerSync
+                          ? Colors.amberAccent
+                          : Colors.grey,
+                    ),
+                    title: const Text(
+                      'Enable Screener Sync',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      _enableScreenerSync
+                          ? 'Live screener data sync is active. Required for server alerts & auto trading.'
+                          : 'Screener sync is disabled. Auto trading & alerts will be inactive.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _enableScreenerSync
+                            ? Colors.amber
+                            : Colors.redAccent,
+                      ),
+                    ),
+                    value: _enableScreenerSync,
+                    onChanged: (bool value) {
+                      setState(() {
+                        _enableScreenerSync = value;
+                      });
+                    },
+                  ),
+                  const Divider(height: 1),
                   SwitchListTile(
                     secondary:
                         const Icon(Icons.send_rounded, color: Colors.lightBlue),

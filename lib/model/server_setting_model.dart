@@ -3,6 +3,7 @@ class ServerSettings {
   final String squareOffTime;
   final bool enableTelegramAlert;
   final bool enableAutoTrading;
+  final bool enableScreenerSync;
   final String? updatedAt;
 
   ServerSettings({
@@ -10,6 +11,7 @@ class ServerSettings {
     required this.squareOffTime,
     required this.enableTelegramAlert,
     required this.enableAutoTrading,
+    required this.enableScreenerSync,
     this.updatedAt,
   });
 
@@ -36,6 +38,8 @@ class ServerSettings {
           json['enableTelegramAlert'] ?? json['enable_telegram_alert']),
       enableAutoTrading:
           parseBool(json['enableAutoTrading'] ?? json['enable_auto_trading']),
+      enableScreenerSync: parseBool(
+          json['enableScreenerSync'] ?? json['enable_screener_sync']),
       updatedAt: (json['updatedAt'] ?? json['updated_at'])?.toString(),
     );
   }
@@ -46,6 +50,7 @@ class ServerSettings {
       "square_off_time": squareOffTime,
       "enable_telegram_alert": enableTelegramAlert,
       "enable_auto_trading": enableAutoTrading,
+      "enable_screener_sync": enableScreenerSync,
     };
   }
 
@@ -54,6 +59,7 @@ class ServerSettings {
     String? squareOffTime,
     bool? enableTelegramAlert,
     bool? enableAutoTrading,
+    bool? enableScreenerSync,
     String? updatedAt,
   }) {
     return ServerSettings(
@@ -61,6 +67,7 @@ class ServerSettings {
       squareOffTime: squareOffTime ?? this.squareOffTime,
       enableTelegramAlert: enableTelegramAlert ?? this.enableTelegramAlert,
       enableAutoTrading: enableAutoTrading ?? this.enableAutoTrading,
+      enableScreenerSync: enableScreenerSync ?? this.enableScreenerSync,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
