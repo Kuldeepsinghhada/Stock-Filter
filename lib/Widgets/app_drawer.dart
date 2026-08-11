@@ -48,36 +48,6 @@ class AppDrawer extends StatelessWidget {
               ],
             ),
           ),
-
-          // Search Stocks
-          ListTile(
-            leading: const Icon(Icons.search, color: Colors.blueAccent),
-            title: const Text('Search Stocks'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SearchStocksScreen()),
-              );
-            },
-          ),
-
-          // Pre-Filtered Stocks
-          ListTile(
-            leading:
-                const Icon(Icons.filter_center_focus, color: Colors.blueAccent),
-            title: const Text('Pre Filtered Stocks'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => PreFilteredStock()),
-              );
-            },
-          ),
-
-          const Divider(),
-
           // Backtest
           ListTile(
             leading: const Icon(Icons.data_usage, color: Colors.tealAccent),

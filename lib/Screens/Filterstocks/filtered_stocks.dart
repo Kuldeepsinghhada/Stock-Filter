@@ -9,6 +9,8 @@ import 'package:stock_demo/Utils/sharepreference_helper.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/model/notification_model.dart';
 import 'package:stock_demo/Widgets/app_drawer.dart';
+import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
+import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class FilteredStockScreen extends StatefulWidget {
@@ -282,6 +284,30 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Search Stocks',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchStocksScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            tooltip: 'Pre Filtered Stocks',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PreFilteredStock(),
+                ),
+              );
+            },
+          ),
           if (isLoading && quoteList.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),

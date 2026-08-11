@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 import 'package:stock_demo/Screens/Orders/orders_screen.dart';
+import 'package:stock_demo/Screens/StrategyTesting/api_backtest_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,7 +19,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _screens = [
-      FilteredStockScreen(),
+      const FilteredStockScreen(),
+      const ApiBacktestScreen(),
       const OrderScreen(),
     ];
   }
@@ -39,6 +41,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.filter_center_focus),
             label: "TRADE",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.data_usage),
+            label: "BACKTEST",
           ),
           BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long), label: "ORDERS"),
