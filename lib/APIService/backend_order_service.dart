@@ -9,7 +9,7 @@ import 'package:stock_demo/model/passed_daily_stock_model.dart';
 import 'package:stock_demo/model/server_setting_model.dart';
 
 class BackendOrderService {
-  static const String baseUrl = 'http://200.97.163.130:8080';
+  static const String baseUrl = 'http://localhost:8080';
   // LOCAL:  http://localhost:8080
   // LIVE http://200.97.163.130:8080
   /// Health Check
@@ -26,7 +26,9 @@ class BackendOrderService {
   /// Save Zerodha Session
   /// Updates or inserts your Zerodha Access Token into the PostgreSQL database.
   static Future<bool> saveZerodhaSession(
-      String accessToken, String refreshToken) async {
+    String accessToken,
+    String refreshToken,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/session'),
@@ -81,8 +83,9 @@ class BackendOrderService {
     final double roundedTarget = (target * 20).round() / 20.0;
 
     final body = jsonEncode({
-      "symbol":
-          symbol.replaceAll("NSE:", "").replaceAll("BSE:", ""), // Clean symbol
+      "symbol": symbol
+          .replaceAll("NSE:", "")
+          .replaceAll("BSE:", ""), // Clean symbol
       "exchange": exchange,
       "transactionType": transactionType,
       "quantity": quantity,
@@ -142,8 +145,10 @@ class BackendOrderService {
       'X-Backend-Key': 'my_super_secret_key',
     };
 
-    log("Attempting to call backend API: POST $url",
-        name: "BackendOrderService");
+    log(
+      "Attempting to call backend API: POST $url",
+      name: "BackendOrderService",
+    );
 
     try {
       final response = await http
@@ -151,17 +156,24 @@ class BackendOrderService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        log("Auto Trail SL Successful on Backend!",
-            name: "BackendOrderService");
+        log(
+          "Auto Trail SL Successful on Backend!",
+          name: "BackendOrderService",
+        );
         return true;
       } else {
-        log("Failed to auto trail SL on Backend: ${response.statusCode}, Body: ${response.body}",
-            name: "BackendOrderService");
+        log(
+          "Failed to auto trail SL on Backend: ${response.statusCode}, Body: ${response.body}",
+          name: "BackendOrderService",
+        );
         return false;
       }
     } catch (e) {
-      log("Error calling autoTrailSL API: $e",
-          name: "BackendOrderService", error: e);
+      log(
+        "Error calling autoTrailSL API: $e",
+        name: "BackendOrderService",
+        error: e,
+      );
       return false;
     }
   }
@@ -193,8 +205,10 @@ class BackendOrderService {
 
   /// Run Backtest via Backend API
   static Future<ApiBacktestResponse?> runBacktest(
-      String startDate, String endDate,
-      {bool force = false}) async {
+    String startDate,
+    String endDate, {
+    bool force = false,
+  }) async {
     String urlStr =
         '$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate';
     if (force) {
@@ -221,7 +235,8 @@ class BackendOrderService {
 
   /// Get Passed Daily Timeframe Stocks
   static Future<PassedDailyResponse?> fetchPassedDailyTimeframeStocks(
-      String date) async {
+    String date,
+  ) async {
     final url = Uri.parse('$baseUrl/api/passedDailyTimeframeStocks?date=$date');
     final headers = {
       'Content-Type': 'application/json',
@@ -234,7 +249,9 @@ class BackendOrderService {
         final decoded = jsonDecode(response.body);
         return PassedDailyResponse.fromJson(decoded);
       } else {
-        log("Failed to fetch passed daily timeframe stocks: ${response.statusCode}");
+        log(
+          "Failed to fetch passed daily timeframe stocks: ${response.statusCode}",
+        );
         return PassedDailyResponse(
           success: false,
           message: "API error status code: ${response.statusCode}",
@@ -259,7 +276,9 @@ class BackendOrderService {
 
     try {
       final response = await http.get(url, headers: headers);
-      log("GET /settings status: ${response.statusCode}, body: ${response.body}");
+      log(
+        "GET /settings status: ${response.statusCode}, body: ${response.body}",
+      );
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         return ServerSettingsResponse.fromJson(decoded);
@@ -290,7 +309,8 @@ class BackendOrderService {
 
   /// Update Live Server Settings (POST /settings or PUT /settings)
   static Future<ServerSettingsResponse> updateServerSettings(
-      ServerSettings settings) async {
+    ServerSettings settings,
+  ) async {
     final url = Uri.parse('$baseUrl/settings');
     final headers = {
       'Content-Type': 'application/json',
@@ -300,15 +320,22 @@ class BackendOrderService {
 
     try {
       log("POST /settings sending body: $body");
-      http.Response response =
-          await http.post(url, headers: headers, body: body);
-      log("POST /settings response status: ${response.statusCode}, body: ${response.body}");
+      http.Response response = await http.post(
+        url,
+        headers: headers,
+        body: body,
+      );
+      log(
+        "POST /settings response status: ${response.statusCode}, body: ${response.body}",
+      );
 
       // If method not allowed (405) or unsupported method on server, try PUT
       if (response.statusCode == 405) {
         log("POST returned 405, retrying with PUT /settings");
         response = await http.put(url, headers: headers, body: body);
-        log("PUT /settings response status: ${response.statusCode}, body: ${response.body}");
+        log(
+          "PUT /settings response status: ${response.statusCode}, body: ${response.body}",
+        );
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {

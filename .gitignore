@@ -59,6 +59,3 @@ pubspec.lock
 .env
 *.keystore
 *.jks
-
-# FVM Version Cache
-.fvm/
