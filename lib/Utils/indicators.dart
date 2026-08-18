@@ -34,7 +34,8 @@ class IndicatorUtils {
 
     if (emaDistance > 5.0)
       score += 2;
-    else if (emaDistance > 4.0) score++;
+    else if (emaDistance > 4.0)
+      score++;
 
     // -------------------------------------------------
     // 2. ATR Extension
@@ -43,36 +44,42 @@ class IndicatorUtils {
     print("ATR Extension: ${candles.last.timestamp} $atrExtension");
     if (atrExtension > 2.5)
       score += 2;
-    else if (atrExtension > 2.0) score++;
+    else if (atrExtension > 2.0)
+      score++;
 
     // -------------------------------------------------
     // 3. Last 6 Candle Gain
     // -------------------------------------------------
-    final sixGain = ((current.close - candles[candles.length - 6].close) /
+    final sixGain =
+        ((current.close - candles[candles.length - 6].close) /
             candles[candles.length - 6].close) *
         100;
 
     if (sixGain > 6)
       score += 2;
-    else if (sixGain > 4) score++;
+    else if (sixGain > 4)
+      score++;
 
     // -------------------------------------------------
     // 4. Last 10 Candle Gain
     // -------------------------------------------------
-    final tenGain = ((current.close - candles[candles.length - 10].close) /
+    final tenGain =
+        ((current.close - candles[candles.length - 10].close) /
             candles[candles.length - 10].close) *
         100;
 
     if (tenGain > 8)
       score += 2;
-    else if (tenGain > 6) score++;
+    else if (tenGain > 6)
+      score++;
 
     // -------------------------------------------------
     // 5. RSI
     // -------------------------------------------------
     if (rsi.last > 80)
       score += 2;
-    else if (rsi.last > 75) score++;
+    else if (rsi.last > 75)
+      score++;
 
     // -------------------------------------------------
     // 6. Consecutive Green Candles
@@ -89,7 +96,8 @@ class IndicatorUtils {
 
     if (consecutiveGreen >= 6)
       score += 2;
-    else if (consecutiveGreen >= 4) score++;
+    else if (consecutiveGreen >= 4)
+      score++;
 
     // -------------------------------------------------
     // Final Decision
@@ -133,8 +141,8 @@ class IndicatorUtils {
     // -------------------------------------------------
     final emaSlope =
         ((ema20.last - ema20[ema20.length - 6]) / ema20[ema20.length - 6])
-                .abs() *
-            100;
+            .abs() *
+        100;
 
     if (emaSlope < 0.35) score++;
 
@@ -198,8 +206,10 @@ class IndicatorUtils {
     return score > 5;
   }
 
-  static double getAtrPercent(List<HistoricalDataModel> dailyCandles,
-      {int period = 20}) {
+  static double getAtrPercent(
+    List<HistoricalDataModel> dailyCandles, {
+    int period = 20,
+  }) {
     if (dailyCandles.length < period) return 0.0;
 
     final atrList = _atrSeries(dailyCandles, period);
@@ -213,7 +223,9 @@ class IndicatorUtils {
   }
 
   static List<double> _atrSeries(
-      List<HistoricalDataModel> candles, int period) {
+    List<HistoricalDataModel> candles,
+    int period,
+  ) {
     final n = candles.length;
     if (n < period + 1) return [];
 
@@ -282,8 +294,9 @@ class IndicatorUtils {
 
     // sorted by engine
 
-    final recent =
-        engine.candles.sublist(engine.candles.length - lookbackCandles);
+    final recent = engine.candles.sublist(
+      engine.candles.length - lookbackCandles,
+    );
 
     double lowestLow = recent.first.low;
     double highestHigh = recent.first.high;
@@ -325,21 +338,19 @@ class IndicatorUtils {
     return distanceToResistance <= 3 && distanceToResistance > -2;
   }
 
-  static double getRangeExpansion(
-    IndicatorEngine engine,
-  ) {
+  static double getRangeExpansion(IndicatorEngine engine) {
     if (engine.candles.length < 21) return 0;
 
     final current = engine.candles.last;
 
     // Previous 20 engine.candles
-    final previousCandles = engine.candles
-        .sublist(engine.candles.length - 21, engine.candles.length - 1);
+    final previousCandles = engine.candles.sublist(
+      engine.candles.length - 21,
+      engine.candles.length - 1,
+    );
 
-    double avgRange = previousCandles.fold(
-          0.0,
-          (sum, c) => sum + (c.high - c.low),
-        ) /
+    double avgRange =
+        previousCandles.fold(0.0, (sum, c) => sum + (c.high - c.low)) /
         previousCandles.length;
 
     final currentRange = current.high - current.low;
@@ -357,9 +368,7 @@ class IndicatorUtils {
     return expansion;
   }
 
-  static int probabilityScore(
-    IndicatorEngine engine,
-  ) {
+  static int probabilityScore(IndicatorEngine engine) {
     if (engine.candles.length < 20) return 0;
 
     final current = engine.candles.last;
@@ -367,7 +376,8 @@ class IndicatorUtils {
     int score = 0;
 
     // 1. Relative Volume
-    final avgVol = engine.candles
+    final avgVol =
+        engine.candles
             .sublist(engine.candles.length - 11, engine.candles.length - 1)
             .fold<double>(0, (s, c) => s + c.volume) /
         10;
@@ -462,7 +472,8 @@ class IndicatorUtils {
     final move2Days = ((currentPrice - close2DaysAgo) / close2DaysAgo) * 100;
 
     // Average volume of last 20 days
-    final avgVolume20 = history
+    final avgVolume20 =
+        history
             .sublist(history.length - 20)
             .map((e) => e.volume)
             .reduce((a, b) => a + b) /
@@ -512,16 +523,12 @@ class IndicatorUtils {
 
     final efficiencyRatio = netMove / totalMove;
 
-    debugPrint(
-      "Efficiency Ratio = ${efficiencyRatio.toStringAsFixed(2)}",
-    );
+    debugPrint("Efficiency Ratio = ${efficiencyRatio.toStringAsFixed(2)}");
 
     return efficiencyRatio >= minEfficiency;
   }
 
-  static bool isAboveLast10DayHigh(
-    IndicatorEngine engine,
-  ) {
+  static bool isAboveLast10DayHigh(IndicatorEngine engine) {
     final dailyCandles = engine.dailyCandles;
 
     if (dailyCandles.length < 11) {
@@ -545,10 +552,7 @@ class IndicatorUtils {
   }
 
   /// ---------- EMA / SMA ----------
-  static IndicatorResult isCloseAboveEMA(
-    IndicatorEngine engine,
-    int period,
-  ) {
+  static IndicatorResult isCloseAboveEMA(IndicatorEngine engine, int period) {
     if (engine.candles.length < period) {
       return IndicatorResult(isPassed: false, value: null);
     }
@@ -664,10 +668,12 @@ class IndicatorUtils {
     final atrPct = atr / lastClose;
 
     // Adaptive range based on price bracket
-    final minPct =
-        lastClose < priceThreshold ? lowPriceMinPct : highPriceMinPct;
-    final maxPct =
-        lastClose < priceThreshold ? lowPriceMaxPct : highPriceMaxPct;
+    final minPct = lastClose < priceThreshold
+        ? lowPriceMinPct
+        : highPriceMinPct;
+    final maxPct = lastClose < priceThreshold
+        ? lowPriceMaxPct
+        : highPriceMaxPct;
 
     // ✅ Condition: ATR within ideal range + rising
     final inRange = atrPct >= minPct && atrPct <= maxPct;
@@ -719,7 +725,7 @@ class IndicatorUtils {
   static bool isCurrentCandleNotExtended(
     IndicatorEngine engine, {
     int atrPeriod = 14,
-    double multiplier = 1.5,
+    double multiplier = 1.8,
   }) {
     if (engine.candles.length <= atrPeriod) return false;
 
@@ -732,7 +738,7 @@ class IndicatorUtils {
     if (atr14List.isEmpty) return false;
     final currentAtr = atr14List.last;
     final candleSize = current.high - current.low;
-    if (candleSize > currentAtr * 1.5) return false;
+    if (candleSize > currentAtr * multiplier) return false;
     return true;
   }
 
@@ -758,8 +764,10 @@ class IndicatorUtils {
     if (distToEma > 0.03) return false;
 
     // 2. Current volume > 1.8 * average last 20 candles
-    final previous20 = engine.candles
-        .sublist(engine.candles.length - 21, engine.candles.length - 1);
+    final previous20 = engine.candles.sublist(
+      engine.candles.length - 21,
+      engine.candles.length - 1,
+    );
     double avgVol = previous20.fold(0.0, (sum, c) => sum + c.volume) / 20;
     if (current.volume <= 1.8 * avgVol) return false;
 
@@ -972,11 +980,13 @@ class IndicatorUtils {
         }
 
         if (supertrend[i - 1] == upperBand[i - 1]) {
-          supertrend[i] =
-              (closes[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
+          supertrend[i] = (closes[i] <= upperBand[i])
+              ? upperBand[i]
+              : lowerBand[i];
         } else {
-          supertrend[i] =
-              (closes[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
+          supertrend[i] = (closes[i] >= lowerBand[i])
+              ? lowerBand[i]
+              : upperBand[i];
         }
       }
     }
@@ -1059,11 +1069,13 @@ class IndicatorUtils {
         }
 
         if (supertrend[i - 1] == upperBand[i - 1]) {
-          supertrend[i] =
-              (closes[i] <= upperBand[i]) ? upperBand[i] : lowerBand[i];
+          supertrend[i] = (closes[i] <= upperBand[i])
+              ? upperBand[i]
+              : lowerBand[i];
         } else {
-          supertrend[i] =
-              (closes[i] >= lowerBand[i]) ? lowerBand[i] : upperBand[i];
+          supertrend[i] = (closes[i] >= lowerBand[i])
+              ? lowerBand[i]
+              : upperBand[i];
         }
       }
     }
@@ -1110,7 +1122,8 @@ class IndicatorUtils {
     for (int i = keys.length - 2; i >= keys.length - 4; i--) {
       final dayCandles = dayMap[keys[i]]!;
 
-      final dayAvg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+      final dayAvg =
+          dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
           dayCandles.length;
 
       totalAvg += dayAvg;
@@ -1136,27 +1149,24 @@ class IndicatorUtils {
 
     final otherAvgVolume =
         otherCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            otherCandles.length;
+        otherCandles.length;
 
     final otherCandlesAvgX = otherAvgVolume / prevAvg;
 
     // final has200k = has200KVolumeInLast3Candles(engine.candles);
 
     final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 1.5;
-    debugPrint("${engine.candles.last.timestamp} -> "
-        "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
-        "LastX: ${lastCandleX.toStringAsFixed(2)}, "
-        "OtherX: ${otherCandlesAvgX.toStringAsFixed(2)}");
-
-    return (
-      baseVolumeOk: spikePassed,
-      isVolumeSpike40x: spikePassed,
+    debugPrint(
+      "${engine.candles.last.timestamp} -> "
+      "3DayAvg: ${prevAvg.toStringAsFixed(0)}, "
+      "LastX: ${lastCandleX.toStringAsFixed(2)}, "
+      "OtherX: ${otherCandlesAvgX.toStringAsFixed(2)}",
     );
+
+    return (baseVolumeOk: spikePassed, isVolumeSpike40x: spikePassed);
   }
 
-  static bool isTodayVolumeAbove1000(
-    IndicatorEngine engine,
-  ) {
+  static bool isTodayVolumeAbove1000(IndicatorEngine engine) {
     if (engine.candles.isEmpty) return false;
 
     // sorted by engine
@@ -1199,14 +1209,14 @@ class IndicatorUtils {
     final prevDayCandles = dayMap[keys[keys.length - 2]]!;
     final prevAvg =
         prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            prevDayCandles.length;
+        prevDayCandles.length;
     if (prevAvg == 0) return 0.0;
 
     final otherCandles = todayCandles.sublist(1, todayCandles.length - 1);
     if (otherCandles.isEmpty) return 0.0;
     final otherAvgVolume =
         otherCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            otherCandles.length;
+        otherCandles.length;
 
     return otherAvgVolume / prevAvg;
   }
@@ -1229,12 +1239,12 @@ class IndicatorUtils {
     final prevDayCandles = dayMap[keys[keys.length - 2]]!;
     final prevAvg =
         prevDayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            prevDayCandles.length;
+        prevDayCandles.length;
     if (prevAvg == 0) return 0.0;
 
     final todayAvgVolume =
         todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
-            todayCandles.length;
+        todayCandles.length;
 
     return todayAvgVolume / prevAvg;
   }
@@ -1256,9 +1266,7 @@ class IndicatorUtils {
         todayCandles.length;
   }
 
-  static bool has200KVolumeInLast3Candles(
-    IndicatorEngine engine,
-  ) {
+  static bool has200KVolumeInLast3Candles(IndicatorEngine engine) {
     if (engine.candles.length < 3) return false;
 
     // sorted by engine
@@ -1295,12 +1303,13 @@ class IndicatorUtils {
     if (todayCandles.length < 3) return false;
 
     /// today engine.candles
-    final todayFiltered =
-        todayCandles.length > 3 ? todayCandles.toList() : todayCandles;
+    final todayFiltered = todayCandles.length > 3
+        ? todayCandles.toList()
+        : todayCandles;
 
     final todayAvg =
         todayFiltered.map((e) => e.volume).reduce((a, b) => a + b) /
-            todayFiltered.length;
+        todayFiltered.length;
 
     /// previous day avg volume
     double prevTotal = 0;
@@ -1309,7 +1318,8 @@ class IndicatorUtils {
     for (int i = keys.length - 2; i >= 0 && prevCount < 1; i--) {
       final dayCandles = dayMap[keys[i]]!;
 
-      final avg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+      final avg =
+          dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
           dayCandles.length;
 
       prevTotal += avg;
@@ -1339,8 +1349,9 @@ class IndicatorUtils {
     for (int i = keys.length - 2; i >= 0 && i >= keys.length - 6; i--) {
       final dayCandles = dayMap[keys[i]]!;
 
-      final dayHigh =
-          dayCandles.map((e) => e.high).reduce((a, b) => a > b ? a : b);
+      final dayHigh = dayCandles
+          .map((e) => e.high)
+          .reduce((a, b) => a > b ? a : b);
 
       if (dayHigh > fiveDayHigh) {
         fiveDayHigh = dayHigh;
@@ -1370,7 +1381,8 @@ class IndicatorUtils {
     if (engine.candles.last.timestamp.hour == 10 &&
         engine.candles.last.timestamp.minute == 10) {
       debugPrint(
-          "Checking Volume Breakout for ${engine.candles.last.timestamp}");
+        "Checking Volume Breakout for ${engine.candles.last.timestamp}",
+      );
     }
 
     // sorted by engine
@@ -1389,12 +1401,15 @@ class IndicatorUtils {
     final avg5 =
         volumes.sublist(volumes.length - 5).reduce((a, b) => a + b) / 5;
 
-    final strongCount =
-        volumes.sublist(volumes.length - 5).where((v) => v > avg20).length;
+    final strongCount = volumes
+        .sublist(volumes.length - 5)
+        .where((v) => v > avg20)
+        .length;
 
     final isSustain = strongCount >= 2;
 
-    var result = last > ema20! * 1.2 &&
+    var result =
+        last > ema20! * 1.2 &&
         last > avg20 * 1.5 &&
         last > avg5 * 1.5 &&
         isSustain;
@@ -1418,7 +1433,9 @@ class IndicatorUtils {
     final current = engine.candles.last;
 
     final history = engine.candles.sublist(
-        engine.candles.length - lookback - 1, engine.candles.length - 1);
+      engine.candles.length - lookback - 1,
+      engine.candles.length - 1,
+    );
 
     // Average Volume
     final avgVolume =
@@ -1435,8 +1452,9 @@ class IndicatorUtils {
     }
 
     // Highest Volume
-    final highestVolume =
-        history.map((e) => e.volume).reduce((a, b) => max(a, b));
+    final highestVolume = history
+        .map((e) => e.volume)
+        .reduce((a, b) => max(a, b));
 
     final isHighest = current.volume > highestVolume;
 
@@ -1538,7 +1556,8 @@ Final Score    : $score / 100
     /// ===============================
     /// TODAY AVG VOLUME
     /// ===============================
-    final todayAvg = todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+    final todayAvg =
+        todayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
         todayCandles.length;
 
     /// ===============================
@@ -1550,7 +1569,8 @@ Final Score    : $score / 100
     for (int i = keys.length - 2; i >= 0 && prevCount < 1; i--) {
       final dayCandles = dayMap[keys[i]]!;
 
-      final avg = dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+      final avg =
+          dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
           dayCandles.length;
 
       prevTotal += avg;
@@ -1599,7 +1619,8 @@ Final Score    : $score / 100
     final firstPart = todayCandles.take(4).toList();
     final lastPart = todayCandles.skip(todayCandles.length - 4).toList();
 
-    final earlyAvg = firstPart.map((e) => e.volume).reduce((a, b) => a + b) /
+    final earlyAvg =
+        firstPart.map((e) => e.volume).reduce((a, b) => a + b) /
         firstPart.length;
 
     final recentAvg =
@@ -1612,8 +1633,9 @@ Final Score    : $score / 100
     /// stock upper half me hona chahiye
     /// ===============================
     final range = dayHigh - dayLow;
-    final pricePositionPass =
-        range == 0 ? false : currentPrice > (dayLow + range * 0.60);
+    final pricePositionPass = range == 0
+        ? false
+        : currentPrice > (dayLow + range * 0.60);
 
     /// ===============================
     /// TREND CHECK
@@ -1674,9 +1696,7 @@ Final Score    : $score / 100
     return todayClose >= yHigh * (1.0 + pct);
   }
 
-  static bool isNotAbove10Percent(
-    IndicatorEngine engine,
-  ) {
+  static bool isNotAbove10Percent(IndicatorEngine engine) {
     // sorted by engine
 
     final grouped = engine.groupedByDate;
@@ -1690,8 +1710,9 @@ Final Score    : $score / 100
     final todayDate = dates.last;
     final todayCandles = grouped[todayDate]!;
 
-    final todayHigh =
-        todayCandles.map((e) => e.high).reduce((a, b) => a > b ? a : b);
+    final todayHigh = todayCandles
+        .map((e) => e.high)
+        .reduce((a, b) => a > b ? a : b);
 
     /// =========================
     /// YESTERDAY
@@ -1867,15 +1888,19 @@ Final Score    : $score / 100
     final nearEMA20 =
         price >= ema20 * (1 - tolerance) && price <= ema20 * (1 + tolerance);
 
-    final nearSupertrend = price >= supertrend * (1 - tolerance) &&
+    final nearSupertrend =
+        price >= supertrend * (1 - tolerance) &&
         price <= supertrend * (1 + tolerance);
 
     return nearEMA20 || nearSupertrend;
   }
 
   /// Checks if the average volume of the previous `period` engine.candles is > `minAvgVolume`
-  static bool hasHighAverageVolume(IndicatorEngine engine,
-      {int period = 5, double minAvgVolume = 50000}) {
+  static bool hasHighAverageVolume(
+    IndicatorEngine engine, {
+    int period = 5,
+    double minAvgVolume = 50000,
+  }) {
     if (engine.candles.length < period) return false;
 
     final lastCandles = engine.candles.sublist(engine.candles.length - period);
@@ -1902,7 +1927,8 @@ Final Score    : $score / 100
 
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay = lastWorking.year == now.year &&
+    final isWorkingDay =
+        lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
@@ -1939,8 +1965,10 @@ Final Score    : $score / 100
     final secondLastDayCandles = grouped[secondLastDate]!;
 
     // 3. add all engine.candles volume
-    final totalVolume =
-        secondLastDayCandles.fold<int>(0, (sum, c) => sum + c.volume);
+    final totalVolume = secondLastDayCandles.fold<int>(
+      0,
+      (sum, c) => sum + c.volume,
+    );
 
     // 4. should be greater then 1M
     return totalVolume > 1000000;
@@ -2052,13 +2080,15 @@ Final Score    : $score / 100
     final isGreen = close > open;
 
     // ===== EMA Pullback =====
-    final nearEMA20 = low >= ema20! * (1 - tolerance) &&
+    final nearEMA20 =
+        low >= ema20! * (1 - tolerance) &&
         low <= ema20 * (1 + tolerance) &&
         close > ema20 &&
         isGreen;
 
     // ===== Supertrend Pullback =====
-    final nearSupertrend = low >= supertrend * (1 - tolerance) &&
+    final nearSupertrend =
+        low >= supertrend * (1 - tolerance) &&
         low <= supertrend * (1 + tolerance) &&
         close > supertrend &&
         isGreen;
@@ -2093,9 +2123,7 @@ Final Score    : $score / 100
     return close > open;
   }
 
-  static bool isPreviousTradingDayVolumeAbove1M(
-    IndicatorEngine engine,
-  ) {
+  static bool isPreviousTradingDayVolumeAbove1M(IndicatorEngine engine) {
     if (engine.candles.isEmpty) return false;
 
     engine.candles.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -2103,11 +2131,7 @@ Final Score    : $score / 100
     final Map<DateTime, double> dayVolume = {};
 
     for (final c in engine.candles) {
-      final d = DateTime(
-        c.timestamp.year,
-        c.timestamp.month,
-        c.timestamp.day,
-      );
+      final d = DateTime(c.timestamp.year, c.timestamp.month, c.timestamp.day);
 
       dayVolume[d] = (dayVolume[d] ?? 0) + c.volume.toDouble();
     }
@@ -2145,9 +2169,7 @@ Final Score    : $score / 100
     double avgGain = gain / period;
     double avgLoss = loss / period;
 
-    rsi.add(
-      avgLoss == 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss))),
-    );
+    rsi.add(avgLoss == 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss))));
 
     for (int i = period + 1; i < closes.length; i++) {
       final diff = closes[i] - closes[i - 1];
@@ -2158,8 +2180,9 @@ Final Score    : $score / 100
       avgGain = ((avgGain * (period - 1)) + currentGain) / period;
       avgLoss = ((avgLoss * (period - 1)) + currentLoss) / period;
 
-      final value =
-          avgLoss == 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss)));
+      final value = avgLoss == 0
+          ? 100
+          : 100 - (100 / (1 + (avgGain / avgLoss)));
 
       rsi.add(value.toDouble());
     }

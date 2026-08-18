@@ -253,12 +253,13 @@ class _ChartScreenState extends State<ChartScreen> {
                   style: TextStyle(color: Colors.white70),
                 ),
               )
-            else
+            else if (_chartData.isNotEmpty)
               Column(
                 children: [
                   ValueListenableBuilder<ChartData?>(
                     valueListenable: _hoveredData,
                     builder: (context, hoveredData, _) {
+                      if (_chartData.isEmpty) return const SizedBox.shrink();
                       final data = hoveredData ?? _chartData.last;
 
                       // Calculate change percent relative to previous candle close

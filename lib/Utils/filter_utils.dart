@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
+import 'package:stock_demo/Utils/INdicators/support_resistance_engine.dart';
 import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
@@ -35,8 +36,12 @@ class FilterUtils {
     cachedIsCandleExtendedEnabled = await prefs.getIsCandleExtendedEnabled();
   }
 
-  static bool passesFilter(List<HistoricalDataModel> candles, String token,
-      {bool isHistoryCheck = false, bool niftyGreen = false}) {
+  static bool passesFilter(
+    List<HistoricalDataModel> candles,
+    String token, {
+    bool isHistoryCheck = false,
+    bool niftyGreen = false,
+  }) {
     if (candles.isEmpty) return false;
 
     if (!(candles.last.close > 30 && candles.last.close < 1000)) {
@@ -57,43 +62,44 @@ class FilterUtils {
       }
     }
 
-    // 0. Morning Volatility Check (9:15 to 9:40)
-    final today = candles.last.timestamp;
-    final morningCandles = candles
-        .where(
-          (c) =>
-              c.timestamp.year == today.year &&
-              c.timestamp.month == today.month &&
-              c.timestamp.day == today.day &&
-              c.timestamp.hour == 9 &&
-              c.timestamp.minute >= 15 &&
-              c.timestamp.minute <= 40,
-        )
-        .toList();
-    final totalMinutes =
-        candles.last.timestamp.hour * 60 + candles.last.timestamp.minute;
-
-    if (totalMinutes < 590 && morningCandles.isNotEmpty) {
-      if (morningCandles.isNotEmpty) {
-        double minLow = morningCandles.first.low;
-        double maxHigh = morningCandles.first.high;
-        for (var c in morningCandles) {
-          if (c.low < minLow) minLow = c.low;
-          if (c.high > maxHigh) maxHigh = c.high;
-        }
-        if ((maxHigh - minLow) / minLow * 100 > 7) {
-          debugPrint(
-              "Failed: $token at $timeStr - Reason: Morning volatility > 6%");
-          return false;
-        }
-      }
-    }
-
     // 1. Volume
     if (current.volume < 30000) return false;
 
-    // 3. RangeExpansion
-    if (IndicatorUtils.getRangeExpansion(engine) > 6) return false;
+    // // 3. RangeExpansion
+    // if (IndicatorUtils.getRangeExpansion(engine) > 6) return false;
+
+    // 0. Morning Volatility Check (9:15 to 9:40)
+    // final today = candles.last.timestamp;
+    // final morningCandles = candles
+    //     .where(
+    //       (c) =>
+    //           c.timestamp.year == today.year &&
+    //           c.timestamp.month == today.month &&
+    //           c.timestamp.day == today.day &&
+    //           c.timestamp.hour == 9 &&
+    //           c.timestamp.minute >= 15 &&
+    //           c.timestamp.minute <= 40,
+    //     )
+    //     .toList();
+    // final totalMinutes =
+    //     candles.last.timestamp.hour * 60 + candles.last.timestamp.minute;
+    //
+    // if (totalMinutes < 590 && morningCandles.isNotEmpty) {
+    //   if (morningCandles.isNotEmpty) {
+    //     double minLow = morningCandles.first.low;
+    //     double maxHigh = morningCandles.first.high;
+    //     for (var c in morningCandles) {
+    //       if (c.low < minLow) minLow = c.low;
+    //       if (c.high > maxHigh) maxHigh = c.high;
+    //     }
+    //     if ((maxHigh - minLow) / minLow * 100 > 7) {
+    //       debugPrint(
+    //         "Failed: $token at $timeStr - Reason: Morning volatility > 6%",
+    //       );
+    //       return false;
+    //     }
+    //   }
+    // }
 
     // 4. PriceChange
     if (!IndicatorUtils.isNotAbove10Percent(engine)) return false;
@@ -134,10 +140,9 @@ class FilterUtils {
     }
 
     // 11. Nifty Green condition -> Candle Extended Check
-    if (niftyGreen) {
-      if (!IndicatorUtils.isCurrentCandleNotExtended(engine)) {
-        return false;
-      }
+    if (!IndicatorUtils.isCurrentCandleNotExtended(engine)) {
+      debugPrint("Failed: $token at $timeStr - Reason: Over extended candle");
+      return false;
     }
     return true;
   }
@@ -196,7 +201,8 @@ class FilterUtils {
           ((candles.last.close - supertrend) / supertrend) * 100;
       if (distanceSupertrend > 5) {
         debugPrint(
-            "Reject $token: Distance from Supertrend >5% ($distanceSupertrend%)");
+          "Reject $token: Distance from Supertrend >5% ($distanceSupertrend%)",
+        );
         return true;
       }
     }
@@ -232,7 +238,8 @@ class FilterUtils {
     }
     if (consecutiveGreen >= 4) {
       debugPrint(
-          "Reject $token: 4+ consecutive green candles ($consecutiveGreen)");
+        "Reject $token: 4+ consecutive green candles ($consecutiveGreen)",
+      );
       return true;
     }
 
@@ -240,7 +247,8 @@ class FilterUtils {
     final lastCandle = candles[candles.length - 2];
     if (candles.last.close <= lastCandle.high) {
       debugPrint(
-          "Reject $token: Current candle close (${candles.last.close}) is not above last candle high (${lastCandle.high})");
+        "Reject $token: Current candle close (${candles.last.close}) is not above last candle high (${lastCandle.high})",
+      );
       return true;
     }
 
@@ -322,7 +330,8 @@ class FilterUtils {
 
   /// 🔹 Get the last fully closed 5-minute candle
   static HistoricalDataModel getLastClosed5MinCandle(
-      List<HistoricalDataModel> candles) {
+    List<HistoricalDataModel> candles,
+  ) {
     if (candles.isEmpty) throw Exception("Empty candles list");
     final now = DateTime.now();
     if (now.difference(candles.last.timestamp).inMinutes < 5 &&
@@ -333,8 +342,10 @@ class FilterUtils {
   }
 
   /// 🔹 Check if stock is near 20EMA or Supertrend on 5m (Buying zone)
-  static String? isNearBuyingZone5Min(List<HistoricalDataModel> allCandles,
-      {double threshold = 0.0050}) {
+  static String? isNearBuyingZone5Min(
+    List<HistoricalDataModel> allCandles, {
+    double threshold = 0.0050,
+  }) {
     if (allCandles.length < 20) return null;
 
     // Use only closed candles
@@ -402,9 +413,10 @@ class FilterUtils {
 
     // Supertrend calculation
     final stRes = IndicatorUtils.isCloseAboveSupertrend(
-        IndicatorEngine(candles),
-        atrPeriod: 10,
-        multiplier: 3);
+      IndicatorEngine(candles),
+      atrPeriod: 10,
+      multiplier: 3,
+    );
     if (stRes.value != null && stRes.value! > 0) {
       final stValue = stRes.value!;
       final distanceToSt = ((currentLow - stValue).abs() / stValue);
@@ -419,8 +431,11 @@ class FilterUtils {
     List<HistoricalDataModel>? historyCandles,
     StockModel stock,
   ) async {
-    final is5MinPass =
-        isPassHistoryChart(historyCandles, stock.token.toString(), 5);
+    final is5MinPass = isPassHistoryChart(
+      historyCandles,
+      stock.token.toString(),
+      5,
+    );
     if (!is5MinPass) return false;
 
     final is15MinPass = isPassHistoryChart(
@@ -460,7 +475,8 @@ class FilterUtils {
     // );
     // if (!isDayPass) return false;
     final isPattern = BullishPatternDetector.detect(
-        Utilities.convertToDaily(historyCandles ?? []));
+      Utilities.convertToDaily(historyCandles ?? []),
+    );
     debugPrint(isPattern.name);
     if (!isPattern.found) {
       return false;
@@ -479,23 +495,28 @@ class FilterUtils {
 
     switch (timeFrame) {
       case 5:
-        bool isPass = passesFilter(historyCandles, token.toString(),
-            isHistoryCheck: true);
+        bool isPass = passesFilter(
+          historyCandles,
+          token.toString(),
+          isHistoryCheck: true,
+        );
         return isPass;
 
       case 15:
         bool isAboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-                IndicatorEngine(historyCandles))
-            .isPassed;
-        bool isEMA20 =
-            IndicatorUtils.isCloseAboveEMA(IndicatorEngine(historyCandles), 20)
-                .isPassed;
+          IndicatorEngine(historyCandles),
+        ).isPassed;
+        bool isEMA20 = IndicatorUtils.isCloseAboveEMA(
+          IndicatorEngine(historyCandles),
+          20,
+        ).isPassed;
         return isAboveSupertrend && isEMA20;
 
       case 1:
-        bool isEMA20 =
-            IndicatorUtils.isCloseAboveEMA(IndicatorEngine(historyCandles), 20)
-                .isPassed;
+        bool isEMA20 = IndicatorUtils.isCloseAboveEMA(
+          IndicatorEngine(historyCandles),
+          20,
+        ).isPassed;
         bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
           IndicatorEngine(historyCandles),
           atrPeriod: 10,
@@ -554,7 +575,8 @@ class FilterUtils {
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
 
-    final isWorkingDay = lastWorking.year == now.year &&
+    final isWorkingDay =
+        lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
@@ -596,7 +618,8 @@ class FilterUtils {
     // skip the volume check.
     final now = DateTime.now();
     final lastWorking = Utilities.getLastWorkingDay(now);
-    final isWorkingDay = lastWorking.year == now.year &&
+    final isWorkingDay =
+        lastWorking.year == now.year &&
         lastWorking.month == now.month &&
         lastWorking.day == now.day;
 
@@ -611,10 +634,7 @@ class FilterUtils {
     if (daily.length < 10) return 0.0;
 
     final recent5 = daily.sublist(daily.length - 5);
-    final prev5 = daily.sublist(
-      daily.length - 10,
-      daily.length - 5,
-    );
+    final prev5 = daily.sublist(daily.length - 10, daily.length - 5);
 
     final recentAvgVolume =
         recent5.map((e) => e.volume).reduce((a, b) => a + b) / recent5.length;
@@ -626,9 +646,7 @@ class FilterUtils {
     return recentAvgVolume / prevAvgVolume;
   }
 
-  static int getIntradayMomentumScore(
-    List<HistoricalDataModel> candles,
-  ) {
+  static int getIntradayMomentumScore(List<HistoricalDataModel> candles) {
     if (candles.length < 50) return 0;
 
     CandleUtils.sortByTime(candles);
@@ -757,9 +775,7 @@ class FilterUtils {
     return score;
   }
 
-  static int getSmartPriceActionScore(
-    List<HistoricalDataModel> candles,
-  ) {
+  static int getSmartPriceActionScore(List<HistoricalDataModel> candles) {
     if (candles.isEmpty) return 0;
 
     final groupedByDate = CandleUtils.groupByDate(candles);
@@ -846,10 +862,7 @@ class FilterUtils {
 
     final recent5 = daily.sublist(daily.length - 5);
 
-    final prev5 = daily.sublist(
-      daily.length - 10,
-      daily.length - 5,
-    );
+    final prev5 = daily.sublist(daily.length - 10, daily.length - 5);
 
     final recentAvgVolume =
         recent5.map((e) => e.volume).reduce((a, b) => a + b) / recent5.length;
@@ -978,7 +991,8 @@ class FilterUtils {
     // Late entries avoid
     // =========================================================
 
-    final gapPct = ((open - daily[daily.length - 2].close) /
+    final gapPct =
+        ((open - daily[daily.length - 2].close) /
             daily[daily.length - 2].close) *
         100;
 
@@ -1006,16 +1020,20 @@ class FilterUtils {
 
   /// 🔹 Calculates accuracy of the 1st Buy Alert for the current day
   static Future<Map<String, dynamic>?> calculateBuyAlertAccuracy(
-      List<HistoricalDataModel> history, String token,
-      {bool useRadarAlert = false}) async {
+    List<HistoricalDataModel> history,
+    String token, {
+    bool useRadarAlert = false,
+  }) async {
     if (history.isEmpty) return null;
 
     final targetDate = history.last.timestamp;
     List<HistoricalDataModel> todayCandles = history
-        .where((c) =>
-            c.timestamp.year == targetDate.year &&
-            c.timestamp.month == targetDate.month &&
-            c.timestamp.day == targetDate.day)
+        .where(
+          (c) =>
+              c.timestamp.year == targetDate.year &&
+              c.timestamp.month == targetDate.month &&
+              c.timestamp.day == targetDate.day,
+        )
         .toList();
 
     if (todayCandles.isEmpty) return null;
@@ -1036,27 +1054,34 @@ class FilterUtils {
       int globalIndex = history.indexOf(todayCandles[i]);
       if (globalIndex < 20) continue; // Need minimum data for EMA
 
-      List<HistoricalDataModel> historySoFar =
-          history.sublist(0, globalIndex + 1);
+      List<HistoricalDataModel> historySoFar = history.sublist(
+        0,
+        globalIndex + 1,
+      );
 
       if (!hasPassedRadar) {
-        hasPassedRadar =
-            passesFilter(historySoFar, token, isHistoryCheck: true);
+        hasPassedRadar = passesFilter(
+          historySoFar,
+          token,
+          isHistoryCheck: true,
+        );
       }
 
       if (hasPassedRadar) {
         if (useRadarAlert) {
           // Trigger entry on the exact candle that passed the radar
-          HistoricalDataModel targetCandle =
-              getLastClosed5MinCandle(historySoFar);
+          HistoricalDataModel targetCandle = getLastClosed5MinCandle(
+            historySoFar,
+          );
 
           if (targetCandle.timestamp.day == targetDate.day) {
             alertCandle = targetCandle;
             entryPrice = targetCandle.close;
             final stRes = IndicatorUtils.isCloseAboveSupertrend(
-                IndicatorEngine(historySoFar),
-                atrPeriod: cachedSupertrendPeriod,
-                multiplier: cachedSupertrendMultiplier);
+              IndicatorEngine(historySoFar),
+              atrPeriod: cachedSupertrendPeriod,
+              multiplier: cachedSupertrendMultiplier,
+            );
             supertrendValue = stRes.value != null ? stRes.value! * 0.998 : null;
             atrValue = IndicatorUtils.atrLast(
               historySoFar.map((e) => e.high).toList(),
@@ -1069,8 +1094,9 @@ class FilterUtils {
         } else {
           String? isNearReason = isNearBuyingZone5Min(historySoFar);
           if (isNearReason != null) {
-            HistoricalDataModel targetCandle =
-                getLastClosed5MinCandle(historySoFar);
+            HistoricalDataModel targetCandle = getLastClosed5MinCandle(
+              historySoFar,
+            );
 
             if (targetCandle.timestamp.day == targetDate.day) {
               alertCandle = targetCandle;
@@ -1078,11 +1104,13 @@ class FilterUtils {
 
               // Need supertrend value at this point
               final stRes = IndicatorUtils.isCloseAboveSupertrend(
-                  IndicatorEngine(historySoFar),
-                  atrPeriod: cachedSupertrendPeriod,
-                  multiplier: cachedSupertrendMultiplier);
-              supertrendValue =
-                  stRes.value != null ? stRes.value! * 0.998 : null;
+                IndicatorEngine(historySoFar),
+                atrPeriod: cachedSupertrendPeriod,
+                multiplier: cachedSupertrendMultiplier,
+              );
+              supertrendValue = stRes.value != null
+                  ? stRes.value! * 0.998
+                  : null;
               atrValue = IndicatorUtils.atrLast(
                 historySoFar.map((e) => e.high).toList(),
                 historySoFar.map((e) => e.low).toList(),
@@ -1126,7 +1154,12 @@ class FilterUtils {
         final hour = int.tryParse(parts[0]) ?? 15;
         final minute = int.tryParse(parts[1]) ?? 15;
         squareOffDateTime = DateTime(
-            targetDate.year, targetDate.month, targetDate.day, hour, minute);
+          targetDate.year,
+          targetDate.month,
+          targetDate.day,
+          hour,
+          minute,
+        );
       }
     }
     // Try to fetch 1-minute historical data

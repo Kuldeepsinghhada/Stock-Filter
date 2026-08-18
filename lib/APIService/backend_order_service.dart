@@ -9,7 +9,7 @@ import 'package:stock_demo/model/passed_daily_stock_model.dart';
 import 'package:stock_demo/model/server_setting_model.dart';
 
 class BackendOrderService {
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = 'http://200.97.163.130:8080';
   // LOCAL:  http://localhost:8080
   // LIVE http://200.97.163.130:8080
   /// Health Check
@@ -229,6 +229,61 @@ class BackendOrderService {
       }
     } catch (e) {
       print("Error calling backtest API: $e");
+    }
+    return null;
+  }
+
+  /// Download Backtest JSON via Backend API
+  static Future<String?> downloadBacktestJson({
+    String? startDate,
+    String? endDate,
+  }) async {
+    String urlStr = '$baseUrl/api/backtest/download-json';
+    List<String> queryParams = [];
+    if (startDate != null && startDate.isNotEmpty) {
+      queryParams.add('start_date=$startDate');
+    }
+    if (endDate != null && endDate.isNotEmpty) {
+      queryParams.add('end_date=$endDate');
+    }
+    if (queryParams.isNotEmpty) {
+      urlStr += '?${queryParams.join('&')}';
+    }
+    final url = Uri.parse(urlStr);
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+
+    try {
+      final response = await http.get(url, headers: headers);
+      if (response.statusCode == 200) {
+        String body = response.body.trim();
+        if (body.isNotEmpty && body != '[]' && body != 'null') {
+          return body;
+        }
+      }
+    } catch (e) {
+      print("Error calling download backtest JSON API: $e");
+    }
+
+    // Fallback: If /api/backtest/download-json returns empty [], fetch from /api/backtest
+    try {
+      if (startDate != null &&
+          endDate != null &&
+          startDate.isNotEmpty &&
+          endDate.isNotEmpty) {
+        final fallbackUrl = Uri.parse(
+          '$baseUrl/api/backtest?start_date=$startDate&end_date=$endDate',
+        );
+        final fallbackResponse = await http.get(fallbackUrl, headers: headers);
+        if (fallbackResponse.statusCode == 200 &&
+            fallbackResponse.body.trim().isNotEmpty) {
+          return fallbackResponse.body;
+        }
+      }
+    } catch (e) {
+      print("Error fetching fallback backtest JSON: $e");
     }
     return null;
   }

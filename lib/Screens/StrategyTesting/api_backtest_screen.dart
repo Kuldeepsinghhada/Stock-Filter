@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
+import 'package:stock_demo/model/stock_model.dart';
+import 'package:stock_demo/Screens/Chart/chart_screen.dart';
+import 'package:stock_demo/Utils/data_manager.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Widgets/app_drawer.dart';
+import 'package:stock_demo/Utils/file_downloader.dart';
 
 class ApiBacktestScreen extends StatefulWidget {
   const ApiBacktestScreen({super.key});
@@ -17,9 +21,11 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
   DateTime _endDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 15);
   TimeOfDay _endTime = const TimeOfDay(hour: 15, minute: 30);
-  final TextEditingController _maxTradesController =
-      TextEditingController(text: '5');
+  final TextEditingController _maxTradesController = TextEditingController(
+    text: '5',
+  );
   bool _isLoading = false;
+  bool _isDownloading = false;
   bool _forceUpdate = false;
   ApiBacktestData? _cachedData;
   ApiBacktestSummary? _summary;
@@ -27,7 +33,9 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
 
   // Custom groupBy function
   Map<String, List<ApiBacktestTrade>> _groupBy(
-      List<ApiBacktestTrade> list, String Function(ApiBacktestTrade) keyFunc) {
+    List<ApiBacktestTrade> list,
+    String Function(ApiBacktestTrade) keyFunc,
+  ) {
     Map<String, List<ApiBacktestTrade>> map = {};
     for (var item in list) {
       var key = keyFunc(item);
@@ -100,8 +108,10 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       int? maxTrades = int.tryParse(_maxTradesController.text);
 
       var filteredTrades = _cachedData!.trades.where((trade) {
-        String cleanName =
-            trade.stockName.replaceAll("NSE:", "").split("-").first;
+        String cleanName = trade.stockName
+            .replaceAll("NSE:", "")
+            .split("-")
+            .first;
         if (Utilities.blockedSymbols.contains(cleanName)) {
           return false;
         }
@@ -128,6 +138,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       int losses = 0;
       int targetHits = 0;
       int stoplossHits = 0;
+      int trailingSlHits = 0;
       int squareOffHits = 0;
       double totalPnl = 0.0;
 
@@ -137,8 +148,9 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
         var dateTrades = entry.value;
 
         // Sort chronologically
-        dateTrades
-            .sort((a, b) => (a.entryTime ?? '').compareTo(b.entryTime ?? ''));
+        dateTrades.sort(
+          (a, b) => (a.entryTime ?? '').compareTo(b.entryTime ?? ''),
+        );
 
         // Apply max trades filter per day
         if (maxTrades != null && dateTrades.length > maxTrades) {
@@ -157,7 +169,16 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
           totalPnl += trade.pnlPercent;
 
           String reason = trade.exitReason.toLowerCase().trim();
-          if (reason.contains('target') || reason.contains('tgt')) {
+          String status = (trade.status ?? '').toLowerCase().trim();
+
+          if (reason.contains('trailing') ||
+              reason.contains('tsl') ||
+              reason.contains('trail') ||
+              status.contains('trailing') ||
+              status.contains('tsl') ||
+              status.contains('trail')) {
+            trailingSlHits++;
+          } else if (reason.contains('target') || reason.contains('tgt')) {
             targetHits++;
           } else if (reason.contains('stoploss') ||
               reason.contains('stop loss') ||
@@ -190,6 +211,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
         losses: losses,
         targetHits: targetHits,
         stoplossHits: stoplossHits,
+        trailingSlHits: trailingSlHits,
         squareOffHits: squareOffHits,
         accuracy: accuracy,
         totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
@@ -207,8 +229,11 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     });
 
     try {
-      var result = await BackendOrderService.runBacktest(startStr, endStr,
-          force: _forceUpdate);
+      var result = await BackendOrderService.runBacktest(
+        startStr,
+        endStr,
+        force: _forceUpdate,
+      );
       if (result != null && result.success) {
         if (result.data != null) {
           _cachedData = result.data;
@@ -218,20 +243,73 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text(result?.message ?? 'Failed to run backtest')),
+              content: Text(result?.message ?? 'Failed to run backtest'),
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadJson() async {
+    String startStr = DateFormat('yyyy-MM-dd').format(_startDate);
+    String endStr = DateFormat('yyyy-MM-dd').format(_endDate);
+
+    setState(() {
+      _isDownloading = true;
+    });
+
+    try {
+      String? jsonContent = await BackendOrderService.downloadBacktestJson(
+        startDate: startStr,
+        endDate: endStr,
+      );
+
+      if (jsonContent != null && jsonContent.isNotEmpty) {
+        String fileName = "backtest_${startStr}_to_$endStr.json";
+        String saveMessage = await FileDownloader.downloadFile(
+          content: jsonContent,
+          filename: fileName,
+        );
+        print("File saved path: $saveMessage");
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(saveMessage),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to download backtest JSON')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error downloading file: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
         });
       }
     }
@@ -248,6 +326,20 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       appBar: AppBar(
         title: const Text('API Backtest'),
         actions: [
+          IconButton(
+            icon: _isDownloading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.download),
+            tooltip: 'Download Backtest JSON',
+            onPressed: _isDownloading ? null : _downloadJson,
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -296,8 +388,10 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Start Date',
                         border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                       ),
                       child: Text(DateFormat('yyyy-MM-dd').format(_startDate)),
                     ),
@@ -311,8 +405,10 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       decoration: const InputDecoration(
                         labelText: 'End Date',
                         border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                       ),
                       child: Text(DateFormat('yyyy-MM-dd').format(_endDate)),
                     ),
@@ -330,8 +426,10 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Start Time',
                         border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                       ),
                       child: Text(_startTime.format(context)),
                     ),
@@ -345,8 +443,10 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       decoration: const InputDecoration(
                         labelText: 'End Time',
                         border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                       ),
                       child: Text(_endTime.format(context)),
                     ),
@@ -361,8 +461,31 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Max Trades',
                       border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _isDownloading ? null : _downloadJson,
+                  icon: _isDownloading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.download, size: 18),
+                  label: const Text('Download JSON'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
                     ),
                   ),
                 ),
@@ -376,23 +499,36 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
                     children: [
-                      Text("Total PnL: ${_summary!.totalPnlPercent}",
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Colors.blue)),
+                      Text(
+                        "Total PnL: ${_summary!.totalPnlPercent}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Colors.blue,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           _buildSummaryItem(
-                              "Total", "${_summary!.totalTrades}"),
+                            "Total",
+                            "${_summary!.totalTrades}",
+                          ),
                           _buildSummaryItem(
-                              "Wins", "${_summary!.wins}", Colors.green),
+                            "Wins",
+                            "${_summary!.wins}",
+                            Colors.green,
+                          ),
                           _buildSummaryItem(
-                              "Losses", "${_summary!.losses}", Colors.red),
+                            "Losses",
+                            "${_summary!.losses}",
+                            Colors.red,
+                          ),
                           _buildSummaryItem(
-                              "Accuracy", "${_summary!.accuracy}"),
+                            "Accuracy",
+                            "${_summary!.accuracy}",
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -401,12 +537,26 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildSummaryItem("Target Hit",
-                              "${_summary!.targetHits}", Colors.green),
-                          _buildSummaryItem("Stoploss Hit",
-                              "${_summary!.stoplossHits}", Colors.red),
-                          _buildSummaryItem("Square Off",
-                              "${_summary!.squareOffHits}", Colors.orange),
+                          _buildSummaryItem(
+                            "Target Hit",
+                            "${_summary!.targetHits}",
+                            Colors.green,
+                          ),
+                          _buildSummaryItem(
+                            "Stoploss Hit",
+                            "${_summary!.stoplossHits}",
+                            Colors.red,
+                          ),
+                          _buildSummaryItem(
+                            "Trailing SL",
+                            "${_summary!.trailingSlHits}",
+                            Colors.blueAccent,
+                          ),
+                          _buildSummaryItem(
+                            "Square Off",
+                            "${_summary!.squareOffHits}",
+                            Colors.orange,
+                          ),
                         ],
                       ),
                     ],
@@ -425,14 +575,18 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                             _groupedTrades[dateStr]!;
 
                         double dailyPnL = dateTrades.fold(
-                            0.0, (sum, trade) => sum + trade.pnlPercent);
+                          0.0,
+                          (sum, trade) => sum + trade.pnlPercent,
+                        );
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
                               padding: const EdgeInsets.symmetric(
-                                  vertical: 8.0, horizontal: 4.0),
+                                vertical: 8.0,
+                                horizontal: 4.0,
+                              ),
                               child: Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -440,18 +594,20 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                   Text(
                                     dateStr,
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: Colors.grey),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                   Text(
                                     "${dailyPnL >= 0 ? '+' : ''}${dailyPnL.toStringAsFixed(2)}%",
                                     style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: dailyPnL >= 0
-                                            ? Colors.green
-                                            : Colors.red),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: dailyPnL >= 0
+                                          ? Colors.green
+                                          : Colors.red,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -460,13 +616,56 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                               bool isProfit = trade.pnlPercent > 0;
                               String timeStr = trade.entryTime != null
                                   ? trade.entryTime!
-                                      .split('T')
-                                      .last
-                                      .substring(0, 5)
+                                        .split('T')
+                                        .last
+                                        .substring(0, 5)
                                   : '';
                               return Card(
                                 margin: const EdgeInsets.symmetric(vertical: 4),
                                 child: ListTile(
+                                  onTap: () {
+                                    String cleanName = trade.stockName
+                                        .replaceAll("NSE:", "")
+                                        .split("-")
+                                        .first
+                                        .trim();
+                                    StockModel stock = DataManager
+                                        .instance
+                                        .stocksList
+                                        .firstWhere(
+                                          (s) =>
+                                              (s.symbol != null &&
+                                                  (s.symbol == cleanName ||
+                                                      s.symbol!
+                                                              .replaceAll(
+                                                                "NSE:",
+                                                                "",
+                                                              )
+                                                              .split("-")
+                                                              .first ==
+                                                          cleanName)) ||
+                                              (s.token != null &&
+                                                  s.token.toString() ==
+                                                      trade.token.toString()),
+                                          orElse: () => StockModel(
+                                            symbol: cleanName.isNotEmpty
+                                                ? cleanName
+                                                : trade.token,
+                                            name: cleanName.isNotEmpty
+                                                ? cleanName
+                                                : trade.token,
+                                            token: trade.token,
+                                          ),
+                                        );
+
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            ChartScreen(stock: stock),
+                                      ),
+                                    );
+                                  },
                                   leading: Icon(
                                     isProfit
                                         ? Icons.check_circle
@@ -476,7 +675,8 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                   title: Text(
                                     "${trade.stockName.isNotEmpty ? trade.stockName : 'Token: ${trade.token}'} - ${trade.exitReason}",
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                   subtitle: Text(
                                     "Entry: ${trade.entryPrice} | Exit: ${trade.exitPrice}\nPnL: ${trade.pnlPercent.toStringAsFixed(2)}%",
@@ -505,9 +705,14 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     return Column(
       children: [
         Text(label),
-        Text(value,
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: color,
+          ),
+        ),
       ],
     );
   }
