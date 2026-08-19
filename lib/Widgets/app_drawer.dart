@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:stock_demo/Screens/PreFilteredStocks/pre_stocks_screen.dart';
-import 'package:stock_demo/Screens/SearchStocks/search_stocks_screen.dart';
 import 'package:stock_demo/Screens/Settings/server_setting_screen.dart';
 import 'package:stock_demo/Screens/Settings/settings_screen.dart';
 import 'package:stock_demo/Screens/Settings/trade_setting_screen.dart';
 import 'package:stock_demo/Screens/StrategyTesting/api_backtest_screen.dart';
+import 'package:stock_demo/Screens/SearchStocks/stock_5min_history_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -47,6 +46,20 @@ class AppDrawer extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          // 5-Min History Check
+          ListTile(
+            leading: const Icon(Icons.history, color: Colors.lightBlueAccent),
+            title: const Text('Check 5-Min History'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const Stock5MinHistoryScreen(),
+                ),
+              );
+            },
           ),
           // Backtest
           ListTile(

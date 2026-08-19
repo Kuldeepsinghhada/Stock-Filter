@@ -7,6 +7,7 @@ import 'package:stock_demo/model/executed_order.dart';
 import 'package:stock_demo/model/api_backtest_model.dart';
 import 'package:stock_demo/model/passed_daily_stock_model.dart';
 import 'package:stock_demo/model/server_setting_model.dart';
+import 'package:stock_demo/model/check_stock_5min_history_model.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -315,6 +316,49 @@ class BackendOrderService {
     } catch (e) {
       log("Error calling passedDailyTimeframeStocks API: $e");
       return PassedDailyResponse(
+        success: false,
+        message: "Error connecting to server: $e",
+      );
+    }
+  }
+
+  /// Check Stock 5-Minute History (POST /api/checkStock5MinHistory)
+  static Future<CheckStock5MinHistoryResponse> checkStock5MinHistory(
+    String symbol,
+    String date,
+  ) async {
+    final url = Uri.parse('$baseUrl/api/checkStock5MinHistory');
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+    final body = jsonEncode({
+      "symbol": symbol.replaceAll("NSE:", "").replaceAll("BSE:", "").trim(),
+      "date": date.trim(),
+    });
+
+    try {
+      final response = await http.post(url, headers: headers, body: body);
+      log("POST /api/checkStock5MinHistory status: ${response.statusCode}");
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return CheckStock5MinHistoryResponse.fromJson(decoded);
+      } else {
+        String errMsg = "Failed to fetch 5-min history (Status: ${response.statusCode})";
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded['message'] != null) {
+            errMsg = decoded['message'].toString();
+          }
+        } catch (_) {}
+        return CheckStock5MinHistoryResponse(
+          success: false,
+          message: errMsg,
+        );
+      }
+    } catch (e) {
+      log("Error calling checkStock5MinHistory API: $e");
+      return CheckStock5MinHistoryResponse(
         success: false,
         message: "Error connecting to server: $e",
       );

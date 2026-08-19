@@ -36,7 +36,10 @@ class FilterUtils {
     cachedIsCandleExtendedEnabled = await prefs.getIsCandleExtendedEnabled();
   }
 
-  static List<double> _atrSeries(List<HistoricalDataModel> candles, int period) {
+  static List<double> _atrSeries(
+    List<HistoricalDataModel> candles,
+    int period,
+  ) {
     final n = candles.length;
     if (n < period + 1) return [];
 
@@ -180,7 +183,9 @@ class FilterUtils {
     if (prevAvg <= 0) {
       final dayMap = <int, List<HistoricalDataModel>>{};
       for (var c in candles) {
-        final d = c.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+        final d = c.timestamp.toUtc().add(
+          const Duration(hours: 5, minutes: 30),
+        );
         final key = d.year * 10000 + d.month * 100 + d.day;
         dayMap.putIfAbsent(key, () => []).add(c);
       }
@@ -211,11 +216,18 @@ class FilterUtils {
     final lastCandleX = lastCandle.volume / prevAvg;
     if (lastCandleX < 20.0) return false;
 
-    final lastIst = lastCandle.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+    final lastIst = lastCandle.timestamp.toUtc().add(
+      const Duration(hours: 5, minutes: 30),
+    );
     for (int idx = candles.length - 2; idx >= 0; idx--) {
       final c = candles[idx];
-      final cIst = c.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
-      if (cIst.day != lastIst.day || cIst.month != lastIst.month || cIst.year != lastIst.year) break;
+      final cIst = c.timestamp.toUtc().add(
+        const Duration(hours: 5, minutes: 30),
+      );
+      if (cIst.day != lastIst.day ||
+          cIst.month != lastIst.month ||
+          cIst.year != lastIst.year)
+        break;
       if ((c.volume / prevAvg) >= 10.0) {
         return true;
       }
@@ -362,7 +374,8 @@ class FilterUtils {
       final prevDailySupertrend = effectiveDailyCandles.last.supertrend ?? 0.0;
       final dailyEma20 = effectiveDailyCandles.last.ema20;
 
-      final isAboveDailySTAndEma = prevDailySupertrend > 0 &&
+      final isAboveDailySTAndEma =
+          prevDailySupertrend > 0 &&
           candles.last.close > prevDailySupertrend &&
           (dailyEma20 == null || candles.last.close > dailyEma20);
 
@@ -434,6 +447,7 @@ class FilterUtils {
     if (!isCurrentCandleNotExtended(candles)) {
       return false;
     }
+    print("Stock: $token passed all filters.$lastTime");
 
     return true;
   }

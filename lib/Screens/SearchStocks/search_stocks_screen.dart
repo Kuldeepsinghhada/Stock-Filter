@@ -8,6 +8,8 @@ import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'stock_candle_check_screen.dart';
 
+import 'stock_5min_history_screen.dart';
+
 class SearchStocksScreen extends StatefulWidget {
   const SearchStocksScreen({super.key});
 
@@ -71,8 +73,9 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
           DataManager.instance.preFilteredStocksList,
         );
       } else {
-        _filteredList =
-            DataManager.instance.preFilteredStocksList.where((item) {
+        _filteredList = DataManager.instance.preFilteredStocksList.where((
+          item,
+        ) {
           final symbol = (item.symbol ?? '').toLowerCase();
           return symbol.contains(q);
         }).toList();
@@ -83,8 +86,8 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
   }
 
   getSavedTokenList() async {
-    notificationList =
-        await SharedPreferenceHelper.instance.getNotificationList();
+    notificationList = await SharedPreferenceHelper.instance
+        .getNotificationList();
     setState(() {});
   }
 
@@ -100,6 +103,18 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
       appBar: AppBar(
         title: const Text('Search Stocks'),
         actions: [
+          IconButton(
+            tooltip: 'Check 5-Min History',
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const Stock5MinHistoryScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Passed Daily Stocks',
             icon: const Icon(Icons.fact_check_outlined),
@@ -179,8 +194,8 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                       var nIndex = notificationList.indexWhere(
                         (item) =>
                             item.stocksNameList?.toUpperCase().contains(
-                                  obj.symbol!.toUpperCase(),
-                                ) ??
+                              obj.symbol!.toUpperCase(),
+                            ) ??
                             false,
                       );
 
@@ -194,32 +209,56 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                           style: const TextStyle(fontSize: 18),
                         ),
                         dense: true,
-                        trailing: IconButton(
-                          onPressed: () {
-                            if (nIndex != -1) {
-                              notificationList.removeAt(nIndex);
-                            } else {
-                              notificationList.add(
-                                NotificationModel(
-                                  stocksNameList: obj.symbol,
-                                  time: Utilities.formatDDMMMHHMMDateTime(
-                                      DateTime.now()),
-                                ),
-                              );
-                            }
-                            SharedPreferenceHelper.instance
-                                .saveNotificationList(notificationList);
-                            setState(() {});
-                          },
-                          icon: nIndex != -1
-                              ? Icon(
-                                  Icons.remove_circle_outline,
-                                  color: Colors.red,
-                                )
-                              : Icon(
-                                  Icons.add_circle_outline,
-                                  color: Colors.green,
-                                ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.history,
+                                color: Colors.blueAccent,
+                              ),
+                              tooltip: 'Server 5-Min History',
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        Stock5MinHistoryScreen(
+                                          initialSymbol: obj.symbol,
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                if (nIndex != -1) {
+                                  notificationList.removeAt(nIndex);
+                                } else {
+                                  notificationList.add(
+                                    NotificationModel(
+                                      stocksNameList: obj.symbol,
+                                      time: Utilities.formatDDMMMHHMMDateTime(
+                                        DateTime.now(),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                SharedPreferenceHelper.instance
+                                    .saveNotificationList(notificationList);
+                                setState(() {});
+                              },
+                              icon: nIndex != -1
+                                  ? const Icon(
+                                      Icons.remove_circle_outline,
+                                      color: Colors.red,
+                                    )
+                                  : const Icon(
+                                      Icons.add_circle_outline,
+                                      color: Colors.green,
+                                    ),
+                            ),
+                          ],
                         ),
                         onTap: () async {
                           var savedTokenList = await SharedPreferenceHelper
@@ -227,7 +266,8 @@ class _SearchStocksScreenState extends State<SearchStocksScreen> {
                               .getStockTokenList();
                           if (savedTokenList.contains(obj.token.toString())) {
                             Fluttertoast.showToast(
-                                msg: "Already Saved for Candle Check");
+                              msg: "Already Saved for Candle Check",
+                            );
                           } else {
                             savedTokenList.add(obj.token.toString());
                             await SharedPreferenceHelper.instance
