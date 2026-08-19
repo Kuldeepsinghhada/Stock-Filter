@@ -36,131 +36,225 @@ class FilterUtils {
     cachedIsCandleExtendedEnabled = await prefs.getIsCandleExtendedEnabled();
   }
 
-  static bool passesFilter(
-    List<HistoricalDataModel> candles,
-    String token, {
-    bool isHistoryCheck = false,
-    bool niftyGreen = false,
-  }) {
-    if (candles.isEmpty) return false;
+  static List<double> _atrSeries(List<HistoricalDataModel> candles, int period) {
+    final n = candles.length;
+    if (n < period + 1) return [];
 
-    if (!(candles.last.close > 30 && candles.last.close < 1000)) {
-      return false;
-    }
-
-    // final secondLast = candles.elementAt(candles.length - 2);
-    // if (secondLast.volume < 5000) return false;
-
-    final current = candles.last;
-
-    final timeStr = candles.last.timestamp.toString();
-    final engine = IndicatorEngine(candles);
-
-    void logMsg(String msg) {
-      if (!isHistoryCheck) {
-        debugPrint(msg);
+    final tr = List<double>.filled(n, 0.0);
+    for (int i = 0; i < n; i++) {
+      if (i == 0) {
+        tr[i] = candles[i].high - candles[i].low;
+      } else {
+        tr[i] = max(
+          candles[i].high - candles[i].low,
+          max(
+            (candles[i].high - candles[i - 1].close).abs(),
+            (candles[i].low - candles[i - 1].close).abs(),
+          ),
+        );
       }
     }
 
-    // 1. Volume
-    if (current.volume < 30000) return false;
+    final atr = List<double>.filled(n, 0.0);
+    double initialAtr = 0.0;
+    for (int i = 0; i < period; i++) {
+      initialAtr += tr[i];
+    }
+    initialAtr /= period;
+    atr[period - 1] = initialAtr;
 
-    // // 3. RangeExpansion
-    // if (IndicatorUtils.getRangeExpansion(engine) > 6) return false;
-
-    // 0. Morning Volatility Check (9:15 to 9:40)
-    // final today = candles.last.timestamp;
-    // final morningCandles = candles
-    //     .where(
-    //       (c) =>
-    //           c.timestamp.year == today.year &&
-    //           c.timestamp.month == today.month &&
-    //           c.timestamp.day == today.day &&
-    //           c.timestamp.hour == 9 &&
-    //           c.timestamp.minute >= 15 &&
-    //           c.timestamp.minute <= 40,
-    //     )
-    //     .toList();
-    // final totalMinutes =
-    //     candles.last.timestamp.hour * 60 + candles.last.timestamp.minute;
-    //
-    // if (totalMinutes < 590 && morningCandles.isNotEmpty) {
-    //   if (morningCandles.isNotEmpty) {
-    //     double minLow = morningCandles.first.low;
-    //     double maxHigh = morningCandles.first.high;
-    //     for (var c in morningCandles) {
-    //       if (c.low < minLow) minLow = c.low;
-    //       if (c.high > maxHigh) maxHigh = c.high;
-    //     }
-    //     if ((maxHigh - minLow) / minLow * 100 > 7) {
-    //       debugPrint(
-    //         "Failed: $token at $timeStr - Reason: Morning volatility > 6%",
-    //       );
-    //       return false;
-    //     }
-    //   }
-    // }
-
-    // 4. PriceChange
-    if (!IndicatorUtils.isNotAbove10Percent(engine)) return false;
-
-    // 5. VolumeSpike
-    final volumeStrength = IndicatorUtils.checkDualVolumeStrength(engine);
-    if (!volumeStrength.isVolumeSpike40x) {
-      debugPrint("Failed: $token at $timeStr - Reason: Volume Spike < 40x");
-      return false;
+    for (int i = period; i < n; i++) {
+      atr[i] = ((atr[i - 1] * (period - 1)) + tr[i]) / period;
     }
 
-    // 6. EMA
-    final ema20Res = IndicatorUtils.isCloseAboveEMA(engine, 20);
-    if (!ema20Res.isPassed) {
-      debugPrint("Failed: $token at $timeStr - Reason: Below EMA20");
-      return false;
-    }
-
-    // 7. ATR
-    if (!IndicatorUtils.isAtrGreaterThanAdaptive(engine)) {
-      debugPrint(
-        "Failed: $token at $timeStr - Reason: ATR < Adaptive Threshold",
-      );
-      return false;
-    }
-
-    // 8. Supertrend
-    bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
-      engine,
-      atrPeriod: 10,
-      multiplier: 3,
-    ).isPassed;
-    if (!aboveSupertrend) {
-      debugPrint("Failed: $token at $timeStr - Reason: Below Supertrend");
-      return false;
-    }
-
-    // 9. ADX
-    bool adxRes = IndicatorUtils.isAdxBullish(engine);
-    if (!adxRes) {
-      debugPrint("Failed: $token at $timeStr - Reason: ADX Not Bullish");
-      return false;
-    }
-
-    // 11. Nifty Green condition -> Candle Extended Check
-    if (!IndicatorUtils.isCurrentCandleNotExtended(engine)) {
-      debugPrint("Failed: $token at $timeStr - Reason: Over extended candle");
-      return false;
-    }
-    debugPrint("Passed: $token at $timeStr - Reason: All filters passed");
-    return true;
+    return atr;
   }
 
-  /// Identifies whether a stock has already made a significant move in the last
-  /// 5-6 candles and should be avoided for a fresh breakout entry.
-  /// Simplified to check only:
-  /// ✓ Move >5%
-  /// ✓ Distance from EMA >6%
-  /// ✓ Distance from Supertrend >5%
-  /// ✓ Last 3 candles >1.5 ATR
-  /// ✓ 4 consecutive green candle
+  static bool isAtrGreaterThanAdaptive(
+    List<HistoricalDataModel> candles, {
+    int atrPeriod = 7,
+    double lowPriceMinPct = 0.004,
+    double lowPriceMaxPct = 0.04,
+    double highPriceMinPct = 0.004,
+    double highPriceMaxPct = 0.03,
+    double priceThreshold = 200.0,
+  }) {
+    if (candles.length < atrPeriod + 2) return false;
+
+    final atr = candles.last.atr;
+    final prevAtr = candles[candles.length - 2].atr;
+    if (atr == null || prevAtr == null) return false;
+
+    final lastClose = candles.last.close;
+    if (lastClose == 0) return false;
+
+    final atrPct = atr / lastClose;
+
+    final minPct = lastClose < priceThreshold
+        ? lowPriceMinPct
+        : highPriceMinPct;
+    final maxPct = lastClose < priceThreshold
+        ? lowPriceMaxPct
+        : highPriceMaxPct;
+
+    final inRange = atrPct >= minPct && atrPct <= maxPct;
+    final rising = atr > prevAtr;
+
+    return inRange && rising;
+  }
+
+  static bool checkDualVolumeStrength(
+    List<HistoricalDataModel> candles, {
+    int skipCandles = 3,
+  }) {
+    if (candles.length < 100) {
+      return false;
+    }
+
+    final Map<int, List<HistoricalDataModel>> dayMap = {};
+
+    for (final c in candles) {
+      final d = c.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+      final key = d.year * 10000 + d.month * 100 + d.day;
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+
+    // Need at least 3 completed days + today
+    if (dayMap.length < 4) {
+      return false;
+    }
+
+    final keys = dayMap.keys.toList()..sort();
+    final todayCandles = dayMap[keys.last]!;
+
+    if (todayCandles.length <= skipCandles + 1) {
+      return false;
+    }
+
+    // ===== Average 5-min volume of last completed 3 days =====
+    double totalAvg = 0;
+
+    for (int i = keys.length - 2; i >= keys.length - 4; i--) {
+      final dayCandles = dayMap[keys[i]]!;
+      final dayAvg =
+          dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+          dayCandles.length;
+      totalAvg += dayAvg;
+    }
+
+    final prevAvg = totalAvg / 3;
+
+    if (prevAvg == 0) {
+      return false;
+    }
+
+    // ===== Latest Candle =====
+    final lastCandle = todayCandles.last;
+    final lastCandleX = lastCandle.volume / prevAvg;
+
+    // ===== Other Candles =====
+    final otherCandles = todayCandles.sublist(
+      skipCandles,
+      todayCandles.length - 1,
+    );
+
+    if (otherCandles.isEmpty) return false;
+
+    final otherAvgVolume =
+        otherCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+        otherCandles.length;
+    final otherCandlesAvgX = otherAvgVolume / prevAvg;
+
+    final spikePassed = lastCandleX >= 20.0 && otherCandlesAvgX >= 2.0;
+
+    return spikePassed;
+  }
+
+  static bool has10xDualVolumeSpike(
+    List<HistoricalDataModel> candles, {
+    double? preCalculatedPrevAvg,
+  }) {
+    if (candles.isEmpty) return false;
+
+    double prevAvg = preCalculatedPrevAvg ?? 0.0;
+    if (prevAvg <= 0) {
+      final dayMap = <int, List<HistoricalDataModel>>{};
+      for (var c in candles) {
+        final d = c.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+        final key = d.year * 10000 + d.month * 100 + d.day;
+        dayMap.putIfAbsent(key, () => []).add(c);
+      }
+
+      final keys = dayMap.keys.toList()..sort();
+      if (keys.length < 4) return false;
+
+      double totalAvg = 0;
+      int count = 0;
+      for (int i = keys.length - 2; i >= max(0, keys.length - 4); i--) {
+        final dayCandles = dayMap[keys[i]]!;
+        if (dayCandles.isNotEmpty) {
+          final dayAvg =
+              dayCandles.map((e) => e.volume).reduce((a, b) => a + b) /
+              dayCandles.length;
+          totalAvg += dayAvg;
+          count++;
+        }
+      }
+
+      if (count == 0) return false;
+      prevAvg = totalAvg / count;
+    }
+
+    if (prevAvg <= 0) return false;
+
+    final lastCandle = candles.last;
+    final lastCandleX = lastCandle.volume / prevAvg;
+    if (lastCandleX < 20.0) return false;
+
+    final lastIst = lastCandle.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+    for (int idx = candles.length - 2; idx >= 0; idx--) {
+      final c = candles[idx];
+      final cIst = c.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+      if (cIst.day != lastIst.day || cIst.month != lastIst.month || cIst.year != lastIst.year) break;
+      if ((c.volume / prevAvg) >= 10.0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool isNotAbove10Percent(List<HistoricalDataModel> candles) {
+    if (candles.length < 2) return false;
+    final dayMap = <int, List<HistoricalDataModel>>{};
+    for (var c in candles) {
+      final d = c.timestamp.toUtc().add(const Duration(hours: 5, minutes: 30));
+      final key = d.year * 10000 + d.month * 100 + d.day;
+      dayMap.putIfAbsent(key, () => []).add(c);
+    }
+    final keys = dayMap.keys.toList()..sort();
+    if (keys.length < 2) return false;
+    final todayCandles = dayMap[keys.last]!;
+    final yesterdayCandles = dayMap[keys[keys.length - 2]]!;
+    final todayHigh = todayCandles.fold<double>(0, (h, c) => max(h, c.high));
+    final yesterdayClose = yesterdayCandles.last.close;
+    if (yesterdayClose == 0) return false;
+    final pct = ((todayHigh - yesterdayClose) / yesterdayClose) * 100;
+    return pct <= 10 && pct > 1;
+  }
+
+  static bool isCurrentCandleNotExtended(
+    List<HistoricalDataModel> candles, {
+    int period = 14,
+  }) {
+    if (candles.length <= period) return false;
+    final current = candles.last;
+    final currentAtr = current.atr;
+    if (currentAtr == null) return false;
+    final candleSize = current.high - current.low;
+    return candleSize <= currentAtr * 2;
+  }
+
   static bool isStockAlreadyExtended(
     List<HistoricalDataModel> candles,
     String token,
@@ -177,46 +271,31 @@ class FilterUtils {
     if (lowestLow > 0) {
       final movePercent = ((highestHigh - lowestLow) / lowestLow) * 100;
       if (movePercent > 5) {
-        debugPrint("Reject $token: Move >5% ($movePercent%)");
         return true;
       }
     }
 
     // 2. Distance from EMA > 6%
-    final closes = candles.map((e) => e.close).toList();
-    final ema20List = MathUtils.emaAligned(closes, 20);
-    if (ema20List.isNotEmpty && ema20List.last != null) {
-      final ema20 = ema20List.last!;
+    final ema20 = candles.last.ema20;
+    if (ema20 != null && ema20 > 0) {
       final distanceEma = ((candles.last.close - ema20) / ema20) * 100;
       if (distanceEma > 6) {
-        debugPrint("Reject $token: Distance from EMA20 >6% ($distanceEma%)");
         return true;
       }
     }
 
     // 3. Distance from Supertrend > 5%
-    final engine = IndicatorEngine(candles);
-    final stRes = IndicatorUtils.isCloseAboveSupertrend(
-      engine,
-      atrPeriod: 10,
-      multiplier: 3.0,
-    );
-    final supertrend = stRes.value;
+    final supertrend = candles.last.supertrend;
     if (supertrend != null && supertrend > 0) {
       final distanceSupertrend =
           ((candles.last.close - supertrend) / supertrend) * 100;
       if (distanceSupertrend > 5) {
-        debugPrint(
-          "Reject $token: Distance from Supertrend >5% ($distanceSupertrend%)",
-        );
         return true;
       }
     }
 
     // 4. Last 3 candles each > 1.5 ATR
-    final highs = candles.map((e) => e.high).toList();
-    final lows = candles.map((e) => e.low).toList();
-    final atrSeries = IndicatorUtils.atrSeries(highs, lows, closes, period: 14);
+    final atrSeries = _atrSeries(candles, 14);
     if (atrSeries.length >= 3) {
       bool last3EachAbove1_5Atr = true;
       for (int i = candles.length - 3; i < candles.length; i++) {
@@ -228,7 +307,6 @@ class FilterUtils {
         }
       }
       if (last3EachAbove1_5Atr) {
-        debugPrint("Reject $token: Last 3 candles each >1.5 ATR");
         return true;
       }
     }
@@ -243,22 +321,121 @@ class FilterUtils {
       }
     }
     if (consecutiveGreen >= 4) {
-      debugPrint(
-        "Reject $token: 4+ consecutive green candles ($consecutiveGreen)",
-      );
       return true;
     }
 
     // 6. Current candle should be above the last candle high
     final lastCandle = candles[candles.length - 2];
     if (candles.last.close <= lastCandle.high) {
-      debugPrint(
-        "Reject $token: Current candle close (${candles.last.close}) is not above last candle high (${lastCandle.high})",
-      );
       return true;
     }
 
     return false;
+  }
+
+  static bool passesFilter(
+    List<HistoricalDataModel> candles,
+    String token, {
+    bool isHistoryCheck = false,
+    bool niftyGreen = false,
+    bool dayHistoryPass = true,
+    List<HistoricalDataModel>? dailyCandles,
+  }) {
+    if (candles.isEmpty) return false;
+
+    // Check Stage 1 / Daily Timeframe pass
+    if (!dayHistoryPass) {
+      return false;
+    }
+
+    // Always calculate indicators on candles before evaluating
+    IndicatorUtils.calculateIndicators(candles, isIntraday: true);
+
+    // Check Daily Supertrend & 20 EMA requirement (with 10x volume exception)
+    final effectiveDailyCandles =
+        dailyCandles ?? Utilities.convertToDaily(candles);
+    if (effectiveDailyCandles.isNotEmpty) {
+      IndicatorUtils.calculateIndicators(
+        effectiveDailyCandles,
+        isIntraday: false,
+      );
+      final prevDailySupertrend = effectiveDailyCandles.last.supertrend ?? 0.0;
+      final dailyEma20 = effectiveDailyCandles.last.ema20;
+
+      final isAboveDailySTAndEma = prevDailySupertrend > 0 &&
+          candles.last.close > prevDailySupertrend &&
+          (dailyEma20 == null || candles.last.close > dailyEma20);
+
+      if (!isAboveDailySTAndEma) {
+        // Stock is below Daily Supertrend or 20 EMA. Check 10x + 10x volume exception!
+        if (!has10xDualVolumeSpike(candles)) {
+          return false; // Rejected: Below Daily ST/EMA and no 10x volume spike
+        }
+      }
+    }
+
+    if (!(candles.last.close > 30)) {
+      return false;
+    }
+
+    final current = candles.last;
+
+    // 1. Volume
+    if (current.volume < 30000) return false;
+
+    if (candles.length >= 2) {
+      final secondLast = candles.elementAt(candles.length - 2);
+      if (secondLast.volume < 5000) return false;
+    }
+
+    final lastTime = candles.last.timestamp;
+    final istTime = lastTime.toUtc().add(const Duration(hours: 5, minutes: 30));
+    final minuteOfDay = istTime.hour * 60 + istTime.minute;
+
+    // Forbidden Window 1: 11:00 AM (660 mins) to 12:15 PM (735 mins)
+    if (minuteOfDay >= 660 && minuteOfDay <= 735) {
+      return false;
+    }
+
+    // Forbidden Window 2: After 02:30 PM (14:30 = 870 mins)
+    if (minuteOfDay >= 870) {
+      return false;
+    }
+
+    // 4. PriceChange
+    if (!isNotAbove10Percent(candles)) return false;
+
+    // 5. VolumeSpike (Approximation for dual volume)
+    if (!checkDualVolumeStrength(candles)) return false;
+
+    // 6. EMA
+    if (current.ema20 == null || current.close <= current.ema20!) return false;
+
+    // 7. ATR
+    if (!isAtrGreaterThanAdaptive(candles)) return false;
+
+    // 8. Supertrend
+    if (current.supertrend == null || current.close <= current.supertrend!) {
+      return false;
+    }
+
+    // 9. ADX
+    if (current.adx == null ||
+        current.plusDI == null ||
+        current.minusDI == null) {
+      return false;
+    }
+    if (current.adx! < 20 || current.plusDI! <= current.minusDI!) return false;
+
+    // 10. History (Daily check)
+    if (!dayHistoryPass) return false;
+
+    // 11. Nifty Green condition -> Candle Extended Check
+    if (!isCurrentCandleNotExtended(candles)) {
+      return false;
+    }
+
+    return true;
   }
 
   static bool isHealthyBreakoutRetest(

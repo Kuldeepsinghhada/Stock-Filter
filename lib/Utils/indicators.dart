@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
+import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/Utils/utilities.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/model/indicator_result.dart';
@@ -10,6 +11,315 @@ import 'math_utils.dart';
 
 /// Main utilities (refactored). Methods are defensive and parameterized.
 class IndicatorUtils {
+  static void calculateIndicators(
+    List<HistoricalDataModel> candles, {
+    bool isIntraday = false,
+  }) {
+    if (candles.isEmpty) return;
+
+    _calculateEMA(candles, 20, (c, v) => c.ema20 = v);
+    _calculateEMA(candles, 50, (c, v) => c.ema50 = v);
+    _calculateEMA(candles, 200, (c, v) => c.ema200 = v);
+
+    _calculateRSI(candles, 14);
+    _calculateATR(candles, 14);
+    _calculateADX(candles, 14); // Populates +DI, -DI, and ADX
+    _calculateSupertrend(candles, 10, 3.0);
+    _calculateVWAP(candles, isIntraday: isIntraday);
+    _calculateAvgVolume(candles, 20);
+  }
+
+  static void _calculateAvgVolume(
+    List<HistoricalDataModel> candles,
+    int period,
+  ) {
+    if (candles.length < period) return;
+
+    double sum = 0;
+    for (int i = 0; i < period; i++) {
+      sum += candles[i].volume;
+    }
+    candles[period - 1].avgVolume20 = sum / period;
+
+    for (int i = period; i < candles.length; i++) {
+      sum += candles[i].volume - candles[i - period].volume;
+      candles[i].avgVolume20 = sum / period;
+    }
+  }
+
+  static void _calculateEMA(
+    List<HistoricalDataModel> candles,
+    int period,
+    void Function(HistoricalDataModel, double) setter,
+  ) {
+    if (candles.length < period) return;
+
+    double sum = 0;
+    for (int i = 0; i < period; i++) {
+      sum += candles[i].close;
+    }
+    double prevEma = sum / period;
+    setter(candles[period - 1], prevEma);
+
+    final multiplier = 2 / (period + 1);
+    for (int i = period; i < candles.length; i++) {
+      final currentEma = (candles[i].close - prevEma) * multiplier + prevEma;
+      setter(candles[i], currentEma);
+      prevEma = currentEma;
+    }
+  }
+
+  static void _calculateRSI(List<HistoricalDataModel> candles, int period) {
+    if (candles.length <= period) return;
+
+    double avgGain = 0.0;
+    double avgLoss = 0.0;
+
+    for (int i = 1; i <= period; i++) {
+      double diff = candles[i].close - candles[i - 1].close;
+      if (diff > 0) {
+        avgGain += diff;
+      } else {
+        avgLoss += diff.abs();
+      }
+    }
+    avgGain /= period;
+    avgLoss /= period;
+
+    candles[period].rsi = avgLoss == 0
+        ? 100
+        : 100 - (100 / (1 + (avgGain / avgLoss)));
+
+    for (int i = period + 1; i < candles.length; i++) {
+      double diff = candles[i].close - candles[i - 1].close;
+      double gain = diff > 0 ? diff : 0.0;
+      double loss = diff < 0 ? diff.abs() : 0.0;
+
+      avgGain = ((avgGain * (period - 1)) + gain) / period;
+      avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+
+      if (avgLoss == 0) {
+        candles[i].rsi = 100;
+      } else {
+        candles[i].rsi = 100 - (100 / (1 + (avgGain / avgLoss)));
+      }
+    }
+  }
+
+  static void _calculateATR(List<HistoricalDataModel> candles, int period) {
+    if (candles.length <= period) return;
+
+    List<double> tr = [];
+    for (int i = 0; i < candles.length; i++) {
+      if (i == 0) {
+        tr.add(candles[i].high - candles[i].low);
+      } else {
+        double hL = candles[i].high - candles[i].low;
+        double hC = (candles[i].high - candles[i - 1].close).abs();
+        double lC = (candles[i].low - candles[i - 1].close).abs();
+        tr.add(max(hL, max(hC, lC)));
+      }
+    }
+
+    double atr = 0.0;
+    for (int i = 1; i <= period; i++) {
+      atr += tr[i];
+    }
+    atr /= period;
+    candles[period].atr = atr;
+
+    for (int i = period + 1; i < candles.length; i++) {
+      atr = ((atr * (period - 1)) + tr[i]) / period;
+      candles[i].atr = atr;
+    }
+  }
+
+  static void _calculateADX(List<HistoricalDataModel> candles, int period) {
+    if (candles.length <= period * 2) return;
+
+    List<double> tr = [];
+    List<double> plusDM = [];
+    List<double> minusDM = [];
+
+    for (int i = 0; i < candles.length; i++) {
+      if (i == 0) {
+        tr.add(0);
+        plusDM.add(0);
+        minusDM.add(0);
+        continue;
+      }
+
+      double upMove = candles[i].high - candles[i - 1].high;
+      double downMove = candles[i - 1].low - candles[i].low;
+
+      double hL = candles[i].high - candles[i].low;
+      double hC = (candles[i].high - candles[i - 1].close).abs();
+      double lC = (candles[i].low - candles[i - 1].close).abs();
+      tr.add(max(hL, max(hC, lC)));
+
+      if (upMove > downMove && upMove > 0) {
+        plusDM.add(upMove);
+      } else {
+        plusDM.add(0);
+      }
+
+      if (downMove > upMove && downMove > 0) {
+        minusDM.add(downMove);
+      } else {
+        minusDM.add(0);
+      }
+    }
+
+    double smoothedTR = 0;
+    double smoothedPlusDM = 0;
+    double smoothedMinusDM = 0;
+
+    for (int i = 1; i <= period; i++) {
+      smoothedTR += tr[i];
+      smoothedPlusDM += plusDM[i];
+      smoothedMinusDM += minusDM[i];
+    }
+
+    List<double> dx = List.filled(candles.length, 0.0);
+
+    for (int i = period; i < candles.length; i++) {
+      if (i > period) {
+        smoothedTR = smoothedTR - (smoothedTR / period) + tr[i];
+        smoothedPlusDM = smoothedPlusDM - (smoothedPlusDM / period) + plusDM[i];
+        smoothedMinusDM =
+            smoothedMinusDM - (smoothedMinusDM / period) + minusDM[i];
+      }
+
+      double plusDI = smoothedTR == 0 ? 0 : 100 * (smoothedPlusDM / smoothedTR);
+      double minusDI = smoothedTR == 0
+          ? 0
+          : 100 * (smoothedMinusDM / smoothedTR);
+
+      candles[i].plusDI = plusDI;
+      candles[i].minusDI = minusDI;
+
+      double diDiff = (plusDI - minusDI).abs();
+      double diSum = plusDI + minusDI;
+      dx[i] = diSum == 0 ? 0 : 100 * (diDiff / diSum);
+    }
+
+    double adx = 0;
+    for (int i = period; i < period * 2; i++) {
+      adx += dx[i];
+    }
+    adx /= period;
+    candles[period * 2 - 1].adx = adx;
+
+    for (int i = period * 2; i < candles.length; i++) {
+      adx = ((adx * (period - 1)) + dx[i]) / period;
+      candles[i].adx = adx;
+    }
+  }
+
+  static void _calculateSupertrend(
+    List<HistoricalDataModel> candles,
+    int period,
+    double multiplier,
+  ) {
+    if (candles.length <= period) return;
+
+    List<double> tr = [];
+    for (int i = 0; i < candles.length; i++) {
+      if (i == 0) {
+        tr.add(candles[i].high - candles[i].low);
+      } else {
+        double hL = candles[i].high - candles[i].low;
+        double hC = (candles[i].high - candles[i - 1].close).abs();
+        double lC = (candles[i].low - candles[i - 1].close).abs();
+        tr.add(max(hL, max(hC, lC)));
+      }
+    }
+
+    List<double> atr = List.filled(candles.length, 0.0);
+    double initialAtr = 0.0;
+    for (int i = 1; i <= period; i++) {
+      initialAtr += tr[i];
+    }
+    initialAtr /= period;
+    atr[period] = initialAtr;
+
+    for (int i = period + 1; i < candles.length; i++) {
+      atr[i] = ((atr[i - 1] * (period - 1)) + tr[i]) / period;
+    }
+
+    List<double> upperBand = List.filled(candles.length, 0.0);
+    List<double> lowerBand = List.filled(candles.length, 0.0);
+    List<double> supertrend = List.filled(candles.length, 0.0);
+
+    for (int i = period; i < candles.length; i++) {
+      double hl2 = (candles[i].high + candles[i].low) / 2;
+      upperBand[i] = hl2 + (multiplier * atr[i]);
+      lowerBand[i] = hl2 - (multiplier * atr[i]);
+
+      if (i == period) {
+        supertrend[i] = upperBand[i];
+      } else {
+        if (upperBand[i] < upperBand[i - 1] ||
+            candles[i - 1].close > upperBand[i - 1]) {
+          // keep current
+        } else {
+          upperBand[i] = upperBand[i - 1];
+        }
+
+        if (lowerBand[i] > lowerBand[i - 1] ||
+            candles[i - 1].close < lowerBand[i - 1]) {
+          // keep current
+        } else {
+          lowerBand[i] = lowerBand[i - 1];
+        }
+
+        if (supertrend[i - 1] == upperBand[i - 1]) {
+          supertrend[i] = (candles[i].close <= upperBand[i])
+              ? upperBand[i]
+              : lowerBand[i];
+        } else {
+          supertrend[i] = (candles[i].close >= lowerBand[i])
+              ? lowerBand[i]
+              : upperBand[i];
+        }
+      }
+      candles[i].supertrend = supertrend[i];
+    }
+  }
+
+  static void _calculateVWAP(
+    List<HistoricalDataModel> candles, {
+    bool isIntraday = false,
+  }) {
+    if (candles.isEmpty) return;
+
+    if (!isIntraday) {
+      for (var candle in candles) {
+        candle.vwap = (candle.high + candle.low + candle.close) / 3.0;
+      }
+    } else {
+      double cumulativePV = 0.0;
+      double cumulativeVolume = 0.0;
+      int currentDay = -1;
+
+      for (var candle in candles) {
+        if (candle.timestamp.day != currentDay) {
+          cumulativePV = 0.0;
+          cumulativeVolume = 0.0;
+          currentDay = candle.timestamp.day;
+        }
+
+        double typicalPrice = (candle.high + candle.low + candle.close) / 3.0;
+        cumulativePV += typicalPrice * candle.volume;
+        cumulativeVolume += candle.volume;
+
+        candle.vwap = cumulativeVolume > 0
+            ? (cumulativePV / cumulativeVolume)
+            : typicalPrice;
+      }
+    }
+  }
+
   /// Returns true if stock has NOT moved more than [maxMovePercent]
   /// in the last [lookbackCandles] engine.candles.
 
@@ -650,38 +960,16 @@ class IndicatorUtils {
     double highPriceMaxPct = 0.03,
     double priceThreshold = 200.0,
   }) {
-    if (engine.candles.length < atrPeriod + 2) return false;
-    // sorted by engine
-
-    final highs = engine.highs;
-    final lows = engine.lows;
-    final closes = engine.closes;
-
-    final atrList = atrSeries(highs, lows, closes, period: atrPeriod);
-    if (atrList.isEmpty) return false;
-
-    final atr = atrList.last;
-    final prevAtr = atrList[atrList.length - 2];
-    final lastClose = closes.last;
-
-    // ATR as % of price
-    final atrPct = atr / lastClose;
-
-    // Adaptive range based on price bracket
-    final minPct = lastClose < priceThreshold
-        ? lowPriceMinPct
-        : highPriceMinPct;
-    final maxPct = lastClose < priceThreshold
-        ? lowPriceMaxPct
-        : highPriceMaxPct;
-
-    // ✅ Condition: ATR within ideal range + rising
-    final inRange = atrPct >= minPct && atrPct <= maxPct;
-    final rising = atr > prevAtr;
-
-    final result = inRange && rising;
-
-    return result;
+    calculateIndicators(engine.candles, isIntraday: true);
+    return FilterUtils.isAtrGreaterThanAdaptive(
+      engine.candles,
+      atrPeriod: atrPeriod,
+      lowPriceMinPct: lowPriceMinPct,
+      lowPriceMaxPct: lowPriceMaxPct,
+      highPriceMinPct: highPriceMinPct,
+      highPriceMaxPct: highPriceMaxPct,
+      priceThreshold: priceThreshold,
+    );
   }
 
   /// ---------- VWAP ----------
@@ -727,19 +1015,11 @@ class IndicatorUtils {
     int atrPeriod = 14,
     double multiplier = 2,
   }) {
-    if (engine.candles.length <= atrPeriod) return false;
-
-    final current = engine.candles.last;
-    final closes = engine.candles.map((e) => e.close).toList();
-    final highs = engine.candles.map((e) => e.high).toList();
-    final lows = engine.candles.map((e) => e.low).toList();
-
-    final atr14List = atrSeries(highs, lows, closes, period: 14);
-    if (atr14List.isEmpty) return false;
-    final currentAtr = atr14List.last;
-    final candleSize = current.high - current.low;
-    if (candleSize > currentAtr * multiplier) return false;
-    return true;
+    calculateIndicators(engine.candles, isIntraday: true);
+    return FilterUtils.isCurrentCandleNotExtended(
+      engine.candles,
+      period: atrPeriod,
+    );
   }
 
   /// ---------- Custom Strategy ----------
@@ -1697,42 +1977,7 @@ Final Score    : $score / 100
   }
 
   static bool isNotAbove10Percent(IndicatorEngine engine) {
-    // sorted by engine
-
-    final grouped = engine.groupedByDate;
-    final dates = grouped.keys.toList()..sort();
-
-    if (dates.length < 2) return false;
-
-    /// =========================
-    /// TODAY
-    /// =========================
-    final todayDate = dates.last;
-    final todayCandles = grouped[todayDate]!;
-
-    final todayHigh = todayCandles
-        .map((e) => e.high)
-        .reduce((a, b) => a > b ? a : b);
-
-    /// =========================
-    /// YESTERDAY
-    /// =========================
-    final yesterdayDate = dates[dates.length - 2];
-    final yesterdayCandles = grouped[yesterdayDate]!;
-
-    final yesterdayClose = yesterdayCandles.last.close;
-
-    /// % change from yesterday close using today's HIGH
-    final percentChange = ((todayHigh - yesterdayClose) / yesterdayClose) * 100;
-
-    /// Reject if today's high is above 13%
-    if (percentChange > 13 || percentChange < 1) {
-      debugPrint(
-        "Rejected: Today's High is ${percentChange.toStringAsFixed(2)}% above yesterday's close",
-      );
-      return false;
-    }
-    return true;
+    return FilterUtils.isNotAbove10Percent(engine.candles);
   }
 
   /// today close >= yesterday close * (1 + pct) AND yesterday was bullish (open < close)

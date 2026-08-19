@@ -6,6 +6,24 @@ class HistoricalDataModel {
   final double close;
   final int volume;
 
+  double? ema20;
+  double? ema50;
+  double? ema200;
+
+  double? rsi;
+  double? atr;
+  double? adx;
+
+  double? plusDI;
+  double? minusDI;
+
+  double? supertrend;
+  double? vwap;
+  double? avgVolume20;
+
+  DateTime get time => timestamp;
+  double get body => close - open;
+
   HistoricalDataModel({
     required this.timestamp,
     required this.open,
@@ -13,6 +31,17 @@ class HistoricalDataModel {
     required this.low,
     required this.close,
     required this.volume,
+    this.ema20,
+    this.ema50,
+    this.ema200,
+    this.rsi,
+    this.atr,
+    this.adx,
+    this.plusDI,
+    this.minusDI,
+    this.supertrend,
+    this.vwap,
+    this.avgVolume20,
   });
 
   factory HistoricalDataModel.fromList(List<dynamic> data) {
