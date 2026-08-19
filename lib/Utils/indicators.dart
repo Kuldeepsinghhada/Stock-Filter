@@ -725,7 +725,7 @@ class IndicatorUtils {
   static bool isCurrentCandleNotExtended(
     IndicatorEngine engine, {
     int atrPeriod = 14,
-    double multiplier = 1.8,
+    double multiplier = 2,
   }) {
     if (engine.candles.length <= atrPeriod) return false;
 

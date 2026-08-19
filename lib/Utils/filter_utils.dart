@@ -119,7 +119,12 @@ class FilterUtils {
     }
 
     // 7. ATR
-    if (!IndicatorUtils.isAtrGreaterThanAdaptive(engine)) return false;
+    if (!IndicatorUtils.isAtrGreaterThanAdaptive(engine)) {
+      debugPrint(
+        "Failed: $token at $timeStr - Reason: ATR < Adaptive Threshold",
+      );
+      return false;
+    }
 
     // 8. Supertrend
     bool aboveSupertrend = IndicatorUtils.isCloseAboveSupertrend(
@@ -144,6 +149,7 @@ class FilterUtils {
       debugPrint("Failed: $token at $timeStr - Reason: Over extended candle");
       return false;
     }
+    debugPrint("Passed: $token at $timeStr - Reason: All filters passed");
     return true;
   }
 
