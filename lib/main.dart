@@ -15,6 +15,8 @@ import 'Services/notification_service.dart';
 
 import 'package:stock_demo/trading/trading_manager.dart';
 
+import 'package:stock_demo/Screens/Investment/investment_screen.dart';
+
 Widget initialRoute = ZerodhaLoginPage();
 
 @pragma('vm:entry-point')
@@ -51,7 +53,9 @@ class TradingPrototype extends StatelessWidget {
       theme: ThemeData.dark(useMaterial3: true),
       home: initialRoute,
       routes: {
-        '/dashboard': (context) => const DashboardScreen()},
+        '/dashboard': (context) => const DashboardScreen(),
+        '/investments': (context) => const InvestmentScreen(),
+      },
     );
   }
 }

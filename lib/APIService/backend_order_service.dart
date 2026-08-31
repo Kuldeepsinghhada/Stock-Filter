@@ -8,6 +8,7 @@ import 'package:stock_demo/model/api_backtest_model.dart';
 import 'package:stock_demo/model/passed_daily_stock_model.dart';
 import 'package:stock_demo/model/server_setting_model.dart';
 import 'package:stock_demo/model/check_stock_5min_history_model.dart';
+import 'package:stock_demo/model/investment_model.dart';
 
 class BackendOrderService {
   static const String baseUrl = 'http://200.97.163.130:8080';
@@ -322,12 +323,12 @@ class BackendOrderService {
     }
   }
 
-  /// Check Stock 5-Minute History (POST /api/checkStock5MinHistory)
+  /// Check Stock 5-Minute Timeframe (POST /api/checkFiveMinTimeframe)
   static Future<CheckStock5MinHistoryResponse> checkStock5MinHistory(
     String symbol,
     String date,
   ) async {
-    final url = Uri.parse('$baseUrl/api/checkStock5MinHistory');
+    final url = Uri.parse('$baseUrl/api/checkFiveMinTimeframe');
     final headers = {
       'Content-Type': 'application/json',
       'X-Backend-Key': 'my_super_secret_key',
@@ -338,26 +339,33 @@ class BackendOrderService {
     });
 
     try {
-      final response = await http.post(url, headers: headers, body: body);
-      log("POST /api/checkStock5MinHistory status: ${response.statusCode}");
+      var response = await http.post(url, headers: headers, body: body);
+      log("POST /api/checkFiveMinTimeframe status: ${response.statusCode}");
+      if (response.statusCode == 404) {
+        // Fallback to legacy endpoint if 404
+        final fallbackUrl = Uri.parse('$baseUrl/api/checkStock5MinHistory');
+        response = await http.post(fallbackUrl, headers: headers, body: body);
+        log(
+          "POST /api/checkStock5MinHistory fallback status: ${response.statusCode}",
+        );
+      }
+
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         return CheckStock5MinHistoryResponse.fromJson(decoded);
       } else {
-        String errMsg = "Failed to fetch 5-min history (Status: ${response.statusCode})";
+        String errMsg =
+            "Failed to fetch 5-min timeframe (Status: ${response.statusCode})";
         try {
           final decoded = jsonDecode(response.body);
           if (decoded['message'] != null) {
             errMsg = decoded['message'].toString();
           }
         } catch (_) {}
-        return CheckStock5MinHistoryResponse(
-          success: false,
-          message: errMsg,
-        );
+        return CheckStock5MinHistoryResponse(success: false, message: errMsg);
       }
     } catch (e) {
-      log("Error calling checkStock5MinHistory API: $e");
+      log("Error calling checkFiveMinTimeframe API: $e");
       return CheckStock5MinHistoryResponse(
         success: false,
         message: "Error connecting to server: $e",
@@ -460,6 +468,50 @@ class BackendOrderService {
       return ServerSettingsResponse(
         isSuccess: false,
         status: 'error',
+        message: "Error connecting to server: $e",
+      );
+    }
+  }
+
+  /// Fetch Investment Recommendations (GET /api/investments?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&force=true)
+  static Future<InvestmentResponse?> fetchInvestmentRecommendations({
+    required String startDate,
+    required String endDate,
+    bool force = false,
+  }) async {
+    String urlStr =
+        '$baseUrl/api/investments?startDate=$startDate&endDate=$endDate';
+    if (force) {
+      urlStr += '&force=true';
+    }
+    final url = Uri.parse(urlStr);
+    final headers = {
+      'Content-Type': 'application/json',
+      'X-Backend-Key': 'my_super_secret_key',
+    };
+
+    try {
+      log("GET $urlStr");
+      final response = await http.get(url, headers: headers);
+      log("GET /api/investments status: ${response.statusCode}");
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return InvestmentResponse.fromJson(decoded);
+      } else {
+        log("Failed to fetch investments: ${response.statusCode}");
+        String errMsg = "API error status code: ${response.statusCode}";
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded['message'] != null) {
+            errMsg = decoded['message'].toString();
+          }
+        } catch (_) {}
+        return InvestmentResponse(success: false, message: errMsg);
+      }
+    } catch (e) {
+      log("Error calling fetchInvestmentRecommendations API: $e");
+      return InvestmentResponse(
+        success: false,
         message: "Error connecting to server: $e",
       );
     }

@@ -468,27 +468,6 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _isDownloading ? null : _downloadJson,
-                  icon: _isDownloading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.download, size: 18),
-                  label: const Text('Download JSON'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),

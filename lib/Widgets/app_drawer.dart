@@ -4,6 +4,7 @@ import 'package:stock_demo/Screens/Settings/settings_screen.dart';
 import 'package:stock_demo/Screens/Settings/trade_setting_screen.dart';
 import 'package:stock_demo/Screens/StrategyTesting/api_backtest_screen.dart';
 import 'package:stock_demo/Screens/SearchStocks/stock_5min_history_screen.dart';
+import 'package:stock_demo/Screens/Investment/investment_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -57,6 +58,20 @@ class AppDrawer extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const Stock5MinHistoryScreen(),
+                ),
+              );
+            },
+          ),
+          // Investment Recommendations
+          ListTile(
+            leading: const Icon(Icons.trending_up, color: Colors.greenAccent),
+            title: const Text('Investment Recommendations'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InvestmentScreen(),
                 ),
               );
             },

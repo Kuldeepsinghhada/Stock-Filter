@@ -228,7 +228,8 @@ class FilterUtils {
           cIst.month != lastIst.month ||
           cIst.year != lastIst.year)
         break;
-      if ((c.volume / prevAvg) >= 10.0) {
+      print(c.volume / prevAvg);
+      if ((c.volume / prevAvg) >= 5.0) {
         return true;
       }
     }
@@ -353,10 +354,16 @@ class FilterUtils {
     bool dayHistoryPass = true,
     List<HistoricalDataModel>? dailyCandles,
   }) {
-    if (candles.isEmpty) return false;
+    if (candles.isEmpty) {
+      print("Stock: $token failed filter: candles list is empty.");
+      return false;
+    }
 
     // Check Stage 1 / Daily Timeframe pass
     if (!dayHistoryPass) {
+      print(
+        "Stock: $token failed filter: Stage 1 / Day history pass is false.",
+      );
       return false;
     }
 
@@ -382,23 +389,39 @@ class FilterUtils {
       if (!isAboveDailySTAndEma) {
         // Stock is below Daily Supertrend or 20 EMA. Check 10x + 10x volume exception!
         if (!has10xDualVolumeSpike(candles)) {
+          print(
+            "Stock: $token ${candles.last.time} 10x volume spike exception.",
+          );
           return false; // Rejected: Below Daily ST/EMA and no 10x volume spike
         }
       }
     }
 
     if (!(candles.last.close > 30)) {
+      print(
+        "Stock: $token failed filter: Close price (${candles.last.close}) <= 30.",
+      );
       return false;
     }
 
     final current = candles.last;
 
     // 1. Volume
-    if (current.volume < 30000) return false;
+    if (current.volume < 30000) {
+      print(
+        "Stock: $token failed filter: Current volume (${current.volume}) < 30000.",
+      );
+      return false;
+    }
 
     if (candles.length >= 2) {
       final secondLast = candles.elementAt(candles.length - 2);
-      if (secondLast.volume < 5000) return false;
+      if (secondLast.volume < 5000) {
+        print(
+          "Stock: $token failed filter: Second last candle volume (${secondLast.volume}) < 5000.",
+        );
+        return false;
+      }
     }
 
     final lastTime = candles.last.timestamp;
@@ -407,28 +430,55 @@ class FilterUtils {
 
     // Forbidden Window 1: 11:00 AM (660 mins) to 12:15 PM (735 mins)
     if (minuteOfDay >= 660 && minuteOfDay <= 735) {
+      print(
+        "Stock: $token failed filter: In forbidden window 1 (11:00 AM - 12:15 PM) [Time: $istTime, Minute: $minuteOfDay].",
+      );
       return false;
     }
 
     // Forbidden Window 2: After 02:30 PM (14:30 = 870 mins)
     if (minuteOfDay >= 870) {
+      print(
+        "Stock: $token failed filter: In forbidden window 2 (After 02:30 PM) [Time: $istTime, Minute: $minuteOfDay].",
+      );
       return false;
     }
 
     // 4. PriceChange
-    if (!isNotAbove10Percent(candles)) return false;
+    if (!isNotAbove10Percent(candles)) {
+      print(
+        "Stock: $token failed filter: Price change > 10% (isNotAbove10Percent check failed).",
+      );
+      return false;
+    }
 
     // 5. VolumeSpike (Approximation for dual volume)
-    if (!checkDualVolumeStrength(candles)) return false;
+    if (!checkDualVolumeStrength(candles)) {
+      print("Stock: $token failed filter: Dual volume strength check failed.");
+      return false;
+    }
 
     // 6. EMA
-    if (current.ema20 == null || current.close <= current.ema20!) return false;
+    if (current.ema20 == null || current.close <= current.ema20!) {
+      print(
+        "Stock: $token failed filter: Close (${current.close}) <= 20 EMA (${current.ema20}).",
+      );
+      return false;
+    }
 
     // 7. ATR
-    if (!isAtrGreaterThanAdaptive(candles)) return false;
+    if (!isAtrGreaterThanAdaptive(candles)) {
+      print(
+        "Stock: $token failed filter: ATR check failed (isAtrGreaterThanAdaptive).",
+      );
+      return false;
+    }
 
     // 8. Supertrend
     if (current.supertrend == null || current.close <= current.supertrend!) {
+      print(
+        "Stock: $token failed filter: Close (${current.close}) <= Supertrend (${current.supertrend}).",
+      );
       return false;
     }
 
@@ -436,15 +486,29 @@ class FilterUtils {
     if (current.adx == null ||
         current.plusDI == null ||
         current.minusDI == null) {
+      print(
+        "Stock: $token failed filter: ADX / +DI / -DI is null (ADX: ${current.adx}, +DI: ${current.plusDI}, -DI: ${current.minusDI}).",
+      );
       return false;
     }
-    if (current.adx! < 20 || current.plusDI! <= current.minusDI!) return false;
+    if (current.adx! < 20 || current.plusDI! <= current.minusDI!) {
+      print(
+        "Stock: $token failed filter: ADX requirement failed (ADX: ${current.adx} < 20 or +DI: ${current.plusDI} <= -DI: ${current.minusDI}).",
+      );
+      return false;
+    }
 
     // 10. History (Daily check)
-    if (!dayHistoryPass) return false;
+    if (!dayHistoryPass) {
+      print("Stock: $token failed filter: dayHistoryPass is false.");
+      return false;
+    }
 
     // 11. Nifty Green condition -> Candle Extended Check
     if (!isCurrentCandleNotExtended(candles)) {
+      print(
+        "Stock: $token failed filter: Current candle extended check failed (isCurrentCandleNotExtended).",
+      );
       return false;
     }
     print("Stock: $token passed all filters.$lastTime");
