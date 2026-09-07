@@ -473,14 +473,33 @@ class BackendOrderService {
     }
   }
 
-  /// Fetch Investment Recommendations (GET /api/investments?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&force=true)
+  /// Fetch Pure Daily EOD Backtest (GET /api/backtest/daily?startDate=DD/MM/YYYY&endDate=DD/MM/YYYY)
   static Future<InvestmentResponse?> fetchInvestmentRecommendations({
     required String startDate,
     required String endDate,
     bool force = false,
   }) async {
+    String formattedStartDate = startDate;
+    String formattedEndDate = endDate;
+
+    // Convert YYYY-MM-DD to DD/MM/YYYY if needed
+    if (formattedStartDate.contains('-')) {
+      final parts = formattedStartDate.split('-');
+      if (parts.length == 3 && parts[0].length == 4) {
+        formattedStartDate =
+            "${parts[2].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}/${parts[0]}";
+      }
+    }
+    if (formattedEndDate.contains('-')) {
+      final parts = formattedEndDate.split('-');
+      if (parts.length == 3 && parts[0].length == 4) {
+        formattedEndDate =
+            "${parts[2].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}/${parts[0]}";
+      }
+    }
+
     String urlStr =
-        '$baseUrl/api/investments?startDate=$startDate&endDate=$endDate';
+        '$baseUrl/api/backtest/daily?startDate=$formattedStartDate&endDate=$formattedEndDate';
     if (force) {
       urlStr += '&force=true';
     }
@@ -493,12 +512,12 @@ class BackendOrderService {
     try {
       log("GET $urlStr");
       final response = await http.get(url, headers: headers);
-      log("GET /api/investments status: ${response.statusCode}");
+      log("GET /api/backtest/daily status: ${response.statusCode}");
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         return InvestmentResponse.fromJson(decoded);
       } else {
-        log("Failed to fetch investments: ${response.statusCode}");
+        log("Failed to fetch daily backtest: ${response.statusCode}");
         String errMsg = "API error status code: ${response.statusCode}";
         try {
           final decoded = jsonDecode(response.body);

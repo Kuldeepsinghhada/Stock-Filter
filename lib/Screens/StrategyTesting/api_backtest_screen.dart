@@ -47,6 +47,17 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     return map;
   }
 
+  String _formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return '';
+    if (timeStr.contains('T')) {
+      String timePart = timeStr.split('T').last;
+      if (timePart.length >= 5) return timePart.substring(0, 5);
+      return timePart;
+    }
+    if (timeStr.length >= 5) return timeStr.substring(0, 5);
+    return timeStr;
+  }
+
   Future<void> _selectStartDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -593,15 +604,23 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                             ),
                             ...dateTrades.map((trade) {
                               bool isProfit = trade.pnlPercent > 0;
-                              String timeStr = trade.entryTime != null
-                                  ? trade.entryTime!
-                                        .split('T')
-                                        .last
-                                        .substring(0, 5)
-                                  : '';
+                              String entryTimeStr = _formatTime(
+                                trade.entryTime,
+                              );
+                              String exitTimeStr = _formatTime(trade.exitTime);
+
+                              String entryDetails =
+                                  "Entry: ${trade.entryPrice.toStringAsFixed(2)}${entryTimeStr.isNotEmpty ? ' ($entryTimeStr)' : ''}";
+                              String exitDetails =
+                                  "Exit: ${trade.exitPrice.toStringAsFixed(2)}${exitTimeStr.isNotEmpty ? ' ($exitTimeStr)' : ''}";
+
                               return Card(
                                 margin: const EdgeInsets.symmetric(vertical: 4),
                                 child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                    vertical: 8.0,
+                                  ),
                                   onTap: () {
                                     String cleanName = trade.stockName
                                         .replaceAll("NSE:", "")
@@ -652,19 +671,27 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                     color: isProfit ? Colors.green : Colors.red,
                                   ),
                                   title: Text(
-                                    "${trade.stockName.isNotEmpty ? trade.stockName : 'Token: ${trade.token}'} - ${trade.exitReason}",
+                                    "${trade.stockName.isNotEmpty ? trade.stockName : 'Token: ${trade.token}'} - ${trade.exitReason.replaceAll("_HIT", "")}",
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  subtitle: Text(
-                                    "Entry: ${trade.entryPrice} | Exit: ${trade.exitPrice}\nPnL: ${trade.pnlPercent.toStringAsFixed(2)}%",
+                                  subtitle: Text("$entryDetails\n$exitDetails"),
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        "${trade.pnlPercent.toStringAsFixed(2)}%",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          // color: trade.pnlPercent > 0
+                                          //     ? Colors.green
+                                          //     : Colors.red,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  trailing: Text(
-                                    timeStr,
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                  isThreeLine: true,
                                 ),
                               );
                             }),

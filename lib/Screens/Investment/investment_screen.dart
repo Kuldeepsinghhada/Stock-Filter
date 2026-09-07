@@ -31,8 +31,8 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = '';
-  String selectedFilterType = 'ALL'; // ALL, TARGET_HIT, TIME_EXPIRED, ACTIVE
-  String sortBy = 'ACCURACY'; // ACCURACY, PNL, DATE, SYMBOL
+  String selectedFilterType = 'ALL'; // ALL, WIN, LOSS, TIME_EXPIRED, ACTIVE
+  String sortBy = 'DATE'; // DATE, PNL, ACCURACY, SYMBOL, VOLUME_MULT
 
   @override
   void initState() {
@@ -42,13 +42,13 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
         startDate = DateTime.parse(widget.initialStartDate!);
         endDate = DateTime.parse(widget.initialEndDate!);
       } catch (_) {
-        startDate = DateTime(2026, 7, 1);
-        endDate = DateTime(2026, 7, 31);
+        startDate = DateTime(2026, 5, 1);
+        endDate = DateTime(2026, 9, 3);
       }
     } else {
-      // Default initial range: 2026-07-01 to 2026-07-31
-      startDate = DateTime(2026, 7, 1);
-      endDate = DateTime(2026, 7, 31);
+      // Default initial range: 2026-05-01 to 2026-09-03 (01/05/2026 to 03/09/2026)
+      startDate = DateTime(2026, 5, 1);
+      endDate = DateTime(2026, 9, 3);
     }
     _fetchInvestmentRecommendations();
   }
@@ -63,14 +63,8 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
     return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
   }
 
-  String _formatDateShort(String? rawDate) {
-    if (rawDate == null || rawDate.isEmpty) return '';
-    try {
-      final dt = DateTime.parse(rawDate);
-      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
-    } catch (_) {
-      return rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
-    }
+  String _formatDateDDMMYYYY(DateTime date) {
+    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
   }
 
   Future<void> _fetchInvestmentRecommendations() async {
@@ -79,8 +73,8 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
       errorMessage = null;
     });
 
-    final formattedStartDate = _formatDate(startDate);
-    final formattedEndDate = _formatDate(endDate);
+    final formattedStartDate = _formatDateDDMMYYYY(startDate);
+    final formattedEndDate = _formatDateDDMMYYYY(endDate);
 
     final response = await BackendOrderService.fetchInvestmentRecommendations(
       startDate: formattedStartDate,
@@ -99,8 +93,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
     } else {
       setState(() {
         responseData = null;
-        apiMessage =
-            response?.message ?? "Failed to load investment recommendations";
+        apiMessage = response?.message ?? "Failed to load daily backtest data";
         errorMessage =
             response?.message ?? "Failed to connect to backend service.";
         isLoading = false;
@@ -114,12 +107,52 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
       responseData!.recommendations,
     );
 
-    // Filter by status
-    if (selectedFilterType == 'TARGET_HIT') {
-      recs = recs.where((r) => r.status.toUpperCase() == 'TARGET_HIT').toList();
+    // Filter by status or winLoss
+    if (selectedFilterType == 'WIN' || selectedFilterType == 'TARGET_HIT') {
+      recs = recs
+          .where(
+            (r) =>
+                r.status.toUpperCase() == 'TARGET_HIT' ||
+                (r.winLoss != null && r.winLoss!.toUpperCase() == 'WIN'),
+          )
+          .toList();
+    } else if (selectedFilterType == 'LOSS' ||
+        selectedFilterType == 'STOP_LOSS_HIT') {
+      recs = recs
+          .where(
+            (r) =>
+                r.status.toUpperCase() == 'STOP_LOSS_HIT' ||
+                (r.winLoss != null && r.winLoss!.toUpperCase() == 'LOSS'),
+          )
+          .toList();
+    } else if (selectedFilterType == 'OPEN') {
+      recs = recs
+          .where(
+            (r) =>
+                r.status.toUpperCase() == 'OPEN' ||
+                (r.winLoss != null && r.winLoss!.toUpperCase() == 'OPEN') ||
+                (r.exitReason != null && r.exitReason!.toUpperCase() == 'OPEN'),
+          )
+          .toList();
+    } else if (selectedFilterType == 'SQUARE_OFF') {
+      recs = recs
+          .where(
+            (r) =>
+                r.status.toUpperCase() == 'SQUARE_OFF' ||
+                (r.winLoss != null &&
+                    r.winLoss!.toUpperCase() == 'SQUARE_OFF') ||
+                (r.exitReason != null &&
+                    r.exitReason!.toUpperCase() == 'SQUARE_OFF'),
+          )
+          .toList();
     } else if (selectedFilterType == 'TIME_EXPIRED') {
       recs = recs
-          .where((r) => r.status.toUpperCase().contains('TIME_EXPIRED'))
+          .where(
+            (r) =>
+                r.status.toUpperCase().contains('TIME_EXPIRED') ||
+                (r.exitReason != null &&
+                    r.exitReason!.toUpperCase().contains('TIME_EXPIRED')),
+          )
           .toList();
     } else if (selectedFilterType == 'ACTIVE') {
       recs = recs.where((r) => r.status.toUpperCase() == 'ACTIVE').toList();
@@ -129,13 +162,25 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
     if (searchQuery.trim().isNotEmpty) {
       final q = searchQuery.trim().toLowerCase();
       recs = recs.where((rec) {
-        final symbolMatch = rec.symbol.toLowerCase().contains(q);
-        final typeMatch = rec.recommendationType.toLowerCase().contains(q);
-        final statusMatch = rec.status.toLowerCase().contains(q);
-        final dateMatch = (rec.date ?? rec.createdAt).toLowerCase().contains(q);
+        final symbolMatch =
+            rec.symbol.toLowerCase().contains(q) ||
+            (rec.stockName != null && rec.stockName!.toLowerCase().contains(q));
+        final gradeMatch =
+            rec.setupGrade != null && rec.setupGrade!.toLowerCase().contains(q);
+        final patternMatch =
+            rec.patterns != null && rec.patterns!.toLowerCase().contains(q);
+        final statusMatch =
+            rec.status.toLowerCase().contains(q) ||
+            (rec.winLoss != null && rec.winLoss!.toLowerCase().contains(q)) ||
+            (rec.exitReason != null &&
+                rec.exitReason!.toLowerCase().contains(q));
+        final dateMatch = (rec.date ?? rec.entryDate ?? rec.createdAt)
+            .toLowerCase()
+            .contains(q);
         final reasonMatch = rec.reasons.any((r) => r.toLowerCase().contains(q));
         return symbolMatch ||
-            typeMatch ||
+            gradeMatch ||
+            patternMatch ||
             statusMatch ||
             dateMatch ||
             reasonMatch;
@@ -144,11 +189,16 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
 
     // Sort recommendations
     if (sortBy == 'ACCURACY') {
-      recs.sort((a, b) => b.accuracy.compareTo(a.accuracy));
-    } else if (sortBy == 'DATE') {
       recs.sort(
-        (a, b) => (b.date ?? b.createdAt).compareTo(a.date ?? a.createdAt),
+        (a, b) =>
+            (b.winLoss == 'WIN' ? 1 : 0).compareTo(a.winLoss == 'WIN' ? 1 : 0),
       );
+    } else if (sortBy == 'DATE') {
+      recs.sort((a, b) {
+        final dateA = a.entryDate ?? a.date ?? a.createdAt;
+        final dateB = b.entryDate ?? b.date ?? b.createdAt;
+        return dateB.compareTo(dateA);
+      });
     } else if (sortBy == 'SYMBOL') {
       recs.sort((a, b) => a.symbol.compareTo(b.symbol));
     } else if (sortBy == 'PNL') {
@@ -156,6 +206,11 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
         (a, b) => (b.realizedPnlPercent ?? 0.0).compareTo(
           a.realizedPnlPercent ?? 0.0,
         ),
+      );
+    } else if (sortBy == 'VOLUME_MULT') {
+      recs.sort(
+        (a, b) =>
+            (b.volumeMultiplier ?? 0.0).compareTo(a.volumeMultiplier ?? 0.0),
       );
     }
 
@@ -221,7 +276,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Investment'),
+        title: const Text('Investment (Daily Backtest)'),
         backgroundColor: const Color(0xFF1E222D),
         elevation: 2,
         actions: [
@@ -254,7 +309,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                       CircularProgressIndicator(color: Colors.cyanAccent),
                       SizedBox(height: 16),
                       Text(
-                        'Fetching investment recommendations...',
+                        'Fetching Daily Backtest recommendations...',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ],
@@ -313,7 +368,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'No recommendations for ${_formatDate(startDate)} to ${_formatDate(endDate)}',
+                        'No backtest trades for ${_formatDateDDMMYYYY(startDate)} to ${_formatDateDDMMYYYY(endDate)}',
                         style: const TextStyle(
                           fontSize: 15,
                           color: Colors.grey,
@@ -340,10 +395,13 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
             else
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    return _buildRecommendationCard(filtered[index]);
+                    return _CardItemWidget(
+                      rec: filtered[index],
+                      onPlaceOrder: _placeOrderDialog,
+                    );
                   },
                 ),
               ),
@@ -354,12 +412,12 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
   }
 
   Widget _buildDateRangeControls() {
-    final startStr = _formatDate(startDate);
-    final endStr = _formatDate(endDate);
-    final isJulyRange = startStr == "2026-07-01" && endStr == "2026-07-31";
+    final startDDMM = _formatDateDDMMYYYY(startDate);
+    final endDDMM = _formatDateDDMMYYYY(endDate);
+    final isDefaultRange = startDDMM == "01/05/2026" && endDDMM == "03/09/2026";
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       color: const Color(0xFF181B22),
       child: Column(
         children: [
@@ -378,7 +436,9 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                       color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: isJulyRange ? Colors.cyanAccent : Colors.white24,
+                        color: isDefaultRange
+                            ? Colors.cyanAccent
+                            : Colors.white24,
                       ),
                     ),
                     child: Row(
@@ -394,7 +454,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              '$startStr  →  $endStr',
+                              '$startDDMM  →  $endDDMM',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -472,25 +532,25 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
                 _buildPresetChip(
-                  label: 'Jul 2026 (2026-07-01 to 2026-07-31)',
-                  isSelected: isJulyRange,
+                  label: 'Default Range (01/05/2026 to 03/09/2026)',
+                  isSelected: isDefaultRange,
                   onTap: () => _setPresetRange(
-                    DateTime(2026, 7, 1),
-                    DateTime(2026, 7, 31),
+                    DateTime(2026, 5, 1),
+                    DateTime(2026, 9, 3),
                   ),
                 ),
                 const SizedBox(width: 6),
                 _buildPresetChip(
                   label: 'Today',
                   isSelected:
-                      startStr == _formatDate(DateTime.now()) &&
-                      endStr == _formatDate(DateTime.now()),
+                      startDDMM == _formatDateDDMMYYYY(DateTime.now()) &&
+                      endDDMM == _formatDateDDMMYYYY(DateTime.now()),
                   onTap: () {
                     final now = DateTime.now();
                     _setPresetRange(now, now);
@@ -560,41 +620,67 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
     if (responseData == null && apiMessage.isEmpty)
       return const SizedBox.shrink();
 
-    final strategy =
-        responseData?.strategy ?? "Short-Term Investment Recommendation";
+    final strategyName =
+        responseData?.strategyVersion ??
+        responseData?.strategy ??
+        "Pure Daily EOD Backtest";
+
+    final summary = responseData?.summary;
     final recs = responseData?.recommendations ?? [];
-    final totalCount = responseData?.count ?? recs.length;
 
-    final targetHitCount =
+    final totalTrades =
+        summary?.totalTrades ?? responseData?.count ?? recs.length;
+    final wins =
+        summary?.wins ??
         responseData?.targetHitCount ??
-        recs.where((r) => r.status.toUpperCase() == 'TARGET_HIT').length;
+        recs
+            .where(
+              (r) =>
+                  r.winLoss == 'WIN' || r.status.toUpperCase() == 'TARGET_HIT',
+            )
+            .length;
+    final losses =
+        summary?.losses ??
+        recs
+            .where(
+              (r) =>
+                  r.winLoss == 'LOSS' ||
+                  r.status.toUpperCase() == 'STOP_LOSS_HIT',
+            )
+            .length;
+    final openTrades =
+        summary?.open ??
+        recs
+            .where(
+              (r) =>
+                  r.winLoss == 'OPEN' ||
+                  r.status.toUpperCase() == 'OPEN' ||
+                  r.exitReason?.toUpperCase() == 'OPEN',
+            )
+            .length;
 
-    final totalProfit =
-        responseData?.totalProfit ??
-        recs.fold<double>(0.0, (sum, r) => sum + (r.realizedPnlPercent ?? 0.0));
+    final accuracyStr =
+        summary?.accuracy ??
+        (responseData?.accuracyPercent != null
+            ? "${responseData!.accuracyPercent!.toStringAsFixed(2)}%"
+            : totalTrades > 0
+            ? "${((wins / totalTrades) * 100).toStringAsFixed(2)}%"
+            : "0%");
 
-    // Accuracy calculation:
-    // 1. Use API accuracyPercent if provided
-    // 2. Otherwise use average model accuracy across recommendations (e.g. 77.2%)
-    // 3. Fallback to minAccuracyRequired (e.g. 75.0%)
-    double accuracyVal = responseData?.accuracyPercent ?? 0.0;
-    if (accuracyVal == 0.0 && recs.isNotEmpty) {
-      final totalAcc = recs.fold<double>(0.0, (sum, r) => sum + r.accuracy);
-      accuracyVal = totalAcc / recs.length;
-    }
-    if (accuracyVal == 0.0) {
-      accuracyVal = responseData?.minAccuracyRequired ?? 75.0;
-    }
+    final totalPnlStr =
+        summary?.totalPnlPercent ??
+        (responseData?.totalProfit != null
+            ? "${responseData!.totalProfit! >= 0 ? '+' : ''}${responseData!.totalProfit!.toStringAsFixed(2)}%"
+            : "0%");
 
-    final profitStr =
-        '${totalProfit >= 0 ? "+" : ""}${totalProfit.toStringAsFixed(2)}%';
-    final profitColor = totalProfit >= 0
-        ? Colors.greenAccent
-        : Colors.redAccent;
+    final isPnlPositive = !totalPnlStr.startsWith('-');
+    final profitColor = isPnlPositive ? Colors.greenAccent : Colors.redAccent;
+
+    final isCached = responseData?.fromCache == true;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -604,7 +690,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.indigoAccent.withValues(alpha: 0.4)),
       ),
       child: Column(
@@ -612,52 +698,97 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_graph, color: Colors.cyanAccent, size: 18),
+              const Icon(Icons.auto_graph, color: Colors.cyanAccent, size: 16),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  strategy,
+                  strategyName,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    fontSize: 12,
                     color: Colors.white,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (isCached)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: Colors.amberAccent.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bolt, size: 11, color: Colors.amberAccent),
+                      SizedBox(width: 2),
+                      Text(
+                        'Cache',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amberAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: _buildHeaderBadge(
-                  label: 'Total Count',
-                  value: '$totalCount',
+                  label: 'Total Trades',
+                  value: '$totalTrades',
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 3),
               Expanded(
                 child: _buildHeaderBadge(
-                  label: 'Target Hit',
-                  value: '$targetHitCount',
+                  label: 'Wins',
+                  value: '$wins',
                   color: Colors.greenAccent,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 3),
               Expanded(
                 child: _buildHeaderBadge(
-                  label: 'Accuracy %',
-                  value: '${accuracyVal.toStringAsFixed(1)}%',
+                  label: 'Losses',
+                  value: '$losses',
+                  color: Colors.redAccent,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: _buildHeaderBadge(
+                  label: 'Open',
+                  value: '$openTrades',
+                  color: Colors.lightBlueAccent,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: _buildHeaderBadge(
+                  label: 'Accuracy',
+                  value: accuracyStr,
                   color: Colors.amberAccent,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 3),
               Expanded(
                 child: _buildHeaderBadge(
-                  label: 'Total Profit',
-                  value: profitStr,
+                  label: 'Total PnL',
+                  value: totalPnlStr,
                   color: profitColor,
                 ),
               ),
@@ -674,7 +805,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.black26,
         borderRadius: BorderRadius.circular(6),
@@ -684,7 +815,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 9, color: Colors.grey),
+            style: const TextStyle(fontSize: 8.5, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 2),
@@ -693,7 +824,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
@@ -716,18 +847,18 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                 searchQuery = val;
               });
             },
-            style: const TextStyle(fontSize: 13),
+            style: const TextStyle(fontSize: 12),
             decoration: InputDecoration(
-              hintText: 'Search symbol, status, or reasons...',
-              hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+              hintText: 'Search symbol, grade, pattern, status...',
+              hintStyle: const TextStyle(color: Colors.grey, fontSize: 11),
               prefixIcon: const Icon(
                 Icons.search,
-                size: 18,
+                size: 16,
                 color: Colors.cyanAccent,
               ),
               suffixIcon: searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 16),
+                      icon: const Icon(Icons.clear, size: 14),
                       onPressed: () {
                         setState(() {
                           _searchController.clear();
@@ -737,8 +868,8 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                     )
                   : null,
               contentPadding: const EdgeInsets.symmetric(
-                vertical: 8,
-                horizontal: 10,
+                vertical: 6,
+                horizontal: 8,
               ),
               filled: true,
               fillColor: const Color(0xFF1E222D),
@@ -757,17 +888,23 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                   child: Row(
                     children: [
                       _buildFilterChip('ALL', 'All'),
-                      const SizedBox(width: 6),
-                      _buildFilterChip('TARGET_HIT', 'Target Hit'),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
+                      _buildFilterChip('WIN', 'Wins'),
+                      const SizedBox(width: 4),
+                      _buildFilterChip('LOSS', 'Losses'),
+                      const SizedBox(width: 4),
+                      _buildFilterChip('OPEN', 'Open'),
+                      const SizedBox(width: 4),
+                      _buildFilterChip('SQUARE_OFF', 'Square Off'),
+                      const SizedBox(width: 4),
                       _buildFilterChip('TIME_EXPIRED', 'Time Expired'),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       _buildFilterChip('ACTIVE', 'Active'),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               PopupMenuButton<String>(
                 initialValue: sortBy,
                 onSelected: (val) {
@@ -777,20 +914,27 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                 },
                 itemBuilder: (ctx) => const [
                   PopupMenuItem(
-                    value: 'ACCURACY',
-                    child: Text('Sort by Accuracy'),
+                    value: 'DATE',
+                    child: Text('Sort by Trade Date'),
                   ),
                   PopupMenuItem(
                     value: 'PNL',
                     child: Text('Sort by Realized PnL'),
                   ),
-                  PopupMenuItem(value: 'DATE', child: Text('Sort by Date')),
+                  PopupMenuItem(
+                    value: 'ACCURACY',
+                    child: Text('Sort by Win / Loss'),
+                  ),
                   PopupMenuItem(value: 'SYMBOL', child: Text('Sort by Symbol')),
+                  PopupMenuItem(
+                    value: 'VOLUME_MULT',
+                    child: Text('Sort by Vol Multiplier'),
+                  ),
                 ],
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                    horizontal: 7,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E222D),
@@ -802,14 +946,14 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                     children: [
                       const Icon(
                         Icons.sort,
-                        size: 14,
+                        size: 13,
                         color: Colors.cyanAccent,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Text(
                         sortBy,
                         style: const TextStyle(
-                          fontSize: 10,
+                          fontSize: 9.5,
                           color: Colors.cyanAccent,
                           fontWeight: FontWeight.bold,
                         ),
@@ -831,7 +975,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
       label: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 10,
           color: isSelected ? Colors.black : Colors.white,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
@@ -840,6 +984,8 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
       selectedColor: Colors.cyanAccent,
       backgroundColor: const Color(0xFF1E222D),
       showCheckmark: false,
+      padding: EdgeInsets.zero,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       onSelected: (val) {
         if (val) {
           setState(() {
@@ -847,507 +993,6 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
           });
         }
       },
-    );
-  }
-
-  Widget _buildRecommendationCard(InvestmentRecommendation rec) {
-    const mainColor = Colors.greenAccent;
-    final typeBadgeText = rec.recommendationType.replaceAll('_', ' ');
-
-    final createdDateStr = _formatDateShort(
-      rec.createdAt.isNotEmpty ? rec.createdAt : rec.date,
-    );
-    final exitDateStr = _formatDateShort(rec.exitDate);
-
-    final statusWidget = _buildStatusBadge(rec.status);
-    final pnlWidget = _buildPnlBadge(rec);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: const Color(0xFF1E222D),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: mainColor.withValues(alpha: 0.3), width: 1),
-      ),
-      elevation: 3,
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.all(12),
-        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-        collapsedIconColor: Colors.grey,
-        iconColor: Colors.cyanAccent,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    rec.symbol,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: mainColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: mainColor.withValues(alpha: 0.6)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.trending_up,
-                        size: 12,
-                        color: Colors.greenAccent,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        typeBadgeText,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.greenAccent,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: Colors.amber.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star, size: 11, color: Colors.amber),
-                      const SizedBox(width: 3),
-                      Text(
-                        rec.accuracyPercentage.isNotEmpty
-                            ? rec.accuracyPercentage
-                            : '${rec.accuracy}%',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: _buildPriceMetric(
-                    'Entry Price',
-                    '₹${rec.entryPrice.toStringAsFixed(2)}',
-                    Colors.white,
-                  ),
-                ),
-                if (rec.exitPrice != null)
-                  Expanded(
-                    child: _buildPriceMetric(
-                      'Exit Price',
-                      '₹${rec.exitPrice!.toStringAsFixed(2)}',
-                      Colors.cyanAccent,
-                    ),
-                  ),
-                Expanded(
-                  child: _buildPriceMetric(
-                    'Target',
-                    '₹${rec.targetPrice.toStringAsFixed(2)} (+${rec.targetPercent.toStringAsFixed(2)}%)',
-                    Colors.greenAccent,
-                  ),
-                ),
-                Expanded(
-                  child: _buildPriceMetric(
-                    'Stop Loss',
-                    '₹${rec.stopLossPrice.toStringAsFixed(2)} (-${rec.stopLossPercent.toStringAsFixed(2)}%)',
-                    Colors.redAccent,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  statusWidget,
-                  if (pnlWidget != null) ...[
-                    const SizedBox(width: 6),
-                    pnlWidget,
-                  ],
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'R:R ${rec.riskRewardRatio}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.cyanAccent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    rec.holdingDays != null
-                        ? 'Holding: ${rec.holdingDays} Days'
-                        : 'Period: ${rec.holdingPeriod}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                ],
-              ),
-              if (createdDateStr.isNotEmpty || exitDateStr.isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.calendar_today,
-                      size: 11,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      exitDateStr.isNotEmpty
-                          ? '$createdDateStr → $exitDateStr'
-                          : createdDateStr,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-        children: [
-          const Divider(color: Colors.white12, height: 16),
-          if (rec.reasons.isNotEmpty) ...[
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Recommendation Reasons:',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.cyanAccent,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            ...rec.reasons.map(
-              (r) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.check_circle_outline,
-                      size: 14,
-                      color: Colors.greenAccent,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        r,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-          if (rec.indicators != null) ...[
-            _buildIndicatorsSection(rec.indicators!),
-            const SizedBox(height: 10),
-          ],
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: rec.symbol));
-                  Fluttertoast.showToast(msg: "Copied ${rec.symbol}");
-                },
-                icon: const Icon(Icons.copy, size: 14),
-                label: const Text(
-                  'Copy Symbol',
-                  style: TextStyle(fontSize: 12),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _placeOrderDialog(rec),
-                icon: const Icon(Icons.shopping_cart_checkout, size: 14),
-                label: const Text(
-                  'Place Order',
-                  style: TextStyle(fontSize: 12),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: mainColor.withValues(alpha: 0.2),
-                  foregroundColor: mainColor,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    Color bg;
-    Color border;
-    Color fg;
-    IconData icon;
-    String label = status.replaceAll('_', ' ');
-
-    switch (status.toUpperCase()) {
-      case 'TARGET_HIT':
-        bg = Colors.green.withValues(alpha: 0.2);
-        border = Colors.greenAccent;
-        fg = Colors.greenAccent;
-        icon = Icons.task_alt;
-        break;
-      case 'TIME_EXPIRED_EXIT':
-        bg = Colors.amber.withValues(alpha: 0.2);
-        border = Colors.amberAccent;
-        fg = Colors.amberAccent;
-        icon = Icons.timer_outlined;
-        break;
-      case 'STOP_LOSS_HIT':
-        bg = Colors.red.withValues(alpha: 0.2);
-        border = Colors.redAccent;
-        fg = Colors.redAccent;
-        icon = Icons.cancel_outlined;
-        break;
-      case 'ACTIVE':
-        bg = Colors.blue.withValues(alpha: 0.2);
-        border = Colors.blueAccent;
-        fg = Colors.cyanAccent;
-        icon = Icons.play_circle_outline;
-        break;
-      default:
-        bg = Colors.grey.withValues(alpha: 0.2);
-        border = Colors.grey;
-        fg = Colors.grey;
-        icon = Icons.info_outline;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: border.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: fg),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: fg,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget? _buildPnlBadge(InvestmentRecommendation rec) {
-    final text =
-        rec.realizedPnlPercentage ??
-        (rec.realizedPnlPercent != null
-            ? '${rec.realizedPnlPercent! >= 0 ? "+" : ""}${rec.realizedPnlPercent!.toStringAsFixed(2)}%'
-            : null);
-
-    if (text == null || text.isEmpty) return null;
-
-    final isPositive =
-        !text.contains('-') &&
-        (rec.realizedPnlPercent == null || rec.realizedPnlPercent! >= 0);
-    final color = isPositive ? Colors.greenAccent : Colors.redAccent;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isPositive ? Icons.arrow_upward : Icons.arrow_downward,
-            size: 11,
-            color: color,
-          ),
-          const SizedBox(width: 2),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPriceMetric(String label, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        const SizedBox(height: 2),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildIndicatorsSection(InvestmentIndicators ind) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black26,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Technical Indicators & Metrics:',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              if (ind.ema20 != null)
-                _buildIndicatorChip('EMA20', ind.ema20!.toStringAsFixed(2)),
-              if (ind.ema50 != null)
-                _buildIndicatorChip('EMA50', ind.ema50!.toStringAsFixed(2)),
-              if (ind.ema200 != null)
-                _buildIndicatorChip('EMA200', ind.ema200!.toStringAsFixed(2)),
-              if (ind.supertrend != null)
-                _buildIndicatorChip(
-                  'Supertrend',
-                  ind.supertrend!.toStringAsFixed(2),
-                ),
-              if (ind.rsi != null)
-                _buildIndicatorChip('RSI', ind.rsi!.toStringAsFixed(1)),
-              if (ind.adx != null)
-                _buildIndicatorChip('ADX', ind.adx!.toStringAsFixed(1)),
-              if (ind.plusDI != null)
-                _buildIndicatorChip('+DI', ind.plusDI!.toStringAsFixed(1)),
-              if (ind.minusDI != null)
-                _buildIndicatorChip('-DI', ind.minusDI!.toStringAsFixed(1)),
-              if (ind.volumeRatio != null)
-                _buildIndicatorChip(
-                  'Vol Ratio',
-                  '${ind.volumeRatio!.toStringAsFixed(2)}x',
-                ),
-              if (ind.confidenceScore != null)
-                _buildIndicatorChip(
-                  'Confidence',
-                  '${ind.confidenceScore!.toStringAsFixed(0)}%',
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIndicatorChip(String key, String val) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$key: ',
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
-        ),
-        Text(
-          val,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1414,6 +1059,645 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class _CardItemWidget extends StatefulWidget {
+  final InvestmentRecommendation rec;
+  final Function(InvestmentRecommendation) onPlaceOrder;
+
+  const _CardItemWidget({required this.rec, required this.onPlaceOrder});
+
+  @override
+  State<_CardItemWidget> createState() => _CardItemWidgetState();
+}
+
+class _CardItemWidgetState extends State<_CardItemWidget> {
+  bool isExpanded = false;
+
+  String _formatDateShort(String? rawDate) {
+    if (rawDate == null || rawDate.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(rawDate);
+      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
+    } catch (_) {
+      return rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rec = widget.rec;
+    final bool isWin =
+        rec.winLoss == 'WIN' || rec.status.toUpperCase() == 'TARGET_HIT';
+    final bool isLoss =
+        rec.winLoss == 'LOSS' || rec.status.toUpperCase() == 'STOP_LOSS_HIT';
+    final bool isOpen =
+        rec.winLoss == 'OPEN' || rec.status.toUpperCase() == 'OPEN';
+    final bool isSqOff =
+        rec.winLoss == 'SQUARE_OFF' || rec.status.toUpperCase() == 'SQUARE_OFF';
+
+    final Color mainBorderColor = isWin
+        ? Colors.greenAccent
+        : isLoss
+        ? Colors.redAccent
+        : isOpen
+        ? Colors.blueAccent
+        : isSqOff
+        ? Colors.orangeAccent
+        : Colors.cyanAccent;
+
+    final createdDateStr = _formatDateShort(
+      rec.tradeDate ?? rec.entryDate ?? rec.date ?? rec.createdAt,
+    );
+    final exitDateStr = _formatDateShort(rec.exitTime ?? rec.exitDate);
+
+    final statusWidget = _buildStatusBadge(rec);
+    final pnlWidget = _buildPnlBadge(rec);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E222D),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: mainBorderColor.withValues(alpha: 0.3),
+          width: 1.0,
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            isExpanded = !isExpanded;
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. TOP HEADER: Symbol + Grade + Pattern & Status/PnL
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: [
+                        Text(
+                          rec.symbol,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        if (rec.setupGrade != null &&
+                            rec.setupGrade!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.purpleAccent.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              rec.setupGrade!.replaceAll('_', ' '),
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.purpleAccent,
+                              ),
+                            ),
+                          ),
+                        if (rec.patterns != null && rec.patterns!.isNotEmpty)
+                          Text(
+                            rec.patterns!,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.tealAccent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      statusWidget,
+                      if (pnlWidget != null) ...[
+                        const SizedBox(width: 4),
+                        pnlWidget,
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 6),
+
+              // 2. COMPACT PRICE GRID (Full Width - 100% Symmetrical!)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF14171F),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildCompactPriceCell(
+                            'Entry',
+                            '₹${rec.entryPrice.toStringAsFixed(2)}',
+                            null,
+                            Colors.white,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildCompactPriceCell(
+                            rec.exitPrice != null ? 'Exit' : 'Status',
+                            rec.exitPrice != null
+                                ? '₹${rec.exitPrice!.toStringAsFixed(2)}'
+                                : rec.status.replaceAll('_', ' '),
+                            null,
+                            rec.exitPrice != null
+                                ? Colors.cyanAccent
+                                : Colors.amberAccent,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildCompactPriceCell(
+                            'Target',
+                            '₹${rec.targetPrice.toStringAsFixed(2)}',
+                            '+${rec.targetPercent.toStringAsFixed(1)}%',
+                            Colors.greenAccent,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildCompactPriceCell(
+                            'Stop Loss',
+                            '₹${rec.stopLossPrice.toStringAsFixed(2)}',
+                            '-${rec.stopLossPercent.toStringAsFixed(1)}%',
+                            Colors.redAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (rec.supportPrice != null) ...[
+                      const SizedBox(height: 4),
+                      const Divider(color: Colors.white10, height: 1),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Support Price',
+                            style: TextStyle(fontSize: 9.5, color: Colors.grey),
+                          ),
+                          Text(
+                            '₹${rec.supportPrice!.toStringAsFixed(2)} ${rec.supportDistPct != null ? "(${rec.supportDistPct!.toStringAsFixed(2)}% dist)" : ""}',
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orangeAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // 3. COMPACT FOOTER META LINE
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'R:R ${rec.riskRewardRatio.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.cyanAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (rec.volumeMultiplier != null) ...[
+                        const Text(
+                          '  •  ',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                        Text(
+                          'Vol ${rec.volumeMultiplier!.toStringAsFixed(2)}x',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.amberAccent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (createdDateStr.isNotEmpty || exitDateStr.isNotEmpty)
+                    Text(
+                      exitDateStr.isNotEmpty && exitDateStr != createdDateStr
+                          ? '$createdDateStr → $exitDateStr'
+                          : createdDateStr,
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                ],
+              ),
+
+              // 4. EXPANDABLE DETAILS SECTION
+              if (isExpanded) ...[
+                const Divider(color: Colors.white12, height: 12),
+                if (rec.reasons.isNotEmpty) ...[
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Recommendation Reasons:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.cyanAccent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ...rec.reasons.map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline,
+                            size: 13,
+                            color: Colors.greenAccent,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              r,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                _buildTradeMetricsSection(rec),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: rec.symbol));
+                        Fluttertoast.showToast(msg: "Copied ${rec.symbol}");
+                      },
+                      icon: const Icon(Icons.copy, size: 12),
+                      label: const Text(
+                        'Copy Symbol',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    ElevatedButton.icon(
+                      onPressed: () => widget.onPlaceOrder(rec),
+                      icon: const Icon(Icons.shopping_cart_checkout, size: 12),
+                      label: const Text(
+                        'Place Order',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.greenAccent.withValues(
+                          alpha: 0.2,
+                        ),
+                        foregroundColor: Colors.greenAccent,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactPriceCell(
+    String label,
+    String value,
+    String? badge,
+    Color color,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+        const SizedBox(height: 1),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 2),
+                Text(
+                  badge,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusBadge(InvestmentRecommendation rec) {
+    Color bg;
+    Color border;
+    Color fg;
+    IconData icon;
+    final statusUpper = rec.status.toUpperCase();
+    final winLossUpper = rec.winLoss?.toUpperCase() ?? '';
+    final exitReasonUpper = rec.exitReason?.toUpperCase() ?? '';
+
+    String label = statusUpper.replaceAll('_', ' ');
+
+    if (statusUpper == 'TARGET_HIT' ||
+        winLossUpper == 'WIN' ||
+        exitReasonUpper == 'TARGET_HIT') {
+      bg = Colors.green.withValues(alpha: 0.2);
+      border = Colors.greenAccent;
+      fg = Colors.greenAccent;
+      icon = Icons.task_alt;
+      label = "TG HIT";
+    } else if (statusUpper == 'STOP_LOSS_HIT' ||
+        winLossUpper == 'LOSS' ||
+        exitReasonUpper == 'STOP_LOSS_HIT') {
+      bg = Colors.red.withValues(alpha: 0.2);
+      border = Colors.redAccent;
+      fg = Colors.redAccent;
+      icon = Icons.cancel_outlined;
+      label = "SL HIT";
+    } else if (statusUpper == 'OPEN' ||
+        winLossUpper == 'OPEN' ||
+        exitReasonUpper == 'OPEN') {
+      bg = Colors.blue.withValues(alpha: 0.2);
+      border = Colors.blueAccent;
+      fg = Colors.lightBlueAccent;
+      icon = Icons.timelapse;
+      label = "OPEN";
+    } else if (statusUpper == 'SQUARE_OFF' ||
+        winLossUpper == 'SQUARE_OFF' ||
+        exitReasonUpper == 'SQUARE_OFF') {
+      bg = Colors.orange.withValues(alpha: 0.2);
+      border = Colors.orangeAccent;
+      fg = Colors.orangeAccent;
+      icon = Icons.swap_horiz;
+      label = "SQ OFF";
+    } else if (statusUpper.contains('TIME_EXPIRED') ||
+        exitReasonUpper.contains('TIME_EXPIRED')) {
+      bg = Colors.amber.withValues(alpha: 0.2);
+      border = Colors.amberAccent;
+      fg = Colors.amberAccent;
+      icon = Icons.timer_outlined;
+      label = "EXPIRED";
+    } else if (statusUpper == 'ACTIVE') {
+      bg = Colors.blue.withValues(alpha: 0.2);
+      border = Colors.blueAccent;
+      fg = Colors.cyanAccent;
+      icon = Icons.play_circle_outline;
+      label = "ACTIVE";
+    } else {
+      bg = Colors.grey.withValues(alpha: 0.2);
+      border = Colors.grey;
+      fg = Colors.grey;
+      icon = Icons.info_outline;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: border.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: fg),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildPnlBadge(InvestmentRecommendation rec) {
+    final text =
+        rec.realizedPnlPercentage ??
+        (rec.realizedPnlPercent != null
+            ? '${rec.realizedPnlPercent! >= 0 ? "+" : ""}${rec.realizedPnlPercent!.toStringAsFixed(2)}%'
+            : null);
+
+    if (text == null || text.isEmpty) return null;
+
+    final isPositive =
+        !text.contains('-') &&
+        (rec.realizedPnlPercent == null || rec.realizedPnlPercent! >= 0);
+    final color = isPositive ? Colors.greenAccent : Colors.redAccent;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isPositive ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 10,
+            color: color,
+          ),
+          const SizedBox(width: 2),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTradeMetricsSection(InvestmentRecommendation rec) {
+    final ind = rec.indicators;
+    final rsiVal = rec.rsi ?? ind?.rsi;
+    final ema20Val = rec.ema20 ?? ind?.ema20;
+    final stVal = rec.supertrend ?? ind?.supertrend;
+    final atrVal = rec.atr ?? ind?.atr;
+    final volVal = rec.volume ?? ind?.volume;
+    final volMultVal = rec.volumeMultiplier ?? ind?.volumeRatio;
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Technical Indicators & Details:',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              if (rsiVal != null)
+                _buildIndicatorChip('RSI', rsiVal.toStringAsFixed(1)),
+              if (ema20Val != null)
+                _buildIndicatorChip('EMA20', '₹${ema20Val.toStringAsFixed(2)}'),
+              if (stVal != null)
+                _buildIndicatorChip(
+                  'Supertrend',
+                  '₹${stVal.toStringAsFixed(2)}',
+                ),
+              if (atrVal != null)
+                _buildIndicatorChip('ATR', atrVal.toStringAsFixed(2)),
+              if (volVal != null)
+                _buildIndicatorChip('Volume', _formatVolume(volVal)),
+              if (volMultVal != null)
+                _buildIndicatorChip(
+                  'Vol Multiplier',
+                  '${volMultVal.toStringAsFixed(2)}x',
+                ),
+              if (rec.supportPrice != null)
+                _buildIndicatorChip(
+                  'Support Price',
+                  '₹${rec.supportPrice!.toStringAsFixed(2)}',
+                ),
+              if (rec.supportDistPct != null)
+                _buildIndicatorChip(
+                  'Support Dist',
+                  '${rec.supportDistPct!.toStringAsFixed(2)}%',
+                ),
+              if (rec.exitReason != null)
+                _buildIndicatorChip('Exit Reason', rec.exitReason!),
+              if (rec.exitTime != null)
+                _buildIndicatorChip(
+                  'Exit Time',
+                  _formatDateShort(rec.exitTime),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatVolume(num vol) {
+    if (vol >= 10000000) {
+      return '${(vol / 10000000).toStringAsFixed(2)} Cr';
+    } else if (vol >= 100000) {
+      return '${(vol / 100000).toStringAsFixed(2)} L';
+    } else if (vol >= 1000) {
+      return '${(vol / 1000).toStringAsFixed(1)} K';
+    }
+    return vol.toString();
+  }
+
+  Widget _buildIndicatorChip(String key, String val) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$key: ',
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+        Text(
+          val,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 }
