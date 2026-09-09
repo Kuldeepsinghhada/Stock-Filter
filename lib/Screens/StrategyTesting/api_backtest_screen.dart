@@ -19,10 +19,10 @@ class ApiBacktestScreen extends StatefulWidget {
 class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime _endDate = DateTime.now();
-  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 15);
-  TimeOfDay _endTime = const TimeOfDay(hour: 15, minute: 30);
+  TimeOfDay _startTime = const TimeOfDay(hour: 0, minute: 0);
+  TimeOfDay _endTime = const TimeOfDay(hour: 23, minute: 59);
   final TextEditingController _maxTradesController = TextEditingController(
-    text: '5',
+    text: '',
   );
   bool _isLoading = false;
   bool _isDownloading = false;
@@ -123,7 +123,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
             .replaceAll("NSE:", "")
             .split("-")
             .first;
-        if (Utilities.blockedSymbols.contains(cleanName)) {
+        if (cleanName.isEmpty && trade.token.isEmpty) {
           return false;
         }
         if (trade.entryTime != null) {
@@ -163,8 +163,10 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
           (a, b) => (a.entryTime ?? '').compareTo(b.entryTime ?? ''),
         );
 
-        // Apply max trades filter per day
-        if (maxTrades != null && dateTrades.length > maxTrades) {
+        // Apply max trades filter per day if valid and > 0
+        if (maxTrades != null &&
+            maxTrades > 0 &&
+            dateTrades.length > maxTrades) {
           dateTrades = dateTrades.sublist(0, maxTrades);
         }
 
@@ -212,21 +214,32 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
         }
       }
 
-      String accuracy = totalTrades > 0
-          ? ((wins / totalTrades) * 100).toStringAsFixed(2) + "%"
-          : "0.00%";
+      bool isFiltered =
+          filteredTrades.length != _cachedData!.trades.length ||
+          (maxTrades != null && maxTrades > 0);
 
-      _summary = ApiBacktestSummary(
-        totalTrades: totalTrades,
-        wins: wins,
-        losses: losses,
-        targetHits: targetHits,
-        stoplossHits: stoplossHits,
-        trailingSlHits: trailingSlHits,
-        squareOffHits: squareOffHits,
-        accuracy: accuracy,
-        totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
-      );
+      if (!isFiltered) {
+        _summary = _cachedData!.summary;
+      } else {
+        int resolvedTrades = wins + losses;
+        String accuracy = resolvedTrades > 0
+            ? ((wins / resolvedTrades) * 100).toStringAsFixed(2) + "%"
+            : (totalTrades > 0
+                  ? ((wins / totalTrades) * 100).toStringAsFixed(2) + "%"
+                  : "0.00%");
+
+        _summary = ApiBacktestSummary(
+          totalTrades: totalTrades,
+          wins: wins,
+          losses: losses,
+          targetHits: targetHits,
+          stoplossHits: stoplossHits,
+          trailingSlHits: trailingSlHits,
+          squareOffHits: squareOffHits,
+          accuracy: accuracy,
+          totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
+        );
+      }
     });
   }
 
@@ -603,7 +616,17 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                               ),
                             ),
                             ...dateTrades.map((trade) {
-                              bool isProfit = trade.pnlPercent > 0;
+                              IconData iconData = trade.pnlPercent > 0
+                                  ? Icons.check_circle
+                                  : (trade.pnlPercent < 0
+                                        ? Icons.cancel
+                                        : Icons.remove_circle_outline);
+                              Color iconColor = trade.pnlPercent > 0
+                                  ? Colors.green
+                                  : (trade.pnlPercent < 0
+                                        ? Colors.red
+                                        : Colors.orange);
+
                               String entryTimeStr = _formatTime(
                                 trade.entryTime,
                               );
@@ -613,6 +636,12 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                   "Entry: ${trade.entryPrice.toStringAsFixed(2)}${entryTimeStr.isNotEmpty ? ' ($entryTimeStr)' : ''}";
                               String exitDetails =
                                   "Exit: ${trade.exitPrice.toStringAsFixed(2)}${exitTimeStr.isNotEmpty ? ' ($exitTimeStr)' : ''}";
+
+                              String slTargetText = "";
+                              if (trade.stoploss > 0 || trade.target > 0) {
+                                slTargetText =
+                                    "\nSL: ${trade.stoploss > 0 ? trade.stoploss.toStringAsFixed(2) : '-'} | Tgt: ${trade.target > 0 ? trade.target.toStringAsFixed(2) : '-'}";
+                              }
 
                               return Card(
                                 margin: const EdgeInsets.symmetric(vertical: 4),
@@ -664,19 +693,16 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                       ),
                                     );
                                   },
-                                  leading: Icon(
-                                    isProfit
-                                        ? Icons.check_circle
-                                        : Icons.cancel,
-                                    color: isProfit ? Colors.green : Colors.red,
-                                  ),
+                                  leading: Icon(iconData, color: iconColor),
                                   title: Text(
-                                    "${trade.stockName.isNotEmpty ? trade.stockName : 'Token: ${trade.token}'} - ${trade.exitReason.replaceAll("_HIT", "")}",
+                                    "${trade.stockName.isNotEmpty ? trade.stockName : (trade.token.isNotEmpty ? 'Token: ${trade.token}' : 'Stock')} - ${trade.exitReason.replaceAll('_HIT', '')}",
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  subtitle: Text("$entryDetails\n$exitDetails"),
+                                  subtitle: Text(
+                                    "$entryDetails\n$exitDetails$slTargetText",
+                                  ),
                                   trailing: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
@@ -685,9 +711,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
-                                          // color: trade.pnlPercent > 0
-                                          //     ? Colors.green
-                                          //     : Colors.red,
+                                          color: iconColor,
                                         ),
                                       ),
                                     ],
