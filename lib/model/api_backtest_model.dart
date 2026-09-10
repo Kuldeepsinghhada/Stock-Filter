@@ -39,8 +39,37 @@ class ApiBacktestData {
     var tradesList = json['trades'] as List? ?? [];
     List<ApiBacktestTrade> parsedTrades =
         tradesList.map((e) => ApiBacktestTrade.fromJson(e)).toList();
+
+    Map<String, dynamic> summaryMap = {};
+    if (json['summary'] is Map<String, dynamic>) {
+      summaryMap.addAll(json['summary']);
+    }
+    for (var key in [
+      'totalTrades',
+      'total_trades',
+      'wins',
+      'losses',
+      'open',
+      'accuracy',
+      'accuracyVal',
+      'winRate',
+      'win_rate',
+      'accuracy_percent',
+      'totalPnlPercent',
+      'total_pnl_percent',
+      'totalPnl',
+      'total_pnl',
+      'netPnL',
+      'net_pnl',
+      'pnl'
+    ]) {
+      if (!summaryMap.containsKey(key) && json.containsKey(key)) {
+        summaryMap[key] = json[key];
+      }
+    }
+
     ApiBacktestSummary summary = ApiBacktestSummary.fromJson(
-      json['summary'] ?? {},
+      summaryMap,
       trades: parsedTrades,
     );
     return ApiBacktestData(
@@ -86,18 +115,18 @@ class ApiBacktestSummary {
     Map<String, dynamic> json, {
     List<ApiBacktestTrade>? trades,
   }) {
-    int totalTrades = json['totalTrades'] ?? trades?.length ?? 0;
-    int wins = json['wins'] ?? 0;
-    int losses = json['losses'] ?? 0;
-    int open = json['open'] ?? 0;
+    int totalTrades = _toInt(json['totalTrades'] ?? json['total_trades']) ?? trades?.length ?? 0;
+    int wins = _toInt(json['wins']) ?? 0;
+    int losses = _toInt(json['losses']) ?? 0;
+    int open = _toInt(json['open']) ?? 0;
     int targetHits =
-        json['targetHits'] ?? json['target_hits'] ?? json['targetHitsCount'] ?? 0;
+        _toInt(json['targetHits'] ?? json['target_hits'] ?? json['targetHitsCount']) ?? 0;
     int stoplossHits =
-        json['stoplossHits'] ?? json['stoploss_hits'] ?? json['stopLossHitsCount'] ?? 0;
+        _toInt(json['stoplossHits'] ?? json['stoploss_hits'] ?? json['stopLossHitsCount']) ?? 0;
     int trailingSlHits =
-        json['trailingSlHits'] ?? json['trailing_sl_hits'] ?? json['trailingHits'] ?? json['trailingSlHitsCount'] ?? 0;
+        _toInt(json['trailingSlHits'] ?? json['trailing_sl_hits'] ?? json['trailingHits'] ?? json['trailingSlHitsCount']) ?? 0;
     int squareOffHits =
-        json['squareOffHits'] ?? json['square_off_hits'] ?? json['squareOffHitsCount'] ?? 0;
+        _toInt(json['squareOffHits'] ?? json['square_off_hits'] ?? json['squareOffHitsCount']) ?? 0;
 
     if (trades != null && trades.isNotEmpty) {
       if (wins == 0 && losses == 0) {
@@ -141,12 +170,52 @@ class ApiBacktestSummary {
       }
     }
 
-    String accuracy = json['accuracy']?.toString() ??
+    String? rawAccuracy;
+    if (json['accuracy'] != null) {
+      rawAccuracy = json['accuracy'].toString();
+    } else if (json['accuracy_percent'] != null) {
+      rawAccuracy = json['accuracy_percent'].toString();
+    } else if (json['accuracyVal'] != null) {
+      rawAccuracy = "${json['accuracyVal']}%";
+    } else if (json['winRate'] != null) {
+      rawAccuracy = "${json['winRate']}%";
+    } else if (json['win_rate'] != null) {
+      rawAccuracy = "${json['win_rate']}%";
+    }
+
+    if (rawAccuracy != null && !rawAccuracy.contains('%')) {
+      rawAccuracy = "$rawAccuracy%";
+    }
+
+    String accuracy = rawAccuracy ??
         (wins + losses > 0
             ? "${((wins / (wins + losses)) * 100).toStringAsFixed(2)}%"
             : (totalTrades > 0
                 ? "${((wins / totalTrades) * 100).toStringAsFixed(2)}%"
                 : "0.00%"));
+
+    String? rawPnl;
+    if (json['totalPnlPercent'] != null) {
+      rawPnl = json['totalPnlPercent'].toString();
+    } else if (json['total_pnl_percent'] != null) {
+      rawPnl = json['total_pnl_percent'].toString();
+    } else if (json['totalPnl'] != null) {
+      rawPnl = "${json['totalPnl']}%";
+    } else if (json['total_pnl'] != null) {
+      rawPnl = "${json['total_pnl']}%";
+    } else if (json['netPnL'] != null) {
+      rawPnl = "${json['netPnL']}%";
+    } else if (json['net_pnl'] != null) {
+      rawPnl = "${json['net_pnl']}%";
+    } else if (json['pnl'] != null) {
+      rawPnl = "${json['pnl']}%";
+    }
+
+    if (rawPnl != null && !rawPnl.contains('%')) {
+      rawPnl = "$rawPnl%";
+    }
+
+    String totalPnlPercent = rawPnl ?? '0.00%';
 
     return ApiBacktestSummary(
       totalTrades: totalTrades,
@@ -158,8 +227,7 @@ class ApiBacktestSummary {
       trailingSlHits: trailingSlHits,
       squareOffHits: squareOffHits,
       accuracy: accuracy,
-      totalPnlPercent:
-          json['totalPnlPercent']?.toString() ?? json['total_pnl_percent']?.toString() ?? '0.00%',
+      totalPnlPercent: totalPnlPercent,
     );
   }
 
@@ -183,6 +251,18 @@ double? _toDouble(dynamic val) {
   if (val == null) return null;
   if (val is num) return val.toDouble();
   if (val is String) return double.tryParse(val);
+  return null;
+}
+
+int? _toInt(dynamic val) {
+  if (val == null) return null;
+  if (val is int) return val;
+  if (val is num) return val.toInt();
+  if (val is String) {
+    int? parsedInt = int.tryParse(val);
+    if (parsedInt != null) return parsedInt;
+    return double.tryParse(val)?.toInt();
+  }
   return null;
 }
 
@@ -254,6 +334,12 @@ class ApiBacktestTrade {
   final double? gapUpGapDownPct;
   final String? dailyTrend;
 
+  // Holding & Setup details
+  final int? holdingDays;
+  final String? holdingType;
+  final String? setupGrade;
+  final String? pathName;
+
   ApiBacktestTrade({
     required this.token,
     required this.stockName,
@@ -272,6 +358,10 @@ class ApiBacktestTrade {
     required this.niftyGreen,
     this.maxFavorableMove,
     this.maxAdverseMove,
+    this.holdingDays,
+    this.holdingType,
+    this.setupGrade,
+    this.pathName,
     this.rsi,
     this.rsiSlope,
     this.ema20,
@@ -320,21 +410,48 @@ class ApiBacktestTrade {
   });
 
   factory ApiBacktestTrade.fromJson(Map<String, dynamic> json) {
+    double pnl = _toDouble(
+          json['pnlPercent'] ??
+              json['pnlPct'] ??
+              json['pnl_percent'] ??
+              json['pnl_percentage'] ??
+              json['pnl'] ??
+              json['profit'] ??
+              json['profit_loss_percentage'],
+        ) ??
+        0.0;
+
     return ApiBacktestTrade(
       token: json['token']?.toString() ??
+          json['instrumentToken']?.toString() ??
           json['stockSymbol']?.toString() ??
           json['symbol']?.toString() ??
+          json['stockName']?.toString() ??
+          json['stock_name']?.toString() ??
+          json['name']?.toString() ??
+          json['tradingsymbol']?.toString() ??
+          json['tradingSymbol']?.toString() ??
           '',
       stockName: json['stockName']?.toString() ??
+          json['stock_name']?.toString() ??
           json['stockSymbol']?.toString() ??
           json['symbol']?.toString() ??
+          json['name']?.toString() ??
+          json['tradingsymbol']?.toString() ??
+          json['tradingSymbol']?.toString() ??
           '',
-      date: json['date']?.toString() ?? json['opportunityDate']?.toString() ?? '',
+      date: json['date']?.toString() ??
+          json['entryDate']?.toString() ??
+          json['tradeDate']?.toString() ??
+          json['opportunityDate']?.toString() ??
+          '',
       entryTime: json['entryTime']?.toString() ??
           json['entry_time']?.toString() ??
+          json['entryTimestamp']?.toString() ??
           json['triggerTimestamp']?.toString(),
       signalTime: json['signalTime']?.toString() ??
           json['signal_time']?.toString() ??
+          json['entryTimestamp']?.toString() ??
           json['triggerTimestamp']?.toString() ??
           json['entryTime']?.toString() ??
           json['entry_time']?.toString(),
@@ -346,33 +463,40 @@ class ApiBacktestTrade {
       stoploss: _toDouble(
             json['stoploss'] ??
                 json['stopLoss'] ??
+                json['stop_loss'] ??
+                json['sl'] ??
                 json['initialSL'] ??
                 json['stopLossPrice'],
           ) ??
           0.0,
       exitTime: json['exitTime']?.toString() ??
           json['exit_time']?.toString() ??
-          json['exitTimestamp']?.toString(),
+          json['exitTimestamp']?.toString() ??
+          json['exitDate']?.toString(),
       exitPrice: _toDouble(json['exitPrice'] ?? json['exit_price']) ?? 0.0,
       exitReason: json['exitReason']?.toString() ??
+          json['exit_reason']?.toString() ??
           json['exitType']?.toString() ??
           json['dailyOutcome']?.toString() ??
           json['status']?.toString() ??
           '',
       status: json['status']?.toString() ??
+          json['exitReason']?.toString() ??
+          json['exit_reason']?.toString() ??
           json['exitType']?.toString() ??
-          json['dailyOutcome']?.toString() ??
-          json['exitReason']?.toString(),
+          json['dailyOutcome']?.toString(),
       winLoss: json['winLoss']?.toString() ??
-          ((_toDouble(json['pnlPercent']) ?? 0.0) > 0
-              ? 'WIN'
-              : ((_toDouble(json['pnlPercent']) ?? 0.0) < 0
-                  ? 'LOSS'
-                  : 'BREAKEVEN')),
-      pnlPercent: _toDouble(json['pnlPercent']) ?? 0.0,
+          json['win_loss']?.toString() ??
+          (pnl > 0 ? 'WIN' : (pnl < 0 ? 'LOSS' : 'BREAKEVEN')),
+      pnlPercent: pnl,
       niftyGreen: json['niftyGreen'] ?? false,
       maxFavorableMove: _toDouble(json['maxFavorableMove'] ?? json['MFE_R']),
       maxAdverseMove: _toDouble(json['maxAdverseMove'] ?? json['MAE_R']),
+      holdingDays: _toInt(json['holdingDays'] ?? json['holding_days']),
+      holdingType: json['holdingType']?.toString() ??
+          json['holding_type']?.toString(),
+      setupGrade: json['setupGrade']?.toString(),
+      pathName: json['pathName']?.toString(),
       rsi: _toDouble(json['rsi']),
       rsiSlope: _toDouble(json['rsiSlope']),
       ema20: _toDouble(json['ema20']),
@@ -440,6 +564,10 @@ class ApiBacktestTrade {
       'niftyGreen': niftyGreen,
     };
 
+    if (holdingDays != null) data['holdingDays'] = holdingDays;
+    if (holdingType != null) data['holdingType'] = holdingType;
+    if (setupGrade != null) data['setupGrade'] = setupGrade;
+    if (pathName != null) data['pathName'] = pathName;
     if (maxFavorableMove != null) data['maxFavorableMove'] = maxFavorableMove;
     if (maxAdverseMove != null) data['maxAdverseMove'] = maxAdverseMove;
     if (rsi != null) data['rsi'] = rsi;

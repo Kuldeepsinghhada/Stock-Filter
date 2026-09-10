@@ -47,8 +47,66 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
     return map;
   }
 
+  int? _parseMinutes(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) return null;
+    String s = timeStr.trim();
+
+    int? rawHour;
+    int? rawMinute;
+
+    if (s.contains('T')) {
+      String timePart = s.split('T').last;
+      List<String> parts = timePart.split(':');
+      if (parts.length >= 2) {
+        rawHour = int.tryParse(parts[0]);
+        String mStr = parts[1];
+        if (mStr.contains('.')) mStr = mStr.split('.').first;
+        mStr = mStr.replaceAll('Z', '');
+        rawMinute = int.tryParse(mStr);
+      }
+    } else if (s.contains(' ')) {
+      for (var p in s.split(' ')) {
+        if (p.contains(':')) {
+          List<String> parts = p.split(':');
+          if (parts.length >= 2) {
+            rawHour = int.tryParse(parts[0]);
+            String mStr = parts[1];
+            if (mStr.contains('.')) mStr = mStr.split('.').first;
+            rawMinute = int.tryParse(mStr);
+          }
+          break;
+        }
+      }
+    } else if (s.contains(':')) {
+      List<String> parts = s.split(':');
+      if (parts.length >= 2) {
+        rawHour = int.tryParse(parts[0]);
+        String mStr = parts[1];
+        if (mStr.contains('.')) mStr = mStr.split('.').first;
+        rawMinute = int.tryParse(mStr);
+      }
+    }
+
+    if (rawHour != null && rawMinute != null) {
+      // 12-hour format PM hours (1..7 PM -> 13..19)
+      if (rawHour >= 1 && rawHour <= 7) {
+        rawHour += 12;
+      }
+
+      return rawHour * 60 + rawMinute;
+    }
+
+    return null;
+  }
+
   String _formatTime(String? timeStr) {
     if (timeStr == null || timeStr.isEmpty) return '';
+    int? mins = _parseMinutes(timeStr);
+    if (mins != null) {
+      int h = mins ~/ 60;
+      int m = mins % 60;
+      return "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}";
+    }
     if (timeStr.contains('T')) {
       String timePart = timeStr.split('T').last;
       if (timePart.length >= 5) return timePart.substring(0, 5);
@@ -126,17 +184,21 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
         if (cleanName.isEmpty && trade.token.isEmpty) {
           return false;
         }
-        if (trade.entryTime != null) {
-          try {
-            DateTime dt = DateTime.parse(trade.entryTime!).toLocal();
-            int tradeMinutes = dt.hour * 60 + dt.minute;
+        String? timeStr = trade.entryTime ?? trade.signalTime;
+        if (timeStr != null && timeStr.isNotEmpty) {
+          int? tradeMinutes = _parseMinutes(timeStr);
+          if (tradeMinutes != null) {
             int startMinutes = _startTime.hour * 60 + _startTime.minute;
             int endMinutes = _endTime.hour * 60 + _endTime.minute;
-            if (tradeMinutes < startMinutes || tradeMinutes > endMinutes) {
-              return false;
+            if (startMinutes <= endMinutes) {
+              if (tradeMinutes < startMinutes || tradeMinutes > endMinutes) {
+                return false;
+              }
+            } else {
+              if (tradeMinutes < startMinutes && tradeMinutes > endMinutes) {
+                return false;
+              }
             }
-          } catch (e) {
-            print("Error parsing time: ${trade.entryTime} - $e");
           }
         }
         return true;
@@ -160,7 +222,9 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
 
         // Sort chronologically
         dateTrades.sort(
-          (a, b) => (a.entryTime ?? '').compareTo(b.entryTime ?? ''),
+          (a, b) => (_parseMinutes(a.entryTime ?? a.signalTime) ?? 0).compareTo(
+            _parseMinutes(b.entryTime ?? b.signalTime) ?? 0,
+          ),
         );
 
         // Apply max trades filter per day if valid and > 0
@@ -641,6 +705,16 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                               if (trade.stoploss > 0 || trade.target > 0) {
                                 slTargetText =
                                     "\nSL: ${trade.stoploss > 0 ? trade.stoploss.toStringAsFixed(2) : '-'} | Tgt: ${trade.target > 0 ? trade.target.toStringAsFixed(2) : '-'}";
+                              }
+
+                              String extraDetails = "";
+                              if (trade.setupGrade != null &&
+                                  trade.setupGrade!.isNotEmpty) {
+                                extraDetails += " [${trade.setupGrade}]";
+                              }
+                              if (trade.pathName != null &&
+                                  trade.pathName!.isNotEmpty) {
+                                extraDetails += "\nPath: ${trade.pathName}";
                               }
 
                               return Card(
