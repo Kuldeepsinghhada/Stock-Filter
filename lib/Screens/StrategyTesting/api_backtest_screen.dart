@@ -301,7 +301,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
           trailingSlHits: trailingSlHits,
           squareOffHits: squareOffHits,
           accuracy: accuracy,
-          totalPnlPercent: totalPnl.toStringAsFixed(2) + "%",
+          totalPnlPercent: "${totalPnl.toStringAsFixed(2)}%",
         );
       }
     });
