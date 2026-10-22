@@ -14,7 +14,11 @@ class ServerSettingScreen extends StatefulWidget {
 
 class _ServerSettingScreenState extends State<ServerSettingScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _maxTradeAmountController =
+  final TextEditingController _maxTradeAmountIntradayController =
+      TextEditingController();
+  final TextEditingController _maxTradePerDayController =
+      TextEditingController();
+  final TextEditingController _maxTradeAmountSwingController =
       TextEditingController();
 
   bool _isLoading = true;
@@ -23,7 +27,8 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
 
   TimeOfDay _squareOffTime = const TimeOfDay(hour: 15, minute: 15);
   bool _enableTelegramAlert = true;
-  bool _enableAutoTrading = false;
+  bool _enableAutoTradingIntraday = false;
+  bool _enableAutoTradingSwing = false;
   bool _enableScreenerSync = true;
   String? _updatedAt;
 
@@ -35,7 +40,9 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
 
   @override
   void dispose() {
-    _maxTradeAmountController.dispose();
+    _maxTradeAmountIntradayController.dispose();
+    _maxTradePerDayController.dispose();
+    _maxTradeAmountSwingController.dispose();
     super.dispose();
   }
 
@@ -52,11 +59,16 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
     if (response.isSuccess && response.data != null) {
       final settings = response.data!;
       setState(() {
-        _maxTradeAmountController.text =
-            settings.maxTradeAmount.toStringAsFixed(2);
+        _maxTradeAmountIntradayController.text =
+            settings.maxTradeAmountIntraday.toStringAsFixed(2);
+        _maxTradePerDayController.text =
+            settings.maxTradePerDay.toString();
+        _maxTradeAmountSwingController.text =
+            settings.maxTradeAmountSwing.toStringAsFixed(2);
         _squareOffTime = _parseTimeString(settings.squareOffTime);
         _enableTelegramAlert = settings.enableTelegramAlert;
-        _enableAutoTrading = settings.enableAutoTrading;
+        _enableAutoTradingIntraday = settings.enableAutoTradingIntraday;
+        _enableAutoTradingSwing = settings.enableAutoTradingSwing;
         _enableScreenerSync = settings.enableScreenerSync;
         _updatedAt = settings.updatedAt;
         _isLoading = false;
@@ -74,9 +86,25 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
   Future<void> _saveServerSettings() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final maxAmount = double.tryParse(_maxTradeAmountController.text.trim());
-    if (maxAmount == null || maxAmount <= 0) {
-      Fluttertoast.showToast(msg: "Please enter a valid trade amount");
+    final maxAmountIntraday =
+        double.tryParse(_maxTradeAmountIntradayController.text.trim());
+    if (maxAmountIntraday == null || maxAmountIntraday <= 0) {
+      Fluttertoast.showToast(msg: "Please enter a valid intraday trade amount");
+      return;
+    }
+
+    final maxTradesPerDay =
+        int.tryParse(_maxTradePerDayController.text.trim());
+    if (maxTradesPerDay == null || maxTradesPerDay <= 0) {
+      Fluttertoast.showToast(
+          msg: "Please enter a valid number of trades per day (min 1)");
+      return;
+    }
+
+    final maxAmountSwing =
+        double.tryParse(_maxTradeAmountSwingController.text.trim());
+    if (maxAmountSwing == null || maxAmountSwing <= 0) {
+      Fluttertoast.showToast(msg: "Please enter a valid swing trade amount");
       return;
     }
 
@@ -85,10 +113,13 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
     });
 
     final newSettings = ServerSettings(
-      maxTradeAmount: maxAmount,
+      maxTradeAmountIntraday: maxAmountIntraday,
+      enableAutoTradingIntraday: _enableAutoTradingIntraday,
+      maxTradePerDay: maxTradesPerDay,
+      maxTradeAmountSwing: maxAmountSwing,
+      enableAutoTradingSwing: _enableAutoTradingSwing,
       squareOffTime: _formatTimeOfDay(_squareOffTime),
       enableTelegramAlert: _enableTelegramAlert,
-      enableAutoTrading: _enableAutoTrading,
       enableScreenerSync: _enableScreenerSync,
     );
 
@@ -110,13 +141,19 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
 
       if (response.data != null) {
         setState(() {
-          _maxTradeAmountController.text =
-              response.data!.maxTradeAmount.toStringAsFixed(2);
+          _maxTradeAmountIntradayController.text =
+              response.data!.maxTradeAmountIntraday.toStringAsFixed(2);
+          _maxTradePerDayController.text =
+              response.data!.maxTradePerDay.toString();
+          _maxTradeAmountSwingController.text =
+              response.data!.maxTradeAmountSwing.toStringAsFixed(2);
           _squareOffTime = _parseTimeString(response.data!.squareOffTime);
           _enableTelegramAlert = response.data!.enableTelegramAlert;
-          _enableAutoTrading = response.data!.enableAutoTrading;
+          _enableAutoTradingIntraday = response.data!.enableAutoTradingIntraday;
+          _enableAutoTradingSwing = response.data!.enableAutoTradingSwing;
           _enableScreenerSync = response.data!.enableScreenerSync;
-          _updatedAt = response.data!.updatedAt ?? DateTime.now().toIso8601String();
+          _updatedAt =
+              response.data!.updatedAt ?? DateTime.now().toIso8601String();
         });
       } else {
         setState(() {
@@ -264,47 +301,9 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // Header Info Card
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              color: Colors.blueAccent.withValues(alpha: 0.1),
-              child: const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.dns, color: Colors.blueAccent, size: 32),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Live Server Configuration",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blueAccent,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            "Changes apply directly to server-side trading operations.",
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Section 1: Trade Settings
+            // Intraday Section
             const Text(
-              "TRADING PARAMETERS",
+              "INTRADAY SETTINGS",
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -321,9 +320,9 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    // Max Trade Amount Field
+                    // Max Trade Amount Intraday
                     TextFormField(
-                      controller: _maxTradeAmountController,
+                      controller: _maxTradeAmountIntradayController,
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
                       inputFormatters: [
@@ -331,14 +330,14 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                             RegExp(r'^\d*\.?\d*')),
                       ],
                       decoration: InputDecoration(
-                        labelText: 'Max Trade Amount (₹)',
-                        hintText: 'e.g. 50000.00',
+                        labelText: 'Max Trade Amount Intraday (₹)',
+                        hintText: 'e.g. 20000.00',
                         prefixIcon: const Icon(Icons.currency_rupee),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
                         helperText:
-                            'Maximum capital allowed per trade on server',
+                            'Maximum capital allowed per intraday trade',
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -352,10 +351,45 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 8),
-
-                    // Square Off Time Picker Tile
+                    // Max Trade Per Day
+                    TextFormField(
+                      controller: _maxTradePerDayController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Max Trades Per Day (Intraday)',
+                        hintText: 'e.g. 1',
+                        prefixIcon: const Icon(Icons.numbers),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        helperText:
+                            'Maximum number of intraday trades allowed per day',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Max Trades Per Day is required';
+                        }
+                        final parsed = int.tryParse(value.trim());
+                        if (parsed == null || parsed <= 0) {
+                          return 'Enter a valid count of at least 1';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      title: const Text('Enable Auto Trading Intraday'),
+                      value: _enableAutoTradingIntraday,
+                      onChanged: (bool value) {
+                        setState(() {
+                          _enableAutoTradingIntraday = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.access_time_filled,
@@ -400,7 +434,73 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
 
             const SizedBox(height: 24),
 
-            // Section 2: Automation & Notifications
+            // Swing Section
+            const Text(
+              "SWING SETTINGS",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.1,
+                color: Colors.blueAccent,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    // Max Trade Amount Swing
+                    TextFormField(
+                      controller: _maxTradeAmountSwingController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d*')),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Max Trade Amount Swing (₹)',
+                        hintText: 'e.g. 8000.00',
+                        prefixIcon: const Icon(Icons.currency_rupee),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        helperText:
+                            'Maximum capital allowed per swing trade',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Max Trade Amount is required';
+                        }
+                        final parsed = double.tryParse(value.trim());
+                        if (parsed == null || parsed <= 0) {
+                          return 'Enter a valid amount greater than 0';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      title: const Text('Enable Auto Trading Swing'),
+                      value: _enableAutoTradingSwing,
+                      onChanged: (bool value) {
+                        setState(() {
+                          _enableAutoTradingSwing = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Automation & Alerts
             const Text(
               "AUTOMATION & ALERTS",
               style: TextStyle(
@@ -417,7 +517,6 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                   borderRadius: BorderRadius.circular(12)),
               child: Column(
                 children: [
-                  // Master Switch: Screener Sync
                   SwitchListTile(
                     secondary: Icon(
                       Icons.sync_rounded,
@@ -460,32 +559,6 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                     onChanged: (bool value) {
                       setState(() {
                         _enableTelegramAlert = value;
-                      });
-                    },
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    secondary: Icon(
-                      Icons.smart_toy_rounded,
-                      color: _enableAutoTrading
-                          ? Colors.greenAccent
-                          : Colors.grey,
-                    ),
-                    title: const Text('Enable Auto Trading'),
-                    subtitle: Text(
-                      _enableAutoTrading
-                          ? 'Server will execute trades automatically based on signals'
-                          : 'Auto trading is disabled on server',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            _enableAutoTrading ? Colors.green : Colors.grey,
-                      ),
-                    ),
-                    value: _enableAutoTrading,
-                    onChanged: (bool value) {
-                      setState(() {
-                        _enableAutoTrading = value;
                       });
                     },
                   ),

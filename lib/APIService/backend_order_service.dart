@@ -11,7 +11,7 @@ import 'package:stock_demo/model/check_stock_5min_history_model.dart';
 import 'package:stock_demo/model/investment_model.dart';
 
 class BackendOrderService {
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = 'http://200.97.163.130:8080';
   // LOCAL:  http://localhost:8080
   // LIVE http://200.97.163.130:8080
   /// Health Check
@@ -433,7 +433,7 @@ class BackendOrderService {
         body: body,
       );
       log(
-        "POST /settings response status: ${response.statusCode}, body: ${response.body}",
+        "POST /settings status: ${response.statusCode}, body: ${response.body}",
       );
 
       // If method not allowed (405) or unsupported method on server, try PUT
@@ -441,7 +441,7 @@ class BackendOrderService {
         log("POST returned 405, retrying with PUT /settings");
         response = await http.put(url, headers: headers, body: body);
         log(
-          "PUT /settings response status: ${response.statusCode}, body: ${response.body}",
+          "PUT /settings status: ${response.statusCode}, body: ${response.body}",
         );
       }
 
@@ -472,6 +472,11 @@ class BackendOrderService {
       );
     }
   }
+
+  /// Alias for updateServerSettings (POST /settings)
+  static Future<ServerSettingsResponse> postServerSettings(
+    ServerSettings settings,
+  ) => updateServerSettings(settings);
 
   /// Fetch Pure Daily EOD Backtest (GET /api/backtest/daily?startDate=DD/MM/YYYY&endDate=DD/MM/YYYY)
   static Future<InvestmentResponse?> fetchInvestmentRecommendations({
