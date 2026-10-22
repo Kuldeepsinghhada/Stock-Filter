@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
+import 'package:stock_demo/Utils/sharepreference_helper.dart';
+import 'package:stock_demo/Widgets/app_drawer.dart';
 import 'package:stock_demo/model/server_setting_model.dart';
 
 class ServerSettingScreen extends StatefulWidget {
@@ -23,6 +25,8 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isBackendConnected = false;
+  bool _isConnecting = false;
   String? _errorMessage;
 
   TimeOfDay _squareOffTime = const TimeOfDay(hour: 15, minute: 15);
@@ -35,7 +39,76 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
   @override
   void initState() {
     super.initState();
+    _checkConnectionStatus();
     _fetchLiveSettings();
+  }
+
+  Future<void> _checkConnectionStatus() async {
+    try {
+      final isHealthy = await BackendOrderService.healthCheck();
+      if (mounted) {
+        setState(() {
+          _isBackendConnected = isHealthy;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _connectBackend() async {
+    if (_isConnecting) return;
+    setState(() {
+      _isConnecting = true;
+    });
+
+    try {
+      // 1. Health Check
+      final isHealthy = await BackendOrderService.healthCheck();
+      if (!isHealthy) {
+        Fluttertoast.showToast(msg: "Backend health check failed. Check server status.");
+        return;
+      }
+
+      // 2. Save Zerodha Session
+      final accessToken = await SharedPreferenceHelper.instance.getToken();
+      final refreshToken = await SharedPreferenceHelper.instance.getRefreshToken();
+
+      if (accessToken == null || accessToken.isEmpty) {
+        Fluttertoast.showToast(msg: "No Kite Access Token found. Please log in first.");
+        return;
+      }
+
+      final isSaved = await BackendOrderService.saveZerodhaSession(
+        accessToken,
+        refreshToken ?? "",
+      );
+
+      if (isSaved) {
+        if (mounted) {
+          setState(() {
+            _isBackendConnected = true;
+          });
+        }
+        Fluttertoast.showToast(
+          msg: "Connected to Server successfully!",
+          backgroundColor: Colors.green,
+        );
+        await BackendOrderService.getSession();
+        await _fetchLiveSettings();
+      } else {
+        Fluttertoast.showToast(
+          msg: "Failed to save session on backend.",
+          backgroundColor: Colors.redAccent,
+        );
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Connection error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -226,6 +299,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Server Settings'),
         actions: [
@@ -301,6 +375,91 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
+            // Server Connection Status Card
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              color: _isBackendConnected
+                  ? Colors.green.withValues(alpha: 0.12)
+                  : Colors.amber.withValues(alpha: 0.12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isBackendConnected
+                          ? Icons.cloud_done
+                          : Icons.cloud_off,
+                      color: _isBackendConnected
+                          ? Colors.greenAccent
+                          : Colors.amberAccent,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isBackendConnected
+                                ? "Backend Server: Connected"
+                                : "Backend Server: Disconnected",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _isBackendConnected
+                                ? "Live session active & Zerodha token synced"
+                                : "Sync Zerodha token to enable live alerts & orders",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _isConnecting ? null : _connectBackend,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isBackendConnected
+                            ? Colors.green
+                            : Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      child: _isConnecting
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(_isBackendConnected ? "Reconnect" : "Connect"),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Intraday Section
             const Text(
               "INTRADAY SETTINGS",

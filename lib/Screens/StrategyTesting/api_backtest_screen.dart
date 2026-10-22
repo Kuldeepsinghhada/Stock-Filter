@@ -16,7 +16,7 @@ class ApiBacktestScreen extends StatefulWidget {
 }
 
 class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 365));
   DateTime _endDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 0, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 23, minute: 59);
@@ -409,7 +409,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
       ..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
-      drawer: const AppDrawer(),
+      // drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('API Backtest'),
         actions: [

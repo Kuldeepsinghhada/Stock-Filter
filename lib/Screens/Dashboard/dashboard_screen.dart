@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
+import 'package:stock_demo/Screens/Settings/server_setting_screen.dart';
 import 'package:stock_demo/Screens/Investment/investment_screen.dart';
 import 'package:stock_demo/Screens/Orders/orders_screen.dart';
 import 'package:stock_demo/Screens/StrategyTesting/api_backtest_screen.dart';
@@ -20,7 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _screens = [
-      const FilteredStockScreen(),
+      const ServerSettingScreen(),
       const InvestmentScreen(),
       const ApiBacktestScreen(),
       const OrderScreen(),
@@ -41,12 +41,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.filter_center_focus),
-            label: "TRADE",
+            icon: Icon(Icons.dns),
+            label: "SERVER",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.trending_up),
-            label: "INVEST",
+            icon: Icon(Icons.show_chart),
+            label: "SWING",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.data_usage),

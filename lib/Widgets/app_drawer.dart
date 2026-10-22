@@ -5,6 +5,7 @@ import 'package:stock_demo/Screens/Settings/trade_setting_screen.dart';
 import 'package:stock_demo/Screens/StrategyTesting/api_backtest_screen.dart';
 import 'package:stock_demo/Screens/SearchStocks/stock_5min_history_screen.dart';
 import 'package:stock_demo/Screens/Investment/investment_screen.dart';
+import 'package:stock_demo/Screens/Filterstocks/filtered_stocks.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -48,6 +49,20 @@ class AppDrawer extends StatelessWidget {
               ],
             ),
           ),
+          // Live Trade Scanner
+          ListTile(
+            leading: const Icon(Icons.filter_center_focus, color: Colors.deepPurpleAccent),
+            title: const Text('Live Trade Scanner'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FilteredStockScreen(),
+                ),
+              );
+            },
+          ),
           // 5-Min History Check
           ListTile(
             leading: const Icon(Icons.history, color: Colors.lightBlueAccent),
@@ -62,10 +77,10 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-          // Investment Recommendations
+          // Swing Backtest
           ListTile(
-            leading: const Icon(Icons.trending_up, color: Colors.greenAccent),
-            title: const Text('Investment Recommendations'),
+            leading: const Icon(Icons.show_chart, color: Colors.greenAccent),
+            title: const Text('Swing Backtest'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(

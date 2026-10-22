@@ -24,6 +24,7 @@ class InvestmentSummary {
   final int losses;
   final int open;
   final String accuracy;
+  final double? winRate;
   final String totalPnlPercent;
 
   InvestmentSummary({
@@ -32,17 +33,27 @@ class InvestmentSummary {
     required this.losses,
     this.open = 0,
     required this.accuracy,
+    this.winRate,
     required this.totalPnlPercent,
   });
 
   factory InvestmentSummary.fromJson(Map<String, dynamic> json) {
+    double? parsedWinRate;
+    if (json['winRate'] is num) {
+      parsedWinRate = (json['winRate'] as num).toDouble();
+    }
+
+    String accStr = json['accuracy']?.toString() ??
+        (parsedWinRate != null ? "${parsedWinRate.toStringAsFixed(2)}%" : '0%');
+
     return InvestmentSummary(
       totalTrades:
           json['totalTrades'] is num ? (json['totalTrades'] as num).toInt() : 0,
       wins: json['wins'] is num ? (json['wins'] as num).toInt() : 0,
       losses: json['losses'] is num ? (json['losses'] as num).toInt() : 0,
       open: json['open'] is num ? (json['open'] as num).toInt() : 0,
-      accuracy: json['accuracy']?.toString() ?? '0%',
+      accuracy: accStr,
+      winRate: parsedWinRate,
       totalPnlPercent: json['totalPnlPercent']?.toString() ?? '0%',
     );
   }
@@ -63,7 +74,12 @@ class InvestmentData {
   final List<InvestmentRecommendation> recommendations;
   final int? targetHitCount;
   final double? accuracyPercent;
+  final double? winRate;
   final double? totalProfit;
+  final String? totalPnlPercent;
+  final int? totalTrades;
+  final int? wins;
+  final int? losses;
 
   InvestmentData({
     required this.count,
@@ -80,7 +96,12 @@ class InvestmentData {
     required this.recommendations,
     this.targetHitCount,
     this.accuracyPercent,
+    this.winRate,
     this.totalProfit,
+    this.totalPnlPercent,
+    this.totalTrades,
+    this.wins,
+    this.losses,
   });
 
   factory InvestmentData.fromJson(Map<String, dynamic> json) {
@@ -89,41 +110,65 @@ class InvestmentData {
     List<InvestmentRecommendation> recs =
         list.map((r) => InvestmentRecommendation.fromJson(r)).toList();
 
-    InvestmentSummary? summaryObj = json['summary'] != null
-        ? InvestmentSummary.fromJson(json['summary'])
-        : null;
+    InvestmentSummary? summaryObj;
+    if (json['summary'] != null && json['summary'] is Map<String, dynamic>) {
+      summaryObj = InvestmentSummary.fromJson(json['summary']);
+    } else if (json['totalTrades'] != null ||
+        json['wins'] != null ||
+        json['accuracy'] != null ||
+        json['winRate'] != null ||
+        json['totalPnlPercent'] != null) {
+      summaryObj = InvestmentSummary.fromJson(json);
+    }
 
     int totalCount = summaryObj?.totalTrades ??
-        (json['count'] is num ? (json['count'] as num).toInt() : recs.length);
+        (json['totalTrades'] is num
+            ? (json['totalTrades'] as num).toInt()
+            : json['count'] is num
+                ? (json['count'] as num).toInt()
+                : recs.length);
 
-    int? targetWins = summaryObj?.wins ??
-        (json['targetHitCount'] is num
-            ? (json['targetHitCount'] as num).toInt()
-            : json['targetCount'] is num
-                ? (json['targetCount'] as num).toInt()
-                : null);
+    int targetWins = summaryObj?.wins ??
+        (json['wins'] is num
+            ? (json['wins'] as num).toInt()
+            : json['targetHitCount'] is num
+                ? (json['targetHitCount'] as num).toInt()
+                : recs
+                    .where((r) =>
+                        r.status.toUpperCase() == 'WIN' ||
+                        r.status.toUpperCase() == 'TARGET_HIT' ||
+                        r.winLoss == 'WIN')
+                    .length);
+
+    int targetLosses = summaryObj?.losses ??
+        (json['losses'] is num
+            ? (json['losses'] as num).toInt()
+            : recs
+                .where((r) =>
+                    r.status.toUpperCase() == 'LOSS' ||
+                    r.status.toUpperCase() == 'STOP_LOSS_HIT' ||
+                    r.winLoss == 'LOSS')
+                .length);
 
     double? accPct;
-    if (summaryObj?.accuracy != null) {
+    if (json['winRate'] is num) {
+      accPct = (json['winRate'] as num).toDouble();
+    } else if (summaryObj?.accuracy != null) {
       final cleanAcc = summaryObj!.accuracy.replaceAll('%', '').trim();
       accPct = double.tryParse(cleanAcc);
+    } else if (json['accuracyPercent'] is num) {
+      accPct = (json['accuracyPercent'] as num).toDouble();
     }
-    accPct ??= json['accuracyPercent'] is num
-        ? (json['accuracyPercent'] as num).toDouble()
-        : json['accuracy'] is num
-            ? (json['accuracy'] as num).toDouble()
-            : null;
 
     double? totProf;
-    if (summaryObj?.totalPnlPercent != null) {
-      final cleanPnl = summaryObj!.totalPnlPercent.replaceAll('%', '').trim();
+    String? totPnlStr =
+        summaryObj?.totalPnlPercent ?? json['totalPnlPercent']?.toString();
+    if (totPnlStr != null) {
+      final cleanPnl = totPnlStr.replaceAll('%', '').replaceAll('+', '').trim();
       totProf = double.tryParse(cleanPnl);
+    } else if (json['totalProfit'] is num) {
+      totProf = (json['totalProfit'] as num).toDouble();
     }
-    totProf ??= json['totalProfit'] is num
-        ? (json['totalProfit'] as num).toDouble()
-        : json['totalPnl'] is num
-            ? (json['totalPnl'] as num).toDouble()
-            : null;
 
     String stratVersionStr = json['strategyVersion']?.toString() ??
         json['strategy']?.toString() ??
@@ -146,7 +191,12 @@ class InvestmentData {
       recommendations: recs,
       targetHitCount: targetWins,
       accuracyPercent: accPct,
+      winRate: accPct,
       totalProfit: totProf,
+      totalPnlPercent: totPnlStr,
+      totalTrades: totalCount,
+      wins: targetWins,
+      losses: targetLosses,
     );
   }
 }
@@ -289,8 +339,20 @@ class InvestmentRecommendation {
         json['winLoss']?.toString() ??
         '';
 
-    final String dateStr = json['date']?.toString() ??
-        json['entryDate']?.toString() ??
+    final String? winLossStr = json['winLoss']?.toString() ??
+        (statusStr.toUpperCase() == 'WIN' ||
+                statusStr.toUpperCase() == 'TARGET_HIT' ||
+                (json['exitReason']?.toString().toUpperCase() == 'TARGET_HIT')
+            ? 'WIN'
+            : statusStr.toUpperCase() == 'LOSS' ||
+                    statusStr.toUpperCase() == 'STOP_LOSS_HIT' ||
+                    (json['exitReason']?.toString().toUpperCase() ==
+                        'STOP_LOSS_HIT')
+                ? 'LOSS'
+                : null);
+
+    final String dateStr = json['entryDate']?.toString() ??
+        json['date']?.toString() ??
         json['tradeDate']?.toString() ??
         json['targetDate']?.toString() ??
         '';
@@ -358,7 +420,7 @@ class InvestmentRecommendation {
       holdingPeriod: json['holdingPeriod']?.toString() ?? 'EOD Daily',
       status: statusStr,
       exitReason: json['exitReason']?.toString(),
-      winLoss: json['winLoss']?.toString(),
+      winLoss: winLossStr,
       exitPrice: json['exitPrice'] is num
           ? (json['exitPrice'] as num).toDouble()
           : null,
@@ -380,7 +442,7 @@ class InvestmentRecommendation {
       indicators: indObj,
       createdAt: json['createdAt']?.toString() ?? dateStr,
       date: dateStr,
-      entryDate: json['entryDate']?.toString(),
+      entryDate: json['entryDate']?.toString() ?? dateStr,
       tradeDate: json['tradeDate']?.toString(),
     );
   }

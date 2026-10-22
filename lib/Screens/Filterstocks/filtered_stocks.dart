@@ -280,7 +280,7 @@ class _FilteredStockScreenState extends State<FilteredStockScreen>
     }
 
     return Scaffold(
-      drawer: const AppDrawer(),
+      // drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [

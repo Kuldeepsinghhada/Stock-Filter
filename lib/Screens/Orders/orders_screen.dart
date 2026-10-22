@@ -28,7 +28,7 @@ class _OrderScreenState extends State<OrderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: const AppDrawer(),
+      // drawer: const AppDrawer(),
       backgroundColor: const Color(0xff131722),
       appBar: AppBar(
         title: const Text('Executed Orders',

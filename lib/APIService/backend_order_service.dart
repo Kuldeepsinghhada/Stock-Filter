@@ -478,28 +478,28 @@ class BackendOrderService {
     ServerSettings settings,
   ) => updateServerSettings(settings);
 
-  /// Fetch Pure Daily EOD Backtest (GET /api/backtest/daily?startDate=DD/MM/YYYY&endDate=DD/MM/YYYY)
+  /// Fetch Pure Daily EOD Backtest (GET /api/backtest/daily?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD)
   static Future<InvestmentResponse?> fetchInvestmentRecommendations({
     required String startDate,
     required String endDate,
     bool force = false,
   }) async {
-    String formattedStartDate = startDate;
-    String formattedEndDate = endDate;
+    String formattedStartDate = startDate.trim();
+    String formattedEndDate = endDate.trim();
 
-    // Convert YYYY-MM-DD to DD/MM/YYYY if needed
-    if (formattedStartDate.contains('-')) {
-      final parts = formattedStartDate.split('-');
-      if (parts.length == 3 && parts[0].length == 4) {
+    // Ensure format is YYYY-MM-DD (e.g. if DD/MM/YYYY is passed, convert to YYYY-MM-DD)
+    if (formattedStartDate.contains('/')) {
+      final parts = formattedStartDate.split('/');
+      if (parts.length == 3 && parts[2].length == 4) {
         formattedStartDate =
-            "${parts[2].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}/${parts[0]}";
+            "${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}";
       }
     }
-    if (formattedEndDate.contains('-')) {
-      final parts = formattedEndDate.split('-');
-      if (parts.length == 3 && parts[0].length == 4) {
+    if (formattedEndDate.contains('/')) {
+      final parts = formattedEndDate.split('/');
+      if (parts.length == 3 && parts[2].length == 4) {
         formattedEndDate =
-            "${parts[2].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}/${parts[0]}";
+            "${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}";
       }
     }
 
