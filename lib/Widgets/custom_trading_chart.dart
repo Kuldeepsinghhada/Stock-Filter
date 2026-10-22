@@ -281,10 +281,6 @@ class ChartPainter extends CustomPainter {
     minPrice -= padding;
     maxPrice += padding;
 
-    final double scaleY = autoScale
-        ? chartHeight / (maxPrice - minPrice)
-        : (chartHeight / (maxPrice - minPrice)) * priceScale;
-
     // Better Y mapping
     double getY(double price) {
       if (autoScale) {

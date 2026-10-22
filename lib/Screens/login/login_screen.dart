@@ -48,40 +48,6 @@ class _ZerodhaLoginPageState extends State<ZerodhaLoginPage> {
           );
   }
 
-  // Future<void> getAccessToken(String requestToken) async {
-  //   final url = Uri.parse("https://api.kite.trade/session/token");
-  //   final checksum =
-  //   sha256.convert(utf8.encode("${DataManager.instance.apiKey}$requestToken${DataManager.instance.apiSecret}")).toString();
-  //   final response = await http.post(url, body: {
-  //     "api_key": DataManager.instance.apiKey,
-  //     "request_token": requestToken,
-  //     "checksum": checksum,
-  //   });
-  //   if (response.statusCode == 200) {
-  //     final data = jsonDecode(response.body);
-  //     final token = data["data"]["access_token"];
-  //     setState(() {
-  //       accessToken = token;
-  //     });
-  //     log("🎯 Access Token: $accessToken");
-  //     // Save token and expiry (midnight)
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final now = DateTime.now();
-  //     final midnight = DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
-  //     await prefs.setString('access_token', token);
-  //     await prefs.setInt('access_token_expiry', midnight);
-  //     // Navigate to home screen
-  //     if (!mounted) {
-  //       return;
-  //     }
-  //     Future.delayed(Duration.zero, () {
-  //       Navigator.pushReplacementNamed(context, '/dashboard');
-  //     });
-  //   } else {
-  //     //Fluttertoast.showToast(msg: response.error);
-  //   }
-  // }
-
   Future<void> getAccessToken(String requestToken) async {
     final url = Uri.parse("https://api.kite.trade/session/token");
     final checksum =

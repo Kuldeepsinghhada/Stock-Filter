@@ -7,8 +7,6 @@ import 'trade_executor.dart';
 import 'kite_api_client.dart';
 import 'order_service.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
-import '../Utils/sharepreference_helper.dart';
-import 'package:intl/intl.dart';
 
 class TradingManager {
   static final TradingManager instance = TradingManager._internal();
@@ -84,36 +82,6 @@ class TradingManager {
           name: 'TradingManager');
       calculatedQuantity = 1;
     }
-
-    // Calculate actual points based on the entry price and provided target/stoploss
-    double slPoints = entryPrice - stoploss;
-    double targetPoints = target - entryPrice;
-
-    // Create a specific config for this symbol using the calculated points
-    final config = TradeConfig(
-      symbol: symbol,
-      exchange: defaultTradeConfig.exchange,
-      quantity: calculatedQuantity,
-      slPoints: slPoints > 0 ? slPoints : defaultTradeConfig.slPoints,
-      targetPoints:
-          targetPoints > 0 ? targetPoints : defaultTradeConfig.targetPoints,
-      isPercentageBased: false, // Since we calculated exact points
-      pollingInterval: defaultTradeConfig.pollingInterval,
-      timeout: defaultTradeConfig.timeout,
-      slOrderType: defaultTradeConfig.slOrderType,
-      instrumentToken: (() {
-        try {
-          final stock = DataManager.instance.stocksList.firstWhere(
-            (s) =>
-                s.symbol?.replaceAll("NSE:", "") ==
-                symbol.replaceAll("NSE:", ""),
-          );
-          return int.tryParse(stock.token.toString()) ?? 0;
-        } catch (_) {
-          return 0;
-        }
-      })(),
-    );
 
     // Execute the trade via custom backend
     BackendOrderService.placeStockOrder(

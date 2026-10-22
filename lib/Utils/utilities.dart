@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
-import 'dart:math' show min, max;
+import 'dart:math' show min;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Services/notification_service.dart';
@@ -16,8 +16,6 @@ import 'filter_utils.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:http/http.dart' as http;
-import 'package:stock_demo/APIService/api_service.dart';
-import 'enums.dart';
 import 'package:stock_demo/trading/trading_manager.dart';
 
 class Utilities {
@@ -54,7 +52,6 @@ class Utilities {
   ) {
     List<StockModel> stockList = [];
     stockMap.forEach((key, value) {
-      final symbol = key.split(":").last;
       stockList.add(
         StockModel.fromMap({
           'symbol': key,
@@ -627,12 +624,6 @@ class Utilities {
       final current = todayCandles[i];
 
       // 🕒 Filter: check only from 9:30 AM to 11:00 AM
-      final hour = current.timestamp.hour;
-      final minute = current.timestamp.minute;
-      final totalMinutes = hour * 60 + minute;
-      // 9:30 AM = 570 minutes, 11:00 AM = 660 minutes
-      //  if (totalMinutes < 575 || totalMinutes > 695) continue;
-
       // build history till current candle
       final historySoFar = [
         ...baseHistory,

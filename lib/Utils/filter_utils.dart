@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
-import 'package:stock_demo/Utils/INdicators/support_resistance_engine.dart';
 import 'package:stock_demo/Utils/bullish_pattern_detector.dart';
 import 'package:stock_demo/Utils/indicators.dart';
 import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
@@ -1439,11 +1438,6 @@ class FilterUtils {
 
     if (candles1m != null && candles1m.isNotEmpty) {
       final engine1m = IndicatorEngine(candles1m);
-      final supertrend1mList = IndicatorUtils.supertrendSeries(
-        engine1m,
-        atrPeriod: cachedSupertrendPeriod,
-        multiplier: cachedSupertrendMultiplier,
-      );
 
       bool isTrailingActive = false;
       double currentSL = stoploss;
@@ -1497,11 +1491,6 @@ class FilterUtils {
       }
     } else {
       // Fallback: 5-minute candles simulation
-      final supertrend5mList = IndicatorUtils.supertrendSeries(
-        IndicatorEngine(history),
-        atrPeriod: cachedSupertrendPeriod,
-        multiplier: cachedSupertrendMultiplier,
-      );
 
       bool isTrailingActive = false;
       double currentSL = stoploss;

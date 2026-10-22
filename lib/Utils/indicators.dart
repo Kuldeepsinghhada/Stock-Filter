@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:stock_demo/Utils/filter_utils.dart';
 import 'package:stock_demo/Utils/utilities.dart';
@@ -1165,7 +1164,6 @@ class IndicatorUtils {
     }
 
     final adxLast = adxSeries.last;
-    final adxPrev = adxSeries[adxSeries.length - 2];
 
     // Step 5️⃣ Compute final +DI and -DI again
     atr = tr.sublist(0, diPeriod).reduce((a, b) => a + b) / diPeriod;

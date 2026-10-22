@@ -1,17 +1,13 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:math';
 import 'models.dart';
 import 'order_service.dart';
 import 'order_monitor.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/model/historical_data_model.dart';
 import 'package:stock_demo/Screens/Dashboard/dashboard_services.dart';
 import 'package:stock_demo/Utils/INdicators/indicator_engine.dart';
 import 'package:stock_demo/Utils/indicators.dart';
-import 'package:stock_demo/APIService/backend_order_service.dart';
 
 class TradeExecutor {
   final OrderService orderService;

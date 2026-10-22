@@ -4,7 +4,6 @@ import 'package:stock_demo/model/api_backtest_model.dart';
 import 'package:stock_demo/model/stock_model.dart';
 import 'package:stock_demo/Screens/Chart/chart_screen.dart';
 import 'package:stock_demo/Utils/data_manager.dart';
-import 'package:stock_demo/Utils/utilities.dart';
 import 'package:intl/intl.dart';
 import 'package:stock_demo/Widgets/app_drawer.dart';
 import 'package:stock_demo/Utils/file_downloader.dart';
@@ -775,7 +774,7 @@ class _ApiBacktestScreenState extends State<ApiBacktestScreen> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    "$entryDetails\n$exitDetails$slTargetText",
+                                    "$entryDetails\n$exitDetails$slTargetText$extraDetails",
                                   ),
                                   trailing: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
