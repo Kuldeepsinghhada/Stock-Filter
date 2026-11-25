@@ -4,7 +4,6 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'package:stock_demo/APIService/backend_order_service.dart';
 import 'package:stock_demo/Utils/sharepreference_helper.dart';
-import 'package:stock_demo/Widgets/app_drawer.dart';
 import 'package:stock_demo/model/server_setting_model.dart';
 
 class ServerSettingScreen extends StatefulWidget {
@@ -33,6 +32,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
   bool _enableTelegramAlert = true;
   bool _enableAutoTradingIntraday = false;
   bool _enableAutoTradingSwing = false;
+  String _swingProduct = "CNC";
   bool _enableScreenerSync = true;
   String? _updatedAt;
 
@@ -45,13 +45,19 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
 
   Future<void> _checkConnectionStatus() async {
     try {
-      final isHealthy = await BackendOrderService.healthCheck();
+      final isSessionValid = await BackendOrderService.isSessionActive();
       if (mounted) {
         setState(() {
-          _isBackendConnected = isHealthy;
+          _isBackendConnected = isSessionValid;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isBackendConnected = false;
+        });
+      }
+    }
   }
 
   Future<void> _connectBackend() async {
@@ -61,19 +67,20 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
     });
 
     try {
-      // 1. Health Check
       final isHealthy = await BackendOrderService.healthCheck();
       if (!isHealthy) {
-        Fluttertoast.showToast(msg: "Backend health check failed. Check server status.");
+        Fluttertoast.showToast(
+            msg: "Backend health check failed. Check server status.");
         return;
       }
 
-      // 2. Save Zerodha Session
       final accessToken = await SharedPreferenceHelper.instance.getToken();
-      final refreshToken = await SharedPreferenceHelper.instance.getRefreshToken();
+      final refreshToken =
+          await SharedPreferenceHelper.instance.getRefreshToken();
 
       if (accessToken == null || accessToken.isEmpty) {
-        Fluttertoast.showToast(msg: "No Kite Access Token found. Please log in first.");
+        Fluttertoast.showToast(
+            msg: "No Kite Access Token found. Please log in first.");
         return;
       }
 
@@ -142,6 +149,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
         _enableTelegramAlert = settings.enableTelegramAlert;
         _enableAutoTradingIntraday = settings.enableAutoTradingIntraday;
         _enableAutoTradingSwing = settings.enableAutoTradingSwing;
+        _swingProduct = settings.swingProduct;
         _enableScreenerSync = settings.enableScreenerSync;
         _updatedAt = settings.updatedAt;
         _isLoading = false;
@@ -170,7 +178,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
         int.tryParse(_maxTradePerDayController.text.trim());
     if (maxTradesPerDay == null || maxTradesPerDay <= 0) {
       Fluttertoast.showToast(
-          msg: "Please enter a valid number of trades per day (min 1)");
+          msg: "Please enter valid trades per day (min 1)");
       return;
     }
 
@@ -191,6 +199,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
       maxTradePerDay: maxTradesPerDay,
       maxTradeAmountSwing: maxAmountSwing,
       enableAutoTradingSwing: _enableAutoTradingSwing,
+      swingProduct: _swingProduct,
       squareOffTime: _formatTimeOfDay(_squareOffTime),
       enableTelegramAlert: _enableTelegramAlert,
       enableScreenerSync: _enableScreenerSync,
@@ -208,7 +217,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
       Fluttertoast.showToast(
         msg: response.message.isNotEmpty
             ? response.message
-            : "Server settings updated successfully!",
+            : "Server settings saved successfully!",
         backgroundColor: Colors.green,
       );
 
@@ -224,6 +233,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
           _enableTelegramAlert = response.data!.enableTelegramAlert;
           _enableAutoTradingIntraday = response.data!.enableAutoTradingIntraday;
           _enableAutoTradingSwing = response.data!.enableAutoTradingSwing;
+          _swingProduct = response.data!.swingProduct;
           _enableScreenerSync = response.data!.enableScreenerSync;
           _updatedAt =
               response.data!.updatedAt ?? DateTime.now().toIso8601String();
@@ -290,7 +300,7 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
     if (rawDateStr == null || rawDateStr.isEmpty) return "N/A";
     try {
       final dt = DateTime.parse(rawDateStr).toLocal();
-      return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+      return DateFormat('dd MMM, hh:mm a').format(dt);
     } catch (_) {
       return rawDateStr;
     }
@@ -299,18 +309,28 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('Server Settings'),
+        title: const Text(
+          'Server Settings',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh Live Settings',
-            onPressed: _isLoading || _isSaving ? null : _fetchLiveSettings,
+            onPressed: _isLoading || _isSaving
+                ? null
+                : () async {
+                    await _checkConnectionStatus();
+                    await _fetchLiveSettings();
+                  },
           ),
+          const SizedBox(width: 6),
         ],
       ),
       body: _buildBody(),
+      bottomNavigationBar:
+          _isLoading || _errorMessage != null ? null : _buildBottomBar(),
     );
   }
 
@@ -321,10 +341,10 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(),
-            SizedBox(height: 16),
+            SizedBox(height: 14),
             Text(
               "Fetching live server settings...",
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ],
         ),
@@ -338,29 +358,25 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off, size: 64, color: Colors.redAccent),
-              const SizedBox(height: 16),
+              const Icon(Icons.cloud_off, size: 56, color: Colors.redAccent),
+              const SizedBox(height: 14),
               Text(
-                "Unable to Load Live Settings",
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                "Unable to Load Settings",
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               ElevatedButton.icon(
                 onPressed: _fetchLiveSettings,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(Icons.refresh, size: 16),
                 label: const Text("Retry Connection"),
-                style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
               ),
             ],
           ),
@@ -369,428 +385,790 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchLiveSettings,
+      onRefresh: () async {
+        await _checkConnectionStatus();
+        await _fetchLiveSettings();
+      },
       child: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            // Server Connection Status Card
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Server Connection Banner with Connect / Reconnect button
+              _buildConnectionBanner(),
+
+              // Intraday Card
+              _buildIntradayCard(),
+              const SizedBox(height: 10),
+
+              // Swing Card
+              _buildSwingCard(),
+              const SizedBox(height: 10),
+
+              // Global Automation & Alerts (Screener Sync + Telegram Alert)
+              _buildAlertsBar(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _isBackendConnected
+            ? Colors.green.withValues(alpha: 0.08)
+            : Colors.amber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: _isBackendConnected
+              ? Colors.greenAccent.withValues(alpha: 0.3)
+              : Colors.amberAccent.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
               color: _isBackendConnected
-                  ? Colors.green.withValues(alpha: 0.12)
-                  : Colors.amber.withValues(alpha: 0.12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 12.0,
+                  ? Colors.greenAccent.withValues(alpha: 0.18)
+                  : Colors.amberAccent.withValues(alpha: 0.18),
+            ),
+            child: Icon(
+              _isBackendConnected ? Icons.cloud_done : Icons.cloud_off,
+              color: _isBackendConnected
+                  ? Colors.greenAccent
+                  : Colors.amberAccent,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _isBackendConnected
+                      ? "Server Connected"
+                      : "Server Disconnected",
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: _isBackendConnected
+                        ? Colors.greenAccent
+                        : Colors.amberAccent,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
+                Text(
+                  _isBackendConnected
+                      ? "Zerodha session active & token synced"
+                      : "Sync Zerodha token for live execution",
+                  style: const TextStyle(fontSize: 10.5, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 32,
+            child: ElevatedButton.icon(
+              onPressed: _isConnecting ? null : _connectBackend,
+              icon: _isConnecting
+                  ? const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(
                       _isBackendConnected
-                          ? Icons.cloud_done
-                          : Icons.cloud_off,
-                      color: _isBackendConnected
-                          ? Colors.greenAccent
-                          : Colors.amberAccent,
-                      size: 28,
+                          ? Icons.sync_rounded
+                          : Icons.link_rounded,
+                      size: 14,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              label: Text(
+                _isConnecting
+                    ? "Connecting..."
+                    : _isBackendConnected
+                        ? "Reconnect"
+                        : "Connect Server",
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isBackendConnected
+                    ? Colors.green.withValues(alpha: 0.2)
+                    : Colors.blueAccent,
+                foregroundColor:
+                    _isBackendConnected ? Colors.greenAccent : Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  side: BorderSide(
+                    color: _isBackendConnected
+                        ? Colors.greenAccent.withValues(alpha: 0.5)
+                        : Colors.transparent,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntradayCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B2232),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _enableAutoTradingIntraday
+              ? Colors.blueAccent.withValues(alpha: 0.45)
+              : Colors.white.withValues(alpha: 0.08),
+          width: 1.2,
+        ),
+        boxShadow: [
+          if (_enableAutoTradingIntraday)
+            BoxShadow(
+              color: Colors.blueAccent.withValues(alpha: 0.12),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child:
+                    const Icon(Icons.bolt, size: 15, color: Colors.blueAccent),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "INTRADAY",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  "MIS",
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              _buildAutoTradePill(
+                isActive: _enableAutoTradingIntraday,
+                onChanged: (val) {
+                  setState(() => _enableAutoTradingIntraday = val);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Inputs Row: Max Capital & Trades/Day
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Max Capital (₹)
+              Expanded(
+                flex: 3,
+                child: _buildInputField(
+                  controller: _maxTradeAmountIntradayController,
+                  label: 'Max Capital (₹)',
+                  hint: '20000',
+                  icon: Icons.currency_rupee,
+                  isDecimal: true,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Required';
+                    }
+                    final parsed = double.tryParse(value.trim());
+                    if (parsed == null || parsed <= 0) {
+                      return '> 0';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Trades / Day
+              Expanded(
+                flex: 2,
+                child: _buildInputField(
+                  controller: _maxTradePerDayController,
+                  label: 'Trades/Day',
+                  hint: '1',
+                  icon: Icons.tag,
+                  isDecimal: false,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Required';
+                    }
+                    final parsed = int.tryParse(value.trim());
+                    if (parsed == null || parsed <= 0) {
+                      return '>= 1';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Square-Off Time Row
+          _buildSquareOffRow(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSquareOffRow() {
+    final currentFormatted = _formatTimeOfDay(_squareOffTime);
+    return InkWell(
+      onTap: () => _selectSquareOffTime(context),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.access_time_rounded,
+                size: 16, color: Colors.orangeAccent),
+            const SizedBox(width: 8),
+            const Text(
+              "Square Off Time",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white70,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: Colors.orangeAccent.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    currentFormatted,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orangeAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.edit, size: 11, color: Colors.orangeAccent),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwingCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF221B2E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _enableAutoTradingSwing
+              ? Colors.purpleAccent.withValues(alpha: 0.45)
+              : Colors.white.withValues(alpha: 0.08),
+          width: 1.2,
+        ),
+        boxShadow: [
+          if (_enableAutoTradingSwing)
+            BoxShadow(
+              color: Colors.purpleAccent.withValues(alpha: 0.12),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.purpleAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.auto_graph,
+                    size: 15, color: Colors.purpleAccent),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "SWING",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: Colors.purpleAccent.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _swingProduct,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purpleAccent,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              _buildAutoTradePill(
+                isActive: _enableAutoTradingSwing,
+                onChanged: (val) {
+                  setState(() => _enableAutoTradingSwing = val);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Inputs Row: Max Capital & Product Selector
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Max Capital (₹)
+              Expanded(
+                flex: 3,
+                child: _buildInputField(
+                  controller: _maxTradeAmountSwingController,
+                  label: 'Max Capital (₹)',
+                  hint: '8000',
+                  icon: Icons.currency_rupee,
+                  isDecimal: true,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Required';
+                    }
+                    final parsed = double.tryParse(value.trim());
+                    if (parsed == null || parsed <= 0) {
+                      return '> 0';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Product Type: CNC / MTF Segmented Pills
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 44,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          Text(
-                            _isBackendConnected
-                                ? "Backend Server: Connected"
-                                : "Backend Server: Disconnected",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
+                          _buildProductTogglePill(
+                            type: "CNC",
+                            subtitle: "Delivery",
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _isBackendConnected
-                                ? "Live session active & Zerodha token synced"
-                                : "Sync Zerodha token to enable live alerts & orders",
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
+                          const SizedBox(width: 3),
+                          _buildProductTogglePill(
+                            type: "MTF",
+                            subtitle: "Margin",
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _isConnecting ? null : _connectBackend,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isBackendConnected
-                            ? Colors.green
-                            : Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      child: _isConnecting
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(_isBackendConnected ? "Reconnect" : "Connect"),
-                    ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Intraday Section
-            const Text(
-              "INTRADAY SETTINGS",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.1,
-                color: Colors.blueAccent,
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Subtle hint
+          Row(
+            children: [
+              const Icon(Icons.info_outline, size: 11, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                _swingProduct == "MTF"
+                    ? "MTF: Margin trading facility with leverage"
+                    : "CNC: Standard delivery holdings",
+                style: const TextStyle(fontSize: 10.5, color: Colors.grey),
               ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductTogglePill({
+    required String type,
+    required String subtitle,
+  }) {
+    final isSelected = _swingProduct == type;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _swingProduct = type;
+          });
+        },
+        borderRadius: BorderRadius.circular(6),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.purpleAccent.withValues(alpha: 0.3)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isSelected
+                  ? Colors.purpleAccent.withValues(alpha: 0.6)
+                  : Colors.transparent,
             ),
-            const SizedBox(height: 8),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    // Max Trade Amount Intraday
-                    TextFormField(
-                      controller: _maxTradeAmountIntradayController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                            RegExp(r'^\d*\.?\d*')),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: 'Max Trade Amount Intraday (₹)',
-                        hintText: 'e.g. 20000.00',
-                        prefixIcon: const Icon(Icons.currency_rupee),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        helperText:
-                            'Maximum capital allowed per intraday trade',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Max Trade Amount is required';
-                        }
-                        final parsed = double.tryParse(value.trim());
-                        if (parsed == null || parsed <= 0) {
-                          return 'Enter a valid amount greater than 0';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Max Trade Per Day
-                    TextFormField(
-                      controller: _maxTradePerDayController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      decoration: InputDecoration(
-                        labelText: 'Max Trades Per Day (Intraday)',
-                        hintText: 'e.g. 1',
-                        prefixIcon: const Icon(Icons.numbers),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        helperText:
-                            'Maximum number of intraday trades allowed per day',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Max Trades Per Day is required';
-                        }
-                        final parsed = int.tryParse(value.trim());
-                        if (parsed == null || parsed <= 0) {
-                          return 'Enter a valid count of at least 1';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    SwitchListTile(
-                      title: const Text('Enable Auto Trading Intraday'),
-                      value: _enableAutoTradingIntraday,
-                      onChanged: (bool value) {
-                        setState(() {
-                          _enableAutoTradingIntraday = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.access_time_filled,
-                          color: Colors.orangeAccent),
-                      title: const Text('Square Off Time'),
-                      subtitle: Text(
-                        'Scheduled time to close intraday positions (${_formatTimeOfDay(_squareOffTime)})',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.orangeAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: Colors.orangeAccent.withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _formatTimeOfDay(_squareOffTime),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orangeAccent,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.edit,
-                                size: 16, color: Colors.orangeAccent),
-                          ],
-                        ),
-                      ),
-                      onTap: () => _selectSquareOffTime(context),
-                    ),
-                  ],
+          ),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                type,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  color: isSelected ? Colors.purpleAccent : Colors.grey,
                 ),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Swing Section
-            const Text(
-              "SWING SETTINGS",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.1,
-                color: Colors.blueAccent,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    // Max Trade Amount Swing
-                    TextFormField(
-                      controller: _maxTradeAmountSwingController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                            RegExp(r'^\d*\.?\d*')),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: 'Max Trade Amount Swing (₹)',
-                        hintText: 'e.g. 8000.00',
-                        prefixIcon: const Icon(Icons.currency_rupee),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        helperText:
-                            'Maximum capital allowed per swing trade',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Max Trade Amount is required';
-                        }
-                        final parsed = double.tryParse(value.trim());
-                        if (parsed == null || parsed <= 0) {
-                          return 'Enter a valid amount greater than 0';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    SwitchListTile(
-                      title: const Text('Enable Auto Trading Swing'),
-                      value: _enableAutoTradingSwing,
-                      onChanged: (bool value) {
-                        setState(() {
-                          _enableAutoTradingSwing = value;
-                        });
-                      },
-                    ),
-                  ],
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 8.5,
+                  color: isSelected ? Colors.white70 : Colors.grey[600],
                 ),
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 24),
-
-            // Automation & Alerts
-            const Text(
-              "AUTOMATION & ALERTS",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.1,
-                color: Colors.blueAccent,
-              ),
+  Widget _buildAutoTradePill({
+    required bool isActive,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: isActive
+            ? Colors.green.withValues(alpha: 0.12)
+            : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive
+              ? Colors.greenAccent.withValues(alpha: 0.35)
+              : Colors.grey.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive ? Colors.greenAccent : Colors.grey,
             ),
-            const SizedBox(height: 8),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    secondary: Icon(
-                      Icons.sync_rounded,
-                      color: _enableScreenerSync
-                          ? Colors.amberAccent
-                          : Colors.grey,
-                    ),
-                    title: const Text(
-                      'Enable Screener Sync',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      _enableScreenerSync
-                          ? 'Live screener data sync is active. Required for server alerts & auto trading.'
-                          : 'Screener sync is disabled. Auto trading & alerts will be inactive.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _enableScreenerSync
-                            ? Colors.amber
-                            : Colors.redAccent,
-                      ),
-                    ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            isActive ? "Auto: ON" : "Auto: OFF",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isActive ? Colors.greenAccent : Colors.grey,
+            ),
+          ),
+          Transform.scale(
+            scale: 0.65,
+            child: Switch(
+              value: isActive,
+              activeThumbColor: Colors.greenAccent,
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertsBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: [
+          // Screener Sync
+          Expanded(
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sync,
+                  size: 15,
+                  color: _enableScreenerSync ? Colors.amberAccent : Colors.grey,
+                ),
+                const SizedBox(width: 5),
+                const Expanded(
+                  child: Text(
+                    "Screener Sync",
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Transform.scale(
+                  scale: 0.7,
+                  child: Switch(
                     value: _enableScreenerSync,
-                    onChanged: (bool value) {
-                      setState(() {
-                        _enableScreenerSync = value;
-                      });
+                    activeThumbColor: Colors.amberAccent,
+                    onChanged: (val) {
+                      setState(() => _enableScreenerSync = val);
                     },
                   ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    secondary:
-                        const Icon(Icons.send_rounded, color: Colors.lightBlue),
-                    title: const Text('Enable Telegram Alert'),
-                    subtitle: const Text(
-                      'Receive instant signal & trade updates via Telegram',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 22,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+          ),
+          // Telegram Alert
+          Expanded(
+            child: Row(
+              children: [
+                Icon(
+                  Icons.send_rounded,
+                  size: 14,
+                  color: _enableTelegramAlert
+                      ? Colors.lightBlueAccent
+                      : Colors.grey,
+                ),
+                const SizedBox(width: 5),
+                const Expanded(
+                  child: Text(
+                    "Telegram Alert",
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Transform.scale(
+                  scale: 0.7,
+                  child: Switch(
                     value: _enableTelegramAlert,
-                    onChanged: (bool value) {
-                      setState(() {
-                        _enableTelegramAlert = value;
-                      });
+                    activeThumbColor: Colors.lightBlueAccent,
+                    onChanged: (val) {
+                      setState(() => _enableTelegramAlert = val);
                     },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required bool isDecimal,
+    required String? Function(String?) validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.numberWithOptions(decimal: isDecimal),
+      inputFormatters: [
+        if (isDecimal)
+          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+        else
+          FilteringTextInputFormatter.digitsOnly,
+      ],
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 11.5),
+        hintText: hint,
+        hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+        prefixIcon: Icon(icon, size: 14),
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      validator: validator,
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_updatedAt != null) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.history, size: 11, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    "Synced: ${_formatUpdatedAt(_updatedAt)}",
+                    style: const TextStyle(fontSize: 10.5, color: Colors.grey),
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Updated At Chip
-            if (_updatedAt != null)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.history, size: 14, color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Text(
-                        "Last Updated: ${_formatUpdatedAt(_updatedAt)}",
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 28),
-
-            // Save Button
+              const SizedBox(height: 5),
+            ],
             SizedBox(
-              height: 52,
+              height: 44,
+              width: double.infinity,
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveServerSettings,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blueAccent,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 3,
+                  elevation: 2,
                 ),
                 child: _isSaving
                     ? const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 16,
+                            height: 16,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
+                              strokeWidth: 2,
                               color: Colors.white,
                             ),
                           ),
-                          SizedBox(width: 12),
+                          SizedBox(width: 8),
                           Text(
-                            "Saving to Server...",
+                            "Saving Settings...",
                             style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       )
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.save_rounded),
-                          SizedBox(width: 8),
+                          Icon(Icons.save_rounded, size: 16),
+                          SizedBox(width: 6),
                           Text(
                             "Save Server Settings",
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 13,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -798,7 +1176,6 @@ class _ServerSettingScreenState extends State<ServerSettingScreen> {
                       ),
               ),
             ),
-            const SizedBox(height: 16),
           ],
         ),
       ),

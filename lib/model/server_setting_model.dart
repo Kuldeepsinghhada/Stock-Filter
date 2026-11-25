@@ -4,6 +4,7 @@ class ServerSettings {
   final int maxTradePerDay;
   final double maxTradeAmountSwing;
   final bool enableAutoTradingSwing;
+  final String swingProduct;
   final String squareOffTime;
   final bool enableTelegramAlert;
   final bool enableScreenerSync;
@@ -21,6 +22,7 @@ class ServerSettings {
     int? maxTradePerDay,
     required this.maxTradeAmountSwing,
     required this.enableAutoTradingSwing,
+    String? swingProduct,
     required this.squareOffTime,
     required this.enableTelegramAlert,
     required this.enableScreenerSync,
@@ -29,7 +31,11 @@ class ServerSettings {
             maxTradeAmountIntraday ?? maxTradeAmount ?? 20000.0,
         enableAutoTradingIntraday =
             enableAutoTradingIntraday ?? enableAutoTrading ?? false,
-        maxTradePerDay = maxTradePerDay ?? 1;
+        maxTradePerDay = maxTradePerDay ?? 1,
+        swingProduct = (swingProduct != null &&
+                swingProduct.toUpperCase().trim() == "MTF")
+            ? "MTF"
+            : "CNC";
 
   factory ServerSettings.fromJson(Map<String, dynamic> json) {
     double parseDouble(dynamic val, [double defaultVal = 0.0]) {
@@ -50,6 +56,12 @@ class ServerSettings {
       if (val is bool) return val;
       final str = val.toString().toLowerCase().trim();
       return str == 'true' || str == '1' || str == 'yes' || str == 'success';
+    }
+
+    String parseSwingProduct(dynamic val) {
+      if (val == null) return "CNC";
+      final str = val.toString().toUpperCase().trim();
+      return str == "MTF" ? "MTF" : "CNC";
     }
 
     return ServerSettings(
@@ -81,6 +93,9 @@ class ServerSettings {
             json['enable_auto_trading_swing'],
         false,
       ),
+      swingProduct: parseSwingProduct(
+        json['swingProduct'] ?? json['swing_product'],
+      ),
       squareOffTime: (json['squareOffTime'] ??
               json['square_off_time'] ??
               "15:15")
@@ -106,6 +121,7 @@ class ServerSettings {
       "maxTradePerDay": maxTradePerDay,
       "maxTradeAmountSwing": maxTradeAmountSwing,
       "enableAutoTradingSwing": enableAutoTradingSwing,
+      "swingProduct": swingProduct,
       "squareOffTime": squareOffTime,
       "enableTelegramAlert": enableTelegramAlert,
       "enableScreenerSync": enableScreenerSync,
@@ -118,6 +134,7 @@ class ServerSettings {
     int? maxTradePerDay,
     double? maxTradeAmountSwing,
     bool? enableAutoTradingSwing,
+    String? swingProduct,
     String? squareOffTime,
     bool? enableTelegramAlert,
     bool? enableScreenerSync,
@@ -132,6 +149,7 @@ class ServerSettings {
       maxTradeAmountSwing: maxTradeAmountSwing ?? this.maxTradeAmountSwing,
       enableAutoTradingSwing:
           enableAutoTradingSwing ?? this.enableAutoTradingSwing,
+      swingProduct: swingProduct ?? this.swingProduct,
       squareOffTime: squareOffTime ?? this.squareOffTime,
       enableTelegramAlert: enableTelegramAlert ?? this.enableTelegramAlert,
       enableScreenerSync: enableScreenerSync ?? this.enableScreenerSync,

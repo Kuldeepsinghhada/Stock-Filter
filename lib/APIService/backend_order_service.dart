@@ -11,7 +11,7 @@ import 'package:stock_demo/model/check_stock_5min_history_model.dart';
 import 'package:stock_demo/model/investment_model.dart';
 
 class BackendOrderService {
-  static const String baseUrl = 'http://200.97.163.130:8080';
+  static const String baseUrl = 'http://localhost:8080';
   // LOCAL:  http://localhost:8080
   // LIVE http://200.97.163.130:8080
   /// Health Check
@@ -44,6 +44,46 @@ class BackendOrderService {
     } catch (e) {
       return false;
     }
+  }
+
+  /// Check if Zerodha session is active on backend
+  /// Performs GET /session to verify if accessToken is present and active.
+  /// Handles { "status": "success", "message": "No session saved currently", "data": null }
+  static Future<bool> isSessionActive() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/session'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return parseSessionIsActive(data);
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Helper to determine if session payload has a valid active token
+  static bool parseSessionIsActive(dynamic data) {
+    if (data is! Map) return false;
+
+    // If data['data'] is null or not a Map, no active session exists
+    final sessionData = data['data'];
+    if (sessionData == null || sessionData is! Map) {
+      return false;
+    }
+
+    final isSuccess = data['success'] == true ||
+        data['status'] == true ||
+        data['status'] == 'success' ||
+        data['status'] == 'ok';
+
+    if (!isSuccess) return false;
+
+    final token = sessionData['accessTokenMasked'] ??
+        sessionData['accessToken'] ??
+        sessionData['access_token'];
+
+    return token != null && token.toString().trim().isNotEmpty;
   }
 
   /// Get Zerodha Session
